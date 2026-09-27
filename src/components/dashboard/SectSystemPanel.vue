@@ -66,7 +66,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Home, Users, BookOpen, Coins, Building2, Swords, ClipboardList, Crown, Building } from 'lucide-vue-next';
+import { Home, Users, BookOpen, Coins, Building2, ClipboardList, Crown, Building } from 'lucide-vue-next';
 import { useGameStateStore } from '@/stores/gameStateStore';
  import { detectPlayerSectLeadership, isLeaderPosition } from '@/utils/sectLeadershipUtils';
 import type { WorldFaction, WorldInfo } from '@/types/game';
@@ -78,10 +78,13 @@ const gameStateStore = useGameStateStore();
 // 获取玩家名字
 const playerName = computed(() => gameStateStore.character?.名字 || '');
 
-// 获取所有宗门列表
+// 获取所有宗门列表（优先直接读 store,避免存档字段不全时 toSaveData 返回 null 导致列表为空）
 const allSects = computed(() => {
-  const data = gameStateStore.getCurrentSaveData();
-  const worldInfo = (data as any)?.世界?.信息 as WorldInfo | undefined;
+  let worldInfo = gameStateStore.worldInfo as WorldInfo | undefined;
+  if (!worldInfo?.势力信息) {
+    const data = gameStateStore.getCurrentSaveData();
+    worldInfo = (data as any)?.世界?.信息 as WorldInfo | undefined;
+  }
   return (worldInfo?.势力信息 || []) as WorldFaction[];
 });
 
@@ -136,7 +139,6 @@ const allTabs: SectTab[] = [
   { group: '内务', name: 'SectContribution', label: '兑换', icon: Coins, requireJoin: true },
 
   { group: '宗主', name: 'SectManagement', label: '经营', icon: Building2, requireJoin: true, requireLeader: true },
-  { group: '宗主', name: 'SectWar', label: '大战', icon: Swords, requireJoin: true, requireLeader: true },
 ];
 
 // 根据是否加入宗门过滤Tab
@@ -278,9 +280,9 @@ const goToTab = (name: string) => {
 }
 
 .role-pill.master {
-  border-color: rgba(234, 179, 8, 0.35);
-  background: rgba(234, 179, 8, 0.12);
-  color: #a16207;
+  border-color: rgba(var(--color-warning-rgb), 0.4);
+  background: rgba(var(--color-warning-rgb), 0.12);
+  color: var(--color-warning);
 }
 .role-pill.leader {
   border-color: rgba(var(--color-primary-rgb), 0.35);
@@ -288,9 +290,9 @@ const goToTab = (name: string) => {
   color: var(--color-primary);
 }
 .role-pill.member {
-  border-color: rgba(34, 197, 94, 0.30);
-  background: rgba(34, 197, 94, 0.10);
-  color: #166534;
+  border-color: rgba(var(--color-success-rgb), 0.3);
+  background: rgba(var(--color-success-rgb), 0.1);
+  color: var(--color-success);
 }
 .role-pill.none {
   border-color: rgba(var(--color-border-rgb), 0.5);

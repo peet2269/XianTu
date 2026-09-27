@@ -2,15 +2,25 @@
   <div class="creation-container">
     <VideoBackground />
     <div class="creation-scroll">
-      <!-- 进度条 -->
-      <div class="header-container">
+      <span class="frame-corner tl" aria-hidden="true"></span>
+      <span class="frame-corner tr" aria-hidden="true"></span>
+      <span class="frame-corner bl" aria-hidden="true"></span>
+      <span class="frame-corner br" aria-hidden="true"></span>
+
+      <!-- 头部 -->
+      <header class="header-container">
         <div class="header-top">
-          <!-- 左侧：模式指示 -->
-          <div class="mode-indicator">
-            {{ store.isLocalCreation ? $t('单机模式') : $t('联机模式') }}
+          <div class="header-title">
+            <span class="mode-seal" :class="{ cloud: !store.isLocalCreation }">
+              {{ store.isLocalCreation ? $t('单机') : $t('云端') }}
+            </span>
+            <div class="title-text">
+              <h1 class="page-title">{{ stepLabels[store.currentStep - 1] }}</h1>
+              <span class="page-sub">{{ stepCounter }}</span>
+            </div>
           </div>
 
-          <!-- 右侧：云端同步按钮（仅单机模式显示） -->
+          <!-- 右侧：云端同步 / 预设（仅单机模式显示） -->
           <div v-if="store.isLocalCreation" class="cloud-sync-container">
             <CloudDataSync @sync-completed="onSyncCompleted" variant="compact" size="small" />
             <StorePreSeting
@@ -26,21 +36,36 @@
           </div>
         </div>
 
-        <div class="progress-steps">
-          <div
+        <!-- 修行之路：步骤进度 -->
+        <nav class="progress-steps" :aria-label="$t('创角步骤')">
+          <div class="progress-track" aria-hidden="true">
+            <div class="progress-fill" :style="{ width: progressPercent }"></div>
+          </div>
+          <button
             v-for="step in store.totalSteps"
-          :key="step"
-          class="step"
-          :class="{ active: store.currentStep >= step }"
-        >
-          <div class="step-circle">{{ step }}</div>
-          <div class="step-label">{{ stepLabels[step - 1] }}</div>
-        </div>
-        </div>
-      </div>
+            :key="step"
+            type="button"
+            class="step"
+            :class="{
+              done: step < store.currentStep,
+              current: step === store.currentStep,
+            }"
+            :disabled="step >= store.currentStep || store.isCreating"
+            :aria-current="step === store.currentStep ? 'step' : undefined"
+            :title="step < store.currentStep ? $t('返回此步') : undefined"
+            @click="store.goToStep(step)"
+          >
+            <span class="step-node">
+              <Check v-if="step < store.currentStep" :size="14" :stroke-width="3" />
+              <span v-else class="step-numeral">{{ chineseNumerals[step - 1] }}</span>
+            </span>
+            <span class="step-label">{{ stepLabels[step - 1] }}</span>
+          </button>
+        </nav>
+      </header>
 
       <!-- 内容区域 -->
-      <div class="step-content">
+      <main class="step-content">
         <transition name="fade-step" mode="out-in">
           <div :key="store.currentStep" class="step-wrapper">
             <Step1_WorldSelection
@@ -75,44 +100,45 @@
             />
           </div>
         </transition>
-      </div>
+      </main>
 
       <!-- 导航 -->
-      <div class="navigation-buttons">
-        <button @click.prevent="handleBack" type="button" class="btn btn-secondary">
-          {{ store.currentStep === 1 ? $t('返回道途') : $t('上一步') }}
+      <footer class="navigation-buttons">
+        <button @click.prevent="handleBack" type="button" class="cc-btn nav-back">
+          <ArrowLeft :size="16" />
+          <span>{{ store.currentStep === 1 ? $t('返回道途') : $t('上一步') }}</span>
         </button>
 
-        <!-- 剩余点数显示 -->
+        <!-- 剩余天道点 -->
         <div class="points-display">
-          <div v-if="store.currentStep >= 3 && store.currentStep <= 7" class="destiny-points">
-            <span class="points-label">{{ $t('剩余天道点') }}:</span>
-            <span class="points-value" :class="{ low: store.remainingTalentPoints < 0 }">
-              {{ store.remainingTalentPoints }}
-            </span>
+          <div
+            v-if="store.currentStep >= 3 && store.currentStep <= 7"
+            class="destiny-points"
+            :class="{ low: store.remainingTalentPoints < 0 }"
+          >
+            <span class="points-label">{{ $t('剩余天道点') }}</span>
+            <span class="points-value">{{ store.remainingTalentPoints }}</span>
           </div>
         </div>
 
         <button
           type="button"
-          @click.prevent="(event: Event) => { console.log('[DEBUG] 开启仙途按钮被点击!'); handleNext(event); }"
-          :disabled="
-            store.isCreating ||
-            isNextDisabled ||
-            (store.currentStep === store.totalSteps && store.remainingTalentPoints < 0)
-          "
-          class="btn"
-          :class="{
-            'btn-complete': store.currentStep === store.totalSteps,
-            'disabled': store.isCreating || isNextDisabled || (store.currentStep === store.totalSteps && store.remainingTalentPoints < 0)
-          }"
+          @click.prevent="handleNext"
+          :disabled="isNextBlocked"
+          class="cc-btn primary nav-next"
+          :class="{ 'is-final': store.currentStep === store.totalSteps }"
         >
-          {{ store.currentStep === store.totalSteps ? $t('开启仙途') : $t('下一步') }}
+          <template v-if="store.currentStep === store.totalSteps">
+            <Sparkles :size="16" />
+            <span>{{ $t('开启仙途') }}</span>
+          </template>
+          <template v-else>
+            <span>{{ $t('下一步') }}</span>
+            <ArrowRight :size="16" />
+          </template>
         </button>
-      </div>
+      </footer>
     </div>
-
-    <!-- 仙缘信物按钮 - 只在联机模式下点击AI推演时显示 -->
 
     <RedemptionCodeModal
       :visible="isCodeModalVisible"
@@ -121,8 +147,6 @@
       @close="isCodeModalVisible = false"
       @submit="handleCodeSubmit"
     />
-
-    <!-- AI生成等待由全局toast处理 -->
   </div>
 </template>
 
@@ -141,6 +165,8 @@ import Step5_TalentSelection from '../components/character-creation/Step5_Talent
 import Step6_AttributeAllocation from '../components/character-creation/Step6_AttributeAllocation.vue'
 import Step7_Preview from '../components/character-creation/Step7_Preview.vue'
 import RedemptionCodeModal from '../components/character-creation/RedemptionCodeModal.vue'
+import { ArrowLeft, ArrowRight, Check, Sparkles } from 'lucide-vue-next';
+import '@/styles/creation-theme.css';
 import { request, verifyStoredToken } from '../services/request'
 import { toast } from '../utils/toast'
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
@@ -158,7 +184,7 @@ const emit = defineEmits<{
   (e: 'creation-complete', payload: { error?: unknown; [key: string]: unknown }): void; // 允许传递错误对象
 }>()
 const store = useCharacterCreationStore();
-const { t } = useI18n();
+const { t, currentLanguage } = useI18n();
 const isCodeModalVisible = ref(false)
 // 使用 store 中的 isCreating 状态，不再使用本地 ref
 const currentAIType = ref<'world' | 'talent_tier' | 'origin' | 'spirit_root' | 'talent'>('world')
@@ -366,6 +392,24 @@ const stepLabels = computed(() => [
   t('窥天算命'),
 ])
 
+const chineseNumerals = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+
+const stepCounter = computed(() => {
+  if (currentLanguage.value === 'en') return `Step ${store.currentStep} / ${store.totalSteps}`;
+  return `第${chineseNumerals[store.currentStep - 1]}步 · 共${chineseNumerals[store.totalSteps - 1]}步`;
+});
+
+const progressPercent = computed(() => {
+  const total = Math.max(1, store.totalSteps - 1);
+  return `${((store.currentStep - 1) / total) * 100}%`;
+});
+
+const isNextBlocked = computed(() =>
+  store.isCreating ||
+  isNextDisabled.value ||
+  (store.currentStep === store.totalSteps && store.remainingTalentPoints < 0)
+);
+
 const characterDataForPreset = computed(() => ({
   // 基础信息
   character_name: store.characterPayload.character_name,
@@ -510,13 +554,13 @@ async function createCharacter() {
 
   if (!store.isLocalCreation) {
     if (!isBackendConfigured()) {
-      toast.error('联机模式需要先配置后端服务器地址');
+      toast.error('云端修行需要先配置后端服务器地址');
       store.resetCreationState();
       return;
     }
     const tokenOk = await verifyStoredToken();
     if (!tokenOk) {
-      toast.error('联机模式需要先登录');
+      toast.error('云端修行需要先登录');
       store.resetCreationState();
       return;
     }
@@ -763,307 +807,415 @@ async function onLoadCompleted(result: { success: boolean; message: string; pres
 }
 </style>
 
+
 <style scoped>
-/* ========== 基础布局 - 深色玻璃拟态风格 ========== */
+/* ============================================================
+   创角外壳 —— 颜色令牌见 styles/creation-theme.css
+   ============================================================ */
 .step-wrapper {
   height: 100%;
 }
 
 .creation-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
   overflow: hidden;
   box-sizing: border-box;
-  background: transparent; /* 透明背景以显示视频 */
+  background: transparent;
 }
 
 .creation-scroll {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
   width: 95%;
   max-width: 1200px;
   height: 92vh;
   max-height: 92vh;
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  padding: 2rem;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  position: relative;
-  z-index: 1;
+  padding: 1.75rem 2rem 1.5rem;
+  box-sizing: border-box;
   overflow: hidden;
+  background: var(--cc-shell-bg);
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 6px;
+  box-shadow: var(--cc-shell-shadow);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
 }
 
-/* ========== 头部区域 ========== */
+/* 古籍内框 + 四角回纹 */
+.creation-scroll::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.16);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.frame-corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 0 solid var(--cc-gold);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.frame-corner.tl { top: 5px; left: 5px; border-top-width: 2px; border-left-width: 2px; }
+.frame-corner.tr { top: 5px; right: 5px; border-top-width: 2px; border-right-width: 2px; }
+.frame-corner.bl { bottom: 5px; left: 5px; border-bottom-width: 2px; border-left-width: 2px; }
+.frame-corner.br { bottom: 5px; right: 5px; border-bottom-width: 2px; border-right-width: 2px; }
+
+/* ---------- 头部 ---------- */
 .header-container {
-  margin-bottom: 1.5rem;
   flex-shrink: 0;
+  margin-bottom: 1rem;
 }
 
 .header-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.1rem;
 }
 
-.mode-indicator {
-  font-size: 0.75rem;
-  color: #fbbf24;
-  padding: 0.25rem 0.75rem;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.25);
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+/* 模式朱印 */
+.mode-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 3px;
+  box-sizing: border-box;
+  flex-shrink: 0;
   border-radius: 4px;
-  font-weight: 500;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+  font-family: var(--cc-calligraphy);
+  font-size: 15px;
+  line-height: 1.05;
+  text-align: center;
+  writing-mode: vertical-rl;
   letter-spacing: 0.05em;
+  transform: rotate(-4deg);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 240, 230, 0.55), 0 2px 6px rgba(120, 20, 10, 0.3);
+}
+
+.mode-seal.cloud {
+  background: #2c5aa0;
+  box-shadow: inset 0 0 0 1.5px rgba(230, 240, 255, 0.55), 0 2px 6px rgba(20, 40, 120, 0.3);
+}
+
+.title-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.page-title {
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 1.9rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.12em;
+  color: var(--cc-text);
+}
+
+.page-sub {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: var(--cc-text-3);
 }
 
 .cloud-sync-container {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
   flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-/* ========== 进度步骤 ========== */
+/* 中等宽度时右上角全局菜单按钮会压在面板上，给它让出位置 */
+@media (max-width: 1400px) and (min-width: 481px) {
+  .header-top {
+    padding-right: 56px;
+  }
+}
+
+/* ---------- 修行之路 ---------- */
 .progress-steps {
+  position: relative;
   display: flex;
   justify-content: space-between;
-  width: 100%;
+  gap: 0.25rem;
+  /* 横向可滚动会同时裁切纵向，留出上下空间给当前步骤的光晕 */
+  padding: 18px 6px 8px;
+  margin: -18px -6px -8px;
   overflow-x: auto;
   overflow-y: hidden;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
   scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 
 .progress-steps::-webkit-scrollbar {
   display: none;
 }
 
+.progress-track {
+  position: absolute;
+  top: calc(18px + 16px);
+  left: 38px;
+  right: 38px;
+  height: 2px;
+  background: var(--cc-divider);
+  border-radius: 1px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.4), var(--cc-gold));
+  box-shadow: 0 0 8px rgba(var(--cc-gold-rgb), 0.5);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .step {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  opacity: 0.4;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
-  min-width: 60px;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  min-width: 64px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
   cursor: default;
 }
 
-.step.active {
-  opacity: 1;
+.step.done:not(:disabled) {
+  cursor: pointer;
 }
 
-.step-circle {
+.step-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--cc-shell-bg);
+  border: 1px solid var(--cc-border-strong);
+  color: var(--cc-text-3);
+  transition: all 0.35s ease;
+}
+
+.step-numeral {
+  font-family: var(--cc-calligraphy);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.step.done .step-node {
+  background: var(--cc-gold);
+  border-color: var(--cc-gold);
+  color: #1a1408;
+}
+
+.step.done:not(:disabled):hover .step-node {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 4px rgba(var(--cc-gold-rgb), 0.18);
+}
+
+.step.current .step-node {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: rgba(30, 41, 59, 0.8);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #94a3b8;
-  transition: all 0.3s ease;
+  margin: -2px 0;
+  background: var(--cc-primary-bg);
+  border: 1px solid var(--cc-primary-border);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(var(--cc-accent-rgb), 0.14), 0 0 18px rgba(var(--cc-accent-rgb), 0.45);
 }
 
-.step.active .step-circle {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
-  color: #ffffff;
-  border-color: rgba(96, 165, 250, 0.5);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+.step.current .step-numeral {
+  font-size: 1.15rem;
 }
 
 .step-label {
-  margin-top: 0.5rem;
-  font-size: 0.7rem;
-  color: #64748b;
-  text-align: center;
-  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  color: var(--cc-text-3);
+  transition: color 0.3s ease;
 }
 
-.step.active .step-label {
-  color: #f1f5f9;
-  font-weight: 500;
+.step.done .step-label {
+  color: var(--cc-text-2);
 }
 
-/* ========== 内容区域 ========== */
+.step.current .step-label {
+  color: var(--cc-text);
+  font-weight: 600;
+}
+
+.step:focus-visible {
+  outline: none;
+}
+
+.step:focus-visible .step-node {
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.35);
+}
+
+/* ---------- 内容区 ---------- */
 .step-content {
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
   overflow-x: hidden;
-  padding: 1.5rem 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
+  overflow-y: auto;
+  padding: 1.1rem 0.25rem;
+  border-top: 1px solid var(--cc-divider);
+  border-bottom: 1px solid var(--cc-divider);
 }
 
-.step-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.step-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.step-content::-webkit-scrollbar-thumb {
-  background: rgba(147, 197, 253, 0.3);
-  border-radius: 3px;
-}
-
-.step-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(147, 197, 253, 0.5);
-}
-
-/* ========== 导航按钮 ========== */
+/* ---------- 底部导航 ---------- */
 .navigation-buttons {
+  position: relative;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
   flex-shrink: 0;
-  padding-top: 1.5rem;
-  position: relative;
+  padding-top: 1.1rem;
+}
+
+.nav-back,
+.nav-next {
+  min-width: 132px;
+}
+
+.nav-next.is-final:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transform: skewX(-20deg);
+  animation: sheen 3.5s ease-in-out infinite;
+}
+
+@keyframes sheen {
+  0%, 55% { left: -60%; }
+  100% { left: 130%; }
 }
 
 .points-display {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   position: absolute;
   left: 50%;
+  display: flex;
+  justify-content: center;
   transform: translateX(-50%);
 }
 
 .destiny-points {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.9rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.4);
+  border-radius: 999px;
+  background: rgba(var(--cc-gold-rgb), 0.07);
 }
 
 .points-label {
-  color: #94a3b8;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-2);
 }
 
 .points-value {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #93c5fd;
+  min-width: 2.2rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--cc-gold);
+  color: #1a1408;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.points-value.low {
-  color: #f87171;
-  animation: pulse 1s ease-in-out infinite;
+.destiny-points.low {
+  border-color: rgba(var(--cc-danger-rgb), 0.55);
+  background: rgba(var(--cc-danger-rgb), 0.08);
+}
+
+.destiny-points.low .points-value {
+  background: var(--cc-danger);
+  color: #fff;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.55; }
 }
 
-/* ========== 亮色主题适配 ========== */
-[data-theme="light"] .creation-scroll {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.08);
+@media (prefers-reduced-motion: reduce) {
+  .nav-next.is-final::after,
+  .destiny-points.low .points-value {
+    animation: none;
+  }
 }
 
-[data-theme="light"] .mode-indicator {
-  color: #d97706;
-  background: rgba(251, 191, 36, 0.15);
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
-[data-theme="light"] .step-circle {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.1);
-  color: #64748b;
-}
-
-[data-theme="light"] .step.active .step-circle {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  border-color: rgba(59, 130, 246, 0.5);
-}
-
-[data-theme="light"] .step-label {
-  color: #94a3b8;
-}
-
-[data-theme="light"] .step.active .step-label {
-  color: #1e293b;
-}
-
-[data-theme="light"] .step-content {
-  border-color: rgba(0, 0, 0, 0.06);
-}
-
-[data-theme="light"] .destiny-points {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .points-label {
-  color: #64748b;
-}
-
-[data-theme="light"] .points-value {
-  color: #3b82f6;
-}
-
-/* ========== 平板适配 ========== */
+/* ---------- 平板 ---------- */
 @media (max-width: 768px) {
   .creation-scroll {
     width: 98%;
     height: 95vh;
     max-height: 95vh;
-    padding: 1.5rem;
-    border-radius: 12px;
+    padding: 1.25rem 1.25rem 1rem;
   }
 
-  .header-container {
-    margin-bottom: 1rem;
+  .page-title {
+    font-size: 1.6rem;
   }
 
   .progress-steps {
     justify-content: flex-start;
-    gap: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .progress-track {
+    display: none;
   }
 
   .step {
-    min-width: 55px;
-  }
-
-  .step-circle {
-    width: 32px;
-    height: 32px;
-    font-size: 0.85rem;
-  }
-
-  .step-label {
-    font-size: 0.65rem;
+    min-width: 56px;
   }
 
   .step-content {
-    padding: 1rem 0.25rem;
+    padding: 0.9rem 0.1rem;
   }
 
   .navigation-buttons {
@@ -1072,121 +1224,75 @@ async function onLoadCompleted(result: { success: boolean; message: string; pres
   }
 
   .points-display {
-    flex-basis: 100%;
-    order: -1;
-    margin-bottom: 0.5rem;
     position: static;
+    order: -1;
+    flex-basis: 100%;
     transform: none;
   }
 
-  .navigation-buttons button {
+  .nav-back,
+  .nav-next {
     flex: 1;
-    min-width: 100px;
+    min-width: 0;
   }
 }
 
-/* ========== 手机适配 ========== */
+/* ---------- 手机 ---------- */
 @media (max-width: 480px) {
   .creation-scroll {
     width: 100%;
     height: 100vh;
-    max-height: 100vh;
-    padding: 1rem;
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    height: 100svh;
+    max-height: none;
+    padding: 0.9rem 0.85rem;
+    padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
     border-radius: 0;
+    border-left: none;
+    border-right: none;
     box-shadow: none;
+  }
+
+  .frame-corner {
+    display: none;
   }
 
   .header-top {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
 
-  .mode-indicator {
-    text-align: center;
-    font-size: 0.7rem;
+  .mode-seal {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .page-title {
+    font-size: 1.45rem;
   }
 
   .cloud-sync-container {
-    justify-content: center;
-  }
-
-  .progress-steps {
-    gap: 0.4rem;
+    justify-content: flex-start;
   }
 
   .step {
     min-width: 46px;
   }
 
-  .step-circle {
+  .step-node {
     width: 28px;
     height: 28px;
-    font-size: 0.75rem;
+  }
+
+  .step.current .step-node {
+    width: 32px;
+    height: 32px;
   }
 
   .step-label {
-    font-size: 0.55rem;
-  }
-
-  .step-content {
-    padding: 0.75rem 0.25rem;
-  }
-
-  .navigation-buttons {
-    padding-top: 0.75rem;
-    gap: 0.5rem;
-  }
-
-  .points-display {
-    width: 100%;
-    flex-basis: 100%;
-    order: -1;
-    margin-bottom: 0.5rem;
-    position: static;
-    transform: none;
-    justify-content: center;
-  }
-
-  .destiny-points {
-    padding: 0.4rem 0.75rem;
-  }
-
-  .points-label {
-    font-size: 0.75rem;
-  }
-
-  .points-value {
-    font-size: 0.95rem;
-  }
-
-  .navigation-buttons button {
-    flex: 1 1 calc(50% - 0.25rem);
-    min-width: 0;
-    padding: 0.6rem 0.4rem;
-    font-size: 0.8rem;
-  }
-}
-
-/* ========== 超小屏幕适配 ========== */
-@media (max-width: 360px) {
-  .creation-scroll {
-    padding: 0.75rem;
-  }
-
-  .step {
-    min-width: 42px;
-  }
-
-  .step-circle {
-    width: 26px;
-    height: 26px;
-    font-size: 0.7rem;
-  }
-
-  .step-label {
-    font-size: 0.5rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
   }
 }
 </style>

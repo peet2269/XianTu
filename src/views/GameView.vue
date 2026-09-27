@@ -1,141 +1,130 @@
 <template>
-  <div class="game-view">
-    <!-- 顶部栏 -->
-    <TopBar></TopBar>
+  <div class="game-view gm-view" :class="{ 'is-mobile': isMobile }">
+    <TopBar @toggle-status="rightSidebarCollapsed = !rightSidebarCollapsed" />
 
-    <!-- 主要内容区域 -->
-    <div v-if="isDataReady" class="game-content" :class="{ 'panel-mode': isPanelOpen }">
-      <!-- 左侧功能栏 -->
-      <div class="left-sidebar" :class="{ collapsed: leftSidebarCollapsed }">
-        <div class="sidebar-wrapper">
-          <LeftSidebar />
-        </div>
-      </div>
+    <div v-if="isDataReady" class="shell" :class="{ 'panel-open': isPanelOpen }">
+      <aside class="side side-nav" :class="{ collapsed: leftSidebarCollapsed }">
+        <LeftSidebar />
+      </aside>
 
-      <!-- Mobile Overlay -->
       <div
         v-if="isMobile && (!leftSidebarCollapsed || !rightSidebarCollapsed)"
-        class="mobile-sidebar-overlay"
+        class="scrim"
         @click="closeSidebars"
       ></div>
 
-      <!-- 左侧收缩按钮 -->
       <button
-        class="collapse-btn left"
+        type="button"
+        class="edge-toggle left"
         :class="{ collapsed: leftSidebarCollapsed }"
+        :aria-label="leftSidebarCollapsed ? $t('展开功能栏') : $t('收起功能栏')"
+        :title="leftSidebarCollapsed ? $t('展开功能栏') : $t('收起功能栏')"
         @click="leftSidebarCollapsed = !leftSidebarCollapsed"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline :points="leftSidebarCollapsed ? '9,18 15,12 9,6' : '15,18 9,12 15,6'"/>
-        </svg>
+        <template v-if="leftSidebarCollapsed">
+          <span class="edge-label">{{ $t('功能') }}</span>
+          <ChevronRight :size="15" />
+        </template>
+        <ChevronLeft v-else :size="15" />
       </button>
 
-      <!-- 主游戏区域 -->
-      <div class="main-content">
-        <!-- 功能面板覆盖层 -->
-        <div v-if="isPanelOpen" class="panel-overlay">
-          <div class="panel-header compact" aria-label="功能面板导航">
-            <button class="back-btn" @click="closePanel" :title="$t('返回')" :aria-label="$t('返回')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+      <main class="stage">
+        <section v-if="isPanelOpen && !uiStore.showCharacterManagement" class="sheet" :aria-label="$t(currentPanelTitle)">
+          <header class="sheet-head">
+            <button type="button" class="sheet-back" :title="$t('返回正文')" @click="closePanel">
+              <ArrowLeft :size="16" />
+              <span>{{ $t('返回') }}</span>
             </button>
-            <div class="panel-title-compact">
-              <component :is="currentPanelIcon" :size="16" class="panel-title-icon" />
-              <span class="title-text">{{ currentPanelTitle }}</span>
+            <span class="sheet-sep" aria-hidden="true"></span>
+            <span class="sheet-icon" aria-hidden="true"><component :is="currentPanelIcon" :size="17" :stroke-width="1.75" /></span>
+            <div class="sheet-heading">
+              <h2 class="sheet-title">{{ $t(currentPanelTitle) }}</h2>
+              <p v-if="currentPanelDesc" class="sheet-desc">{{ $t(currentPanelDesc) }}</p>
             </div>
-            <div class="panel-actions">
-              <button v-for="btn in currentPanelActions" :key="btn.key" class="action-btn-compact" :title="btn.title" @click="btn.onClick" :aria-label="btn.title">
-                <component :is="btn.icon" :size="14" />
+            <div class="sheet-tools">
+              <button
+                v-for="btn in currentPanelActions"
+                :key="btn.key"
+                type="button"
+                class="cc-btn small"
+                :class="{ primary: btn.primary, danger: btn.danger }"
+                :title="$t(btn.title)"
+                :aria-label="$t(btn.title)"
+                :disabled="btn.disabled || btn.busy"
+                @click="btn.onClick()"
+              >
+                <Loader2 v-if="btn.busy" :size="14" class="cc-spin" />
+                <component :is="btn.icon" v-else-if="btn.icon" :size="14" />
+                <span>{{ $t(btn.title) }}</span>
               </button>
             </div>
+          </header>
+          <div class="sheet-body">
+            <router-view v-slot="{ Component }">
+              <keep-alive>
+                <component :is="Component" />
+              </keep-alive>
+            </router-view>
           </div>
-          <div class="panel-content compact">
-            <div class="panel-shell">
-              <router-view v-slot="{ Component }">
-                <keep-alive>
-                  <component :is="Component" />
-                </keep-alive>
-              </router-view>
-            </div>
-          </div>
-        </div>
+        </section>
 
-        <!-- 正常路由视图 -->
         <router-view v-else-if="!uiStore.showCharacterManagement" v-slot="{ Component }">
           <keep-alive>
             <component :is="Component" />
           </keep-alive>
         </router-view>
 
-        <!-- 角色管理面板 -->
-        <div v-if="uiStore.showCharacterManagement" class="panel-overlay">
-          <div class="panel-header">
-            <h2 class="panel-title">
-              <Users2 :size="20" class="panel-title-icon" />
-              {{ $t('角色管理') }}
-            </h2>
-            <button class="panel-close-btn" @click="uiStore.closeCharacterManagement()" :title="$t('关闭')">
-              <X :size="20" />
+        <section v-if="uiStore.showCharacterManagement" class="sheet" :aria-label="$t('角色管理')">
+          <header class="sheet-head">
+            <button type="button" class="sheet-back" @click="uiStore.closeCharacterManagement()">
+              <ArrowLeft :size="16" />
+              <span>{{ $t('返回') }}</span>
             </button>
-          </div>
-          <div class="panel-content">
-            <div class="panel-shell">
-              <CharacterManagement @back="uiStore.closeCharacterManagement" />
+            <span class="sheet-sep" aria-hidden="true"></span>
+            <div class="sheet-heading">
+              <h2 class="sheet-title">{{ $t('角色管理') }}</h2>
             </div>
+            <div class="sheet-tools"></div>
+          </header>
+          <div class="sheet-body">
+            <CharacterManagement @back="uiStore.closeCharacterManagement" />
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
 
-      <!-- 右侧收缩按钮 -->
       <button
-        class="collapse-btn right"
+        type="button"
+        class="edge-toggle right"
         :class="{ collapsed: rightSidebarCollapsed }"
+        :aria-label="rightSidebarCollapsed ? $t('展开状态栏') : $t('收起状态栏')"
+        :title="rightSidebarCollapsed ? $t('展开状态栏') : $t('收起状态栏')"
         @click="rightSidebarCollapsed = !rightSidebarCollapsed"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline :points="rightSidebarCollapsed ? '15,18 9,12 15,6' : '9,18 15,12 9,6'"/>
-        </svg>
+        <template v-if="rightSidebarCollapsed">
+          <ChevronLeft :size="15" />
+          <span class="edge-label">{{ $t('状态') }}</span>
+        </template>
+        <ChevronRight v-else :size="15" />
       </button>
 
-      <!-- 右侧区域: 角色信息栏 -->
-      <div
-        class="right-panel-area"
-        :class="{ collapsed: rightSidebarCollapsed }"
-        v-show="!isPanelOpen"
-      >
-        <div class="sidebar-wrapper">
-          <ErrorBoundary>
-            <RightSidebar />
-          </ErrorBoundary>
-        </div>
-      </div>
+      <aside v-show="!isPanelOpen" class="side side-status" :class="{ collapsed: rightSidebarCollapsed }">
+        <ErrorBoundary>
+          <RightSidebar />
+        </ErrorBoundary>
+      </aside>
     </div>
 
-    <!-- 数据未就绪时的提示 -->
-    <div v-else class="data-loading">
-      <div class="loading-content">
-        <div class="loading-spinner-wrapper">
-          <div class="loading-spinner"></div>
-          <div class="spinner-glow"></div>
-        </div>
-        <h2 class="loading-title">{{ $t('道法自然，天地初开') }}</h2>
-        <p class="loading-message">{{ $t('正在加载修仙世界...') }}</p>
-        <div class="loading-steps">
-          <div class="loading-step">
-            <span class="step-icon">✓</span>
-            <span class="step-text">{{ $t('连接天道') }}</span>
-          </div>
-          <div class="loading-step">
-            <span class="step-icon">✓</span>
-            <span class="step-text">{{ $t('加载角色数据') }}</span>
-          </div>
-          <div class="loading-step active">
-            <span class="step-icon">○</span>
-            <span class="step-text">{{ $t('读取存档信息') }}</span>
-          </div>
-        </div>
-        <p class="loading-hint">{{ $t('提示：请在左侧菜单选择角色并加载存档') }}</p>
+    <div v-else class="boot">
+      <div class="boot-card">
+        <div class="boot-seal" aria-hidden="true"><span>道</span></div>
+        <h2 class="boot-title">{{ $t('道法自然，天地初开') }}</h2>
+        <p class="boot-msg">{{ $t('正在加载修仙世界...') }}</p>
+        <ol class="boot-steps">
+          <li class="done"><Check :size="15" />{{ $t('连接天道') }}</li>
+          <li class="done"><Check :size="15" />{{ $t('加载角色数据') }}</li>
+          <li class="active"><Loader2 :size="15" class="cc-spin" />{{ $t('读取存档信息') }}</li>
+        </ol>
+        <p class="boot-hint">{{ $t('提示：请在左侧菜单选择角色并加载存档') }}</p>
       </div>
     </div>
   </div>
@@ -147,12 +136,14 @@ import { useCharacterStore } from '@/stores/characterStore';
 import { useGameStateStore } from '@/stores/gameStateStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useRouter, useRoute } from 'vue-router';
-import { X, Package, User, Brain, Users, BookOpen, Zap, Settings, Save, Map, Scroll, Bell, Home, Box, Users2, Database, RefreshCw, FlaskConical, Trash2, BarChart3, Coins, FileText, Plug, Globe, Hammer, Building2, Swords, ClipboardList, Shield } from 'lucide-vue-next';
-import { panelBus, type PanelAction } from '@/utils/panelBus';
+import { Package, User, Brain, Users, BookOpen, Zap, Settings, Save, Map, Scroll, Bell, Home, Box, Database, FileText, Plug, Hammer, Shield, ChevronLeft, ChevronRight, ArrowLeft, Check, Loader2 } from 'lucide-vue-next';
+import { useCurrentPageActions } from '@/composables/usePageActions';
+import { applyUIScale } from '@/utils/readingPrefs';
 import { detectSectMigration } from '@/utils/sectMigration';
 import TopBar from '@/components/dashboard/TopBar.vue'
 import LeftSidebar from '@/components/dashboard/LeftSidebar.vue'
 import RightSidebar from '@/components/dashboard/RightSidebar.vue'
+import MainGamePanel from '@/components/dashboard/MainGamePanel.vue'
 import CharacterManagement from '@/components/character-creation/CharacterManagement.vue';
 import ErrorBoundary from '@/components/common/ErrorBoundary.vue';
 import SectMigrationModal from '@/components/dashboard/components/SectMigrationModal.vue';
@@ -219,10 +210,11 @@ const maybePromptSectMigration = () => {
 
 // 面板状态管理
 const panelRoutes = new Set([
-  'Inventory', 'CharacterDetails', 'Memory', 'Relationships',
+  'Inventory', 'CharacterDetails', 'Memory',
   'Cultivation', 'Techniques', 'ThousandDao', 'Settings', 'Save', 'WorldMap',
-  'Events', 'Crafting', 'Sect', 'SectOverview', 'SectMembers', 'SectManagement', 'SectLibrary', 'SectTasks', 'SectContribution', 'SectWar', 'GameVariables',
-  'Prompts', 'APIManagement', 'Travel', 'BackendAdminPanel'
+  'Events', 'Crafting', 'Sect', 'SectOverview', 'SectMembers', 'SectManagement', 'SectLibrary', 'SectTasks', 'SectContribution', 'GameVariables',
+  'Npcs',
+  'Prompts', 'APIManagement', 'BackendAdminPanel'
 ]);
 
 // 不需要角色数据就能访问的面板（设置类）
@@ -232,37 +224,37 @@ const noDataRequiredRoutes = new Set([
 
 // 右侧相关面板（应该影响右侧收缩按钮）
 const rightPanelRoutes = new Set([
-  'Memory', 'Relationships', 'Cultivation', 'Techniques', 'ThousandDao', 'Settings', 'Save',
-  'Sect', 'SectOverview', 'SectMembers', 'SectManagement', 'SectLibrary', 'SectTasks', 'SectContribution', 'SectWar'
+  'Memory', 'Cultivation', 'Techniques', 'ThousandDao', 'Settings', 'Save',
+  'Sect', 'SectOverview', 'SectMembers', 'SectManagement', 'SectLibrary', 'SectTasks', 'SectContribution'
 ]);
 
 type IconComponent = typeof Package;
 
-const panelTitles: Record<string, { title: string; icon: IconComponent }> = {
-  Inventory: { title: '背包物品', icon: Package },
-  CharacterDetails: { title: '人物详情', icon: User },
-  Memory: { title: '记忆中心', icon: Brain },
-  Relationships: { title: '人物关系', icon: Users },
+// 标题 / 副标题与左功能栏保持一致
+const panelTitles: Record<string, { title: string; desc?: string; icon: IconComponent }> = {
+  Inventory: { title: '背包物品', desc: '管理道具装备', icon: Package },
+  CharacterDetails: { title: '人物属性', desc: '修为境界状态', icon: User },
+  Memory: { title: '记忆档案', desc: '重要事件回顾', icon: Brain },
   Cultivation: { title: '修炼系统', icon: BookOpen },
-  Techniques: { title: '修炼功法', icon: Zap },
-  ThousandDao: { title: '三千大道', icon: Scroll },
-  Settings: { title: '系统设置', icon: Settings },
-  Save: { title: '保存游戏', icon: Save },
-  WorldMap: { title: '世界地图', icon: Map },
-  Events: { title: '世界事件', icon: Bell },
-  Crafting: { title: '炼制工坊', icon: Hammer },
-  Sect: { title: '宗门势力', icon: Home },
-  SectOverview: { title: '宗门概览', icon: Home },
-  SectMembers: { title: '宗门成员', icon: Users },
-  SectManagement: { title: '宗门经营', icon: Building2 },
-  SectLibrary: { title: '宗门藏经', icon: BookOpen },
-  SectTasks: { title: '宗门任务', icon: ClipboardList },
-  SectContribution: { title: '贡献兑换', icon: Coins },
-  SectWar: { title: '宗门大战', icon: Swords },
-  GameVariables: { title: '游戏变量', icon: Database },
-  Prompts: { title: '提示词管理', icon: FileText },
-  APIManagement: { title: 'API管理', icon: Plug },
-  Travel: { title: '联机穿越', icon: Globe },
+  Techniques: { title: '功法技能', desc: '修炼突破晋级', icon: Zap },
+  ThousandDao: { title: '大道感悟', desc: '领悟天地法则', icon: Scroll },
+  Settings: { title: '系统设置', desc: '显示、阅读与游戏偏好', icon: Settings },
+  Save: { title: '保存游戏', desc: '保存当前进度', icon: Save },
+  WorldMap: { title: '世界地图', desc: '探索天下各地', icon: Map },
+  Events: { title: '世界事件', desc: '世界变革与危机', icon: Bell },
+  Crafting: { title: '炼制工坊', desc: '炼丹炼器炼天地', icon: Hammer },
+  // 宗门是一个页面 + 标签，子路由只决定选中哪个标签
+  Sect: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  SectOverview: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  SectMembers: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  SectManagement: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  SectLibrary: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  SectTasks: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  SectContribution: { title: '宗门事务', desc: '门派事务管理', icon: Home },
+  Npcs: { title: '人物名录', desc: '结识的人物与好感', icon: Users },
+  GameVariables: { title: '游戏变量', desc: '查看游戏数据', icon: Database },
+  Prompts: { title: '提示词管理', desc: '自定义提示词', icon: FileText },
+  APIManagement: { title: 'API管理', desc: '多API配置', icon: Plug },
   BackendAdminPanel: { title: '仙官后台', icon: Shield }
 };
 
@@ -275,6 +267,8 @@ const currentPanelTitle = computed(() => {
   const panelInfo = panelTitles[routeName];
   return panelInfo?.title || '功能面板';
 });
+
+const currentPanelDesc = computed(() => panelTitles[String(route.name)]?.desc || '');
 
 const currentPanelIcon = computed(() => {
   const routeName = String(route.name);
@@ -289,39 +283,8 @@ const closePanel = () => {
   }
 };
 
-const panelActionMap: Record<string, Array<{ key: string; title: string; icon: IconComponent; action: PanelAction }>> = {
-  Memory: [
-    { key: 'refresh', title: '刷新', icon: RefreshCw, action: 'refresh' },
-    { key: 'test', title: '测试转化', icon: FlaskConical, action: 'test' },
-    { key: 'clear', title: '清理', icon: Trash2, action: 'clear' },
-  ],
-  Events: [
-    { key: 'refresh', title: '刷新', icon: RefreshCw, action: 'refresh' },
-  ],
-  Save: [
-    { key: 'refresh', title: '刷新', icon: RefreshCw, action: 'refresh' },
-    { key: 'save', title: '快速存档', icon: Save, action: 'save' },
-  ],
-  ThousandDao: [
-    { key: 'refresh', title: '刷新', icon: RefreshCw, action: 'refresh' },
-  ],
-  GameVariables: [
-    { key: 'refresh', title: '刷新数据', icon: RefreshCw, action: 'refresh' },
-    { key: 'export', title: '导出JSON', icon: Save, action: 'export' },
-    { key: 'stats', title: '数据统计', icon: BarChart3, action: 'stats' },
-  ]
-};
-
-const currentPanelActions = computed(() => {
-  const routeName = String(route.name);
-  const defs = panelActionMap[routeName] || [];
-  return defs.map(d => ({
-    key: d.key,
-    title: d.title,
-    icon: d.icon,
-    onClick: () => panelBus.emit(d.action)
-  }));
-});
+// 页头按钮由当前激活的页面自己声明（usePageActions）
+const currentPanelActions = useCurrentPageActions();
 
 const isDataReady = computed(() => {
   // 设置类面板（Settings、APIManagement、Prompts）不需要角色数据即可访问
@@ -340,31 +303,12 @@ const applySettings = () => {
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
 
-      // 应用UI缩放
+      // 界面缩放（main.ts 启动时已应用一次，这里兜底）
       if (settings.uiScale) {
-        const scaleValue = settings.uiScale / 100;
-        document.documentElement.style.setProperty('--ui-scale', scaleValue.toString());
+        applyUIScale(settings.uiScale);
       }
 
-      // 应用字体大小
-      if (settings.fontSize) {
-        const fontSizeMap: Record<string, string> = {
-          small: '0.875rem',
-          medium: '1rem',
-          large: '1.125rem'
-        };
-        const fontSize = fontSizeMap[settings.fontSize] || '1rem';
-        document.documentElement.style.setProperty('--base-font-size', fontSize);
-      }
-
-      // 应用主题
-      if (settings.theme) {
-        let targetTheme = settings.theme;
-        if (settings.theme === 'auto') {
-          targetTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-        document.documentElement.setAttribute('data-theme', targetTheme);
-      }
+      // 主题由 useTheme 全局统一管理，这里不再单独覆盖
     }
   } catch (error) {
     console.error('[GameView] 应用设置失败:', error);
@@ -423,816 +367,498 @@ watch(isPanelOpen, (isOpen) => {
 
 <style scoped>
 .game-view {
-  width: 100%;
-  height: 100%;
-  background: var(--color-background);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
+  --nav-w: 216px;
+  --status-w: 280px;
+
   display: grid;
   grid-template-rows: auto 1fr;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
-.game-content {
-  flex: 1;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  padding: 0;
+.shell {
   position: relative;
+  display: flex;
   min-height: 0;
-  background: var(--color-background);
 }
 
-.left-sidebar {
-  width: 240px;
-  min-width: 240px;
-  background: var(--color-surface);
-  transition: all 0.3s ease;
+/* ---------- 侧栏 ---------- */
+.side {
+  position: relative;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--color-border);
   flex-shrink: 0;
-}
-
-.left-sidebar.collapsed {
-  width: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.right-panel-area {
-  width: 260px;
-  background: var(--color-surface);
-  transition: all 0.3s ease;
-  border-left: 1px solid var(--color-border);
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.right-panel-area.collapsed {
-  width: 0;
-  overflow: hidden;
-}
-
-.sidebar-wrapper {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow-x: visible; /* 防止边框被截断 */
-}
-
-.main-content {
-  flex: 1;
-  background: var(--color-background);
-  margin: 0;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
-  position: relative;
+  overflow: hidden;
+  background: var(--gm-rail);
+  transition: width 0.28s ease, transform 0.28s ease;
 }
 
-/* 收缩按钮样式 */
-.collapse-btn {
+.side-nav {
+  width: var(--nav-w);
+  border-right: 1px solid var(--gm-rail-line);
+}
+
+.side-status {
+  width: var(--status-w);
+  border-left: 1px solid var(--gm-rail-line);
+}
+
+.side.collapsed {
+  width: 0;
+  border-color: transparent;
+}
+
+/* 展开时：骑在栏边的小圆钮；收起后：贴边的竖排书签 */
+.edge-toggle {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 40px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 20;
-  color: var(--color-text-secondary);
-  padding: 0;
-}
-
-.collapse-btn:hover {
-  background: var(--color-surface-light);
-  color: var(--color-text);
-}
-
-/* 左侧收缩按钮 */
-.collapse-btn.left {
-  left: 240px;
-  border-radius: 0 6px 6px 0;
-  border-left: none;
-  transition: left 0.3s ease, background 0.2s ease;
-}
-
-/* 左侧栏收缩时，按钮移动到最左侧 */
-.collapse-btn.left.collapsed {
-  left: 0;
-  border-left: 1px solid var(--color-border);
-}
-
-/* 右侧收缩按钮 */
-.collapse-btn.right {
-  right: 260px;
-  border-radius: 6px 0 0 6px;
-  border-right: none;
-  transition: right 0.3s ease, background 0.2s ease;
-}
-
-/* 右侧栏收缩时，按钮移动到最右侧 */
-.right-panel-area.collapsed ~ .collapse-btn.right,
-.collapse-btn.right.collapsed {
-  right: 0;
-  border-right: 1px solid var(--color-border);
-}
-
-/* 面板覆盖模式样式 - 只隐藏右侧栏，保留左侧栏 */
-.game-content.panel-mode .right-panel-area {
-  display: none;
-}
-
-.game-content.panel-mode .collapse-btn.right {
-  display: none;
-}
-
-.panel-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--color-background);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--gm-rail-line);
+  border-radius: 50%;
+  background: var(--gm-rail);
+  color: var(--cc-text-3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: left 0.28s ease, right 0.28s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.panel-header { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 30px; height: auto; background: transparent; border-bottom: none; flex-shrink: 0; }
-.panel-header::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--color-primary-rgb,46,92,184), .35), transparent); }
+.edge-toggle:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+  color: var(--cc-gold);
+  box-shadow: 0 0 0 3px rgba(var(--cc-gold-rgb), 0.12), 0 2px 8px rgba(0, 0, 0, 0.18);
+}
 
-.panel-header.compact::after {
+.edge-toggle.left {
+  left: var(--nav-w);
+}
+
+.edge-toggle.right {
+  right: var(--status-w);
+  transform: translate(50%, -50%);
+}
+
+.edge-toggle.collapsed {
+  width: 32px;
+  height: 104px;
+  padding: 0.7rem 0;
+  border-color: rgba(var(--cc-gold-rgb), 0.35);
+  background: linear-gradient(180deg, rgba(var(--cc-gold-rgb), 0.1), rgba(var(--cc-gold-rgb), 0.03)), var(--gm-rail);
+  color: var(--cc-gold);
+  transform: translateY(-50%);
+}
+
+.edge-toggle.left.collapsed {
+  left: 0;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+
+.edge-toggle.right.collapsed {
+  right: 0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+
+.edge-toggle.collapsed::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--cc-gold);
+  opacity: 0.7;
+}
+
+.edge-toggle.left.collapsed::before {
+  left: 0;
+}
+
+.edge-toggle.right.collapsed::before {
+  right: 0;
+}
+
+.edge-toggle.collapsed:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.65);
+  background: linear-gradient(180deg, rgba(var(--cc-gold-rgb), 0.18), rgba(var(--cc-gold-rgb), 0.06)), var(--gm-rail);
+}
+
+.edge-label {
+  writing-mode: vertical-rl;
+  font-size: 13px;
+  letter-spacing: 0.35em;
+  line-height: 1;
+}
+
+.shell.panel-open .side-status,
+.shell.panel-open .edge-toggle.right {
+  display: none;
+}
+
+/* ---------- 中栏 ---------- */
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 底部远山 */
+.stage::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
-  opacity: 0.25;
+  height: 34%;
+  background: var(--gm-mountains) bottom / 100% 100% no-repeat;
+  pointer-events: none;
 }
 
-.panel-title-icon { color: var(--color-primary); flex-shrink: 0; }
-.panel-title-compact { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; justify-content: center; }
-.panel-title-compact .title-text { font-size: 0.92rem; font-weight: 600; color: var(--color-text); letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.back-btn { background: transparent; border: none; padding: 2px 6px; border-radius: 4px; color: var(--color-text-secondary); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; }
-.back-btn:hover { background: var(--color-surface-hover); color: var(--color-text); }
-.panel-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.action-btn-compact { background: transparent; border: none; width: 26px; height: 26px; border-radius: 4px; color: var(--color-text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: var(--transition-fast); }
-.action-btn-compact:hover { background: var(--color-surface-hover); color: var(--color-text); }
-
-.panel-content {
-  flex: 1;
-  overflow: hidden;
+/* ---------- 功能页（盖住中栏） ---------- */
+.sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
   display: flex;
   flex-direction: column;
-  padding: 12px;
-  background: transparent;
+  background: var(--gm-page-bg);
 }
 
-.panel-shell {
+.sheet::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30%;
+  background: var(--gm-mountains) bottom / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+.sheet-head {
+  position: relative;
+  box-sizing: border-box;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-shrink: 0;
+  min-width: 0;
+  min-height: 64px;
+  padding: 0.7rem 1.5rem;
+  border-bottom: 1px solid var(--gm-rail-line);
+  background: linear-gradient(180deg, rgba(var(--cc-gold-rgb), 0.04), transparent);
+}
+
+.sheet-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 0.75rem 0 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text-2);
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.sheet-back:hover {
+  border-color: var(--cc-border);
+  background: var(--gm-block-hover);
+  color: var(--cc-text);
+}
+
+.sheet-sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 26px;
+  background: var(--gm-rail-line);
+}
+
+.sheet-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 7px;
+  background: rgba(var(--cc-gold-rgb), 0.1);
+  color: var(--cc-gold);
+}
+
+.sheet-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+}
+
+.sheet-title {
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.2em;
+  color: var(--cc-text);
+  white-space: nowrap;
+}
+
+.sheet-desc {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--cc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.sheet-body {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, rgba(var(--color-surface-rgb), 0.98), rgba(var(--color-surface-rgb), 0.92));
-  border: 1px solid rgba(var(--color-border-rgb), 0.55);
-  border-radius: 18px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 0.25rem 1.5rem 1.25rem;
 }
 
-.panel-header.compact { padding: 6px 10px; position: sticky; top: 0; z-index: 2; background: var(--color-background); }
-.panel-content.compact { padding: 8px 10px 10px 10px; }
-
-/* 数据加载提示样式 */
-.data-loading {
-  flex: 1;
+/* ---------- 加载态 ---------- */
+.boot {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--color-background) 0%, var(--color-surface) 100%);
-  position: relative;
-  overflow: hidden;
+  min-height: 0;
+  padding: 1.5rem;
+  overflow: auto;
 }
 
-.data-loading::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(var(--color-primary-rgb, 46, 92, 184), 0.05) 0%, transparent 70%);
-  animation: pulse 3s ease-in-out infinite;
-}
-
-.loading-content {
+.boot-card {
+  width: min(440px, 100%);
+  padding: 2.25rem 2rem;
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 8px;
+  background: var(--cc-shell-bg);
   text-align: center;
-  padding: 60px 40px;
-  max-width: 500px;
-  position: relative;
-  z-index: 1;
 }
 
-.loading-spinner-wrapper {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 32px;
-}
-
-.loading-spinner {
-  width: 80px;
-  height: 80px;
-  border: 3px solid transparent;
-  border-top: 3px solid var(--color-primary);
-  border-right: 3px solid var(--color-primary);
+.boot-seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 1.25rem;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.5);
   border-radius: 50%;
-  animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
-  position: relative;
+  animation: gv-spin 16s linear infinite;
 }
 
-.spinner-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 60px;
-  height: 60px;
+.boot-seal span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--color-primary-rgb, 46, 92, 184), 0.3) 0%, transparent 70%);
-  animation: glow 2s ease-in-out infinite;
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.45);
+  color: var(--cc-gold);
+  font-family: var(--cc-calligraphy);
+  font-size: 32px;
+  animation: gv-spin 16s linear infinite reverse;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.boot-title {
+  margin: 0 0 0.4rem;
+  font-family: var(--cc-calligraphy);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 0.15em;
 }
 
-@keyframes glow {
-  0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.9); }
-  50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
+.boot-msg {
+  margin: 0 0 1.25rem;
+  font-size: 15px;
+  color: var(--cc-text-2);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
-.loading-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-text);
-  margin: 0 0 12px 0;
-  letter-spacing: 2px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.loading-message {
-  font-size: 1rem;
-  color: var(--color-text-secondary);
-  margin: 0 0 32px 0;
-  font-weight: 500;
-}
-
-.loading-steps {
+.boot-steps {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 32px;
+  gap: 0.4rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
   text-align: left;
 }
 
-.loading-step {
+.boot-steps li {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--color-background);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  transition: all 0.3s ease;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 6px;
+  background: var(--gm-block);
+  font-size: 14px;
+  color: var(--cc-text-2);
 }
 
-.loading-step.active {
-  background: rgba(var(--color-primary-rgb, 46, 92, 184), 0.1);
-  border-color: var(--color-primary);
+.boot-steps li.done svg {
+  color: var(--cc-success);
 }
 
-.step-icon {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: var(--color-success);
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.boot-steps li.active {
+  color: var(--cc-text);
 }
 
-.loading-step.active .step-icon {
-  color: var(--color-primary);
-  animation: bounce 1s ease-in-out infinite;
+.boot-steps li.active svg {
+  color: var(--cc-gold);
 }
 
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
-.step-text {
-  font-size: 0.95rem;
-  color: var(--color-text);
-  font-weight: 500;
-}
-
-.loading-hint {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
+.boot-hint {
   margin: 0;
-  padding: 12px 20px;
-  background: var(--color-background);
-  border-radius: 8px;
-  border-left: 3px solid var(--color-primary);
+  font-size: 13px;
+  color: var(--cc-text-2);
 }
 
-/* 移动端适配 */
+@keyframes gv-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- 平板 / 手机 ---------- */
+@media (max-width: 1280px) {
+  .game-view {
+    --nav-w: 200px;
+    --status-w: 260px;
+  }
+}
+
 @media (max-width: 768px) {
   .game-view {
-    font-size: 13px;
+    --nav-w: 260px;
+    --status-w: 280px;
   }
 
-  /* 移动端侧边栏浮动显示，不占用主内容空间 */
-  .left-sidebar {
-    position: fixed;
-    top: 0; /* 从顶部开始 */
-    left: 0;
-    bottom: 0;
-    height: 100%;
-    width: 280px;
-    z-index: 1000;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
-    background: var(--color-surface); /* 和右侧栏一样的背景色 */
-  }
-
-  .left-sidebar:not(.collapsed) {
-    transform: translateX(0);
-  }
-
-  .left-sidebar .sidebar-wrapper {
-    overflow-y: auto;
-    overflow-x: visible;
-    height: 100%;
-    -webkit-overflow-scrolling: touch;
-    box-sizing: border-box;
-    padding-right: 2px; /* 防止边框被截断 */
-  }
-
-  .right-panel-area {
-    position: fixed;
-    top: 0; /* 从顶部开始 */
-    right: 0;
-    bottom: 0;
-    height: 100%;
-    width: 260px;
-    z-index: 1000;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
-    background: var(--color-surface); /* 和左侧栏一样的背景色 */
-  }
-
-  .right-panel-area:not(.collapsed) {
-    transform: translateX(0);
-  }
-
-  .right-panel-area .sidebar-wrapper {
-    overflow-y: auto;
-    overflow-x: hidden;
-    height: 100%;
-    -webkit-overflow-scrolling: touch;
-    box-sizing: border-box;
-  }
-
-  /* 移动端背景遮罩层 */
-  .mobile-sidebar-overlay {
+  .side {
     position: fixed;
     top: 0;
-    left: 0;
-    right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 999; /* Below sidebars (1000) but above everything else */
+    z-index: 1000;
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.4);
   }
 
-  /* 移动端收缩按钮样式 - 参考电脑版样式 */
-  .collapse-btn {
+  .side-nav {
+    left: 0;
+  }
+
+  .side-status {
+    right: 0;
+  }
+
+  .side-nav.collapsed {
+    width: var(--nav-w);
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  .side-status.collapsed {
+    width: var(--status-w);
+    transform: translateX(100%);
+    box-shadow: none;
+  }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .edge-toggle {
     position: fixed;
     z-index: 1001;
-    width: 20px;
-    height: 44px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-secondary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    touch-action: manipulation;
-    top: 50%;
-    transform: translateY(-50%);
-    transition: all 0.3s ease;
   }
 
-  .collapse-btn svg {
-    width: 14px;
-    height: 14px;
+  .edge-toggle.collapsed {
+    width: 22px;
+    height: 76px;
+    padding: 0.45rem 0;
+    gap: 0.2rem;
   }
 
-  .collapse-btn:active {
-    background: var(--color-surface-light);
-    color: var(--color-text);
+  .edge-toggle.collapsed::before {
+    top: 10px;
+    bottom: 10px;
   }
 
-  /* 左侧按钮：默认在左边缘，跟随侧边栏一起移动 */
-  .collapse-btn.left {
-    left: 0;
-    border-radius: 0 8px 8px 0;
-    border-left: none;
-    transform: translateX(0) translateY(-50%);
-    transition: transform 0.3s ease, background 0.2s ease;
+  .edge-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
   }
 
-  /* 左侧栏展开时，按钮跟随移动 260px */
-  .left-sidebar:not(.collapsed) ~ .collapse-btn.left {
-    transform: translateX(260px) translateY(-50%);
-  }
-
-  /* 右侧按钮：默认在右边缘，跟随侧边栏一起移动 */
-  .collapse-btn.right {
-    right: 0;
-    border-radius: 8px 0 0 8px;
-    border-right: none;
-    transform: translateX(0) translateY(-50%);
-    transition: transform 0.3s ease, background 0.2s ease;
-  }
-
-  /* 右侧栏展开时（按钮没有 collapsed 类），按钮跟随移动 -260px */
-  .collapse-btn.right:not(.collapsed) {
-    transform: translateX(-260px) translateY(-50%);
-  }
-
-  /* 主内容区域占满屏幕 */
-  .main-content {
-    width: 100%;
-    max-width: 100vw;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    box-sizing: border-box;
-  }
-
-  .game-content {
-    gap: 0;
-    margin-top: 0;
-    max-width: 100vw;
-    overflow-x: hidden;
-    box-sizing: border-box;
-  }
-
-  .game-view {
-    max-width: 100vw;
-    overflow-x: hidden;
-  }
-
-  /* 移动端面板全屏优化 */
-  .panel-overlay {
+  .sheet {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 999;
-    overflow: hidden;
+    z-index: 1100;
   }
 
-  /* 面板头部移动端优化 */
-  .panel-header {
-    padding: 4px 8px;
-    min-height: 36px;
-    flex-wrap: nowrap;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
+  .sheet-head {
+    gap: 0.5rem;
+    min-height: 54px;
+    padding: 0.5rem 0.75rem;
   }
 
-  .panel-header.compact {
-    padding: 4px 8px;
+  .sheet-back {
+    padding: 0 0.4rem;
   }
 
-  .panel-title-compact .title-text {
-    font-size: 0.85rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .sheet-back span,
+  .sheet-icon,
+  .sheet-desc,
+  .sheet-tools .cc-btn span {
+    display: none;
   }
 
-  /* 头部按钮触摸优化 */
-  .back-btn,
-  .action-btn-compact {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    min-width: 32px;
-    min-height: 32px;
+  .sheet-title {
+    font-size: 22px;
   }
 
-  /* 面板内容移动端优化 - 确保文本区域能够收缩 */
-  .panel-content {
-    padding: 8px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-  }
-
-  .panel-content.compact {
-    padding: 6px 8px 8px 8px;
-  }
-
-  .panel-shell {
-    border-radius: 14px;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-    overflow: auto;
-  }
-
-  /* 确保面板内所有文本元素自动换行 */
-  .panel-content *,
-  .panel-overlay * {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    max-width: 100%;
-  }
-
-  /* 数据加载提示移动端优化 */
-  .data-loading {
-    padding: 8px;
-  }
-
-  .loading-content {
-    padding: 40px 20px;
-    max-width: 100%;
-  }
-
-  .loading-title {
-    font-size: 1.2rem;
-    white-space: normal;
-    word-wrap: break-word;
-  }
-
-  .loading-message {
-    font-size: 0.9rem;
-    white-space: normal;
-    word-wrap: break-word;
-  }
-
-  .loading-steps {
-    gap: 8px;
-  }
-
-  .loading-step {
-    padding: 8px 12px;
-  }
-
-  .step-text {
-    font-size: 0.85rem;
-    white-space: normal;
-    word-wrap: break-word;
-  }
-
-  .loading-hint {
-    font-size: 0.8rem;
-    white-space: normal;
-    word-wrap: break-word;
-  }
-}
-
-/* ========== 深色玻璃拟态风格适配 ========== */
-[data-theme="dark"] .game-view {
-  background: rgb(30, 41, 59);
-}
-
-[data-theme="dark"] .game-content {
-  background: rgb(30, 41, 59);
-}
-
-[data-theme="dark"] .left-sidebar,
-[data-theme="dark"] .right-panel-area {
-  background: rgba(30, 41, 59, 0.95);
-  border-color: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-}
-
-[data-theme="dark"] .main-content {
-  background: rgb(30, 41, 59);
-}
-
-[data-theme="dark"] .collapse-btn {
-  background: rgba(30, 41, 59, 0.9);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .collapse-btn:hover {
-  background: rgba(51, 65, 85, 0.95);
-  color: #f1f5f9;
-  border-color: rgba(147, 197, 253, 0.3);
-}
-
-[data-theme="dark"] .panel-overlay {
-  background: var(--color-background);
-  backdrop-filter: blur(20px);
-}
-
-[data-theme="dark"] .panel-header {
-  background: rgba(30, 41, 59, 0.8);
-}
-
-[data-theme="dark"] .panel-header::after {
-  background: linear-gradient(90deg, transparent, rgba(147, 197, 253, 0.4), transparent);
-}
-
-[data-theme="dark"] .back-btn {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .back-btn:hover {
-  background: rgba(51, 65, 85, 0.8);
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .panel-title-compact .title-text {
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .panel-title-icon {
-  color: #93c5fd;
-}
-
-[data-theme="dark"] .action-btn-compact {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .action-btn-compact:hover {
-  background: rgba(51, 65, 85, 0.8);
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .data-loading {
-  background: rgba(30, 41, 59, 0.95);
-}
-
-[data-theme="dark"] .data-loading::before {
-  background: radial-gradient(circle at 50% 50%, rgba(147, 197, 253, 0.08) 0%, transparent 70%);
-}
-
-[data-theme="dark"] .loading-title {
-  background: linear-gradient(135deg, #93c5fd 0%, #c0caf5 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="dark"] .loading-message {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .loading-step {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .loading-step.active {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(147, 197, 253, 0.4);
-}
-
-[data-theme="dark"] .step-icon {
-  color: #9ece6a;
-}
-
-[data-theme="dark"] .loading-step.active .step-icon {
-  color: #93c5fd;
-}
-
-[data-theme="dark"] .step-text {
-  color: #e2e8f0;
-}
-
-[data-theme="dark"] .loading-hint {
-  background: rgba(30, 41, 59, 0.6);
-  border-left-color: #93c5fd;
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .spinner-glow {
-  background: radial-gradient(circle, rgba(147, 197, 253, 0.4) 0%, transparent 70%);
-}
-
-[data-theme="dark"] .loading-spinner {
-  border-top-color: #93c5fd;
-  border-right-color: #93c5fd;
-}
-
-/* 超小屏幕适配 */
-@media (max-width: 480px) {
-  .game-view {
-    font-size: 12px;
-  }
-
-  .left-sidebar {
-    width: 260px;
-  }
-
-  /* 左侧栏展开时，按钮跟随移动 260px（匹配侧边栏宽度） */
-  .left-sidebar:not(.collapsed) ~ .collapse-btn.left {
-    transform: translateX(260px) translateY(-50%);
-  }
-
-  .right-panel-area {
-    width: 220px;
-  }
-
-  /* 右侧栏展开时，按钮跟随移动 -220px（匹配侧边栏宽度） */
-  .collapse-btn.right:not(.collapsed) {
-    transform: translateX(-220px) translateY(-50%);
-  }
-
-  /* 小屏幕上面板全屏显示 */
-  .panel-overlay {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 999;
-  }
-
-  .panel-header {
-    padding: 3px 6px;
-    min-height: 32px;
-  }
-
-  .panel-title-compact .title-text {
-    font-size: 0.8rem;
-  }
-
-  .panel-content {
-    padding: 6px;
-    font-size: 0.9em;
-  }
-
-  .panel-shell {
-    border-radius: 12px;
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
-  }
-
-  .loading-title {
-    font-size: 1rem;
-  }
-
-  .loading-message {
-    font-size: 0.85rem;
-  }
-
-  .step-text {
-    font-size: 0.8rem;
-  }
-
-  .loading-hint {
-    font-size: 0.75rem;
+  .sheet-body {
+    padding: 0 0.75rem 0.75rem;
   }
 }
 </style>

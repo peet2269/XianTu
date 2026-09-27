@@ -1,9 +1,9 @@
 <template>
   <div class="api-management-panel">
     <!-- 头部 -->
-    <div class="panel-header">
+    <header class="panel-header">
       <div class="header-left">
-        <div class="header-icon">🔌</div>
+        <div class="header-emblem" aria-hidden="true"><span class="emblem-glyph">枢</span></div>
         <div class="header-info">
           <h3 class="panel-title">{{ t('API管理') }}</h3>
           <span class="settings-subtitle">{{ t('管理多个API配置和功能分配') }}</span>
@@ -22,15 +22,27 @@
           <Plus :size="16" />
           <span class="btn-text">{{ t('新增') }}</span>
         </button>
+        <button
+          v-if="closable"
+          type="button"
+          class="icon-btn close-panel"
+          :aria-label="t('关闭')"
+          :title="t('关闭')"
+          @click="emit('close')"
+        >
+          <X :size="18" />
+        </button>
       </div>
-    </div>
+    </header>
 
     <!-- 内容区域 -->
     <div class="settings-container">
       <!-- API列表区 -->
       <div class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">📡 {{ t('API配置列表') }}</h4>
+          <Server :size="15" class="section-icon" />
+          <h4 class="section-title">{{ t('API配置列表') }}</h4>
+          <span class="section-rule" aria-hidden="true"></span>
           <span class="section-count">{{ apiStore.apiConfigs.length }} {{ t('个配置') }}</span>
         </div>
         <div class="api-list">
@@ -52,7 +64,7 @@
               <div class="api-info">
                 <span class="api-name">{{ getDisplayName(api) }}</span>
                 <span class="api-provider" v-if="!(isTavernEnvFlag && api.id === 'default')">{{ getProviderName(api.provider) }}</span>
-                <span class="api-provider tavern-tag" v-else>🍺 酒馆配置</span>
+                <span class="api-provider tavern-tag" v-else>酒馆配置</span>
               </div>
               <div class="api-actions">
                 <button class="icon-btn" @click="testAPI(api)" :title="t('测试连接')">
@@ -75,7 +87,7 @@
               <!-- 酒馆模式下默认API显示特殊提示 -->
               <template v-if="isTavernEnvFlag && api.id === 'default'">
                 <div class="tavern-api-hint">
-                  <span class="hint-text">🍺 API配置由酒馆管理，此处无需配置</span>
+                  <Beer :size="14" /><span class="hint-text">API配置由酒馆管理，此处无需配置</span>
                 </div>
               </template>
               <template v-else>
@@ -121,326 +133,268 @@
         </div>
       </div>
 
-      <!-- 功能分配区 -->
+      <!-- 生成方式 -->
       <div class="settings-section">
         <div class="section-header">
-          <h4 class="section-title">⚙️ {{ t('功能分配') }}</h4>
-          <span class="mode-badge" :class="isTavernEnvFlag ? 'tavern' : 'web'">
-            {{ isTavernEnvFlag ? '酒馆模式' : '网页模式' }}
-          </span>
-        </div>
-
-        <!-- 模式说明 -->
-        <div class="mode-hint" :class="isTavernEnvFlag ? 'tavern' : 'web'">
-          <div class="hint-icon">{{ isTavernEnvFlag ? '🍺' : '🌐' }}</div>
-          <div class="hint-content" v-if="isTavernEnvFlag">
-            <strong>酒馆模式：</strong>主游戏流程（main）<em>永远</em>使用酒馆配置的API。
-            辅助功能如需使用独立API，请在下方分配非"默认API"的配置。
-            <br/>
-            <span class="hint-example">提示：未配置独立API的辅助功能也会走酒馆API，实现请求合并。</span>
-          </div>
-          <div class="hint-content" v-else>
-            <strong>网页模式：</strong>所有功能都通过配置的自定义API调用。
-            可为不同功能分配不同的API，实现灵活调度。
-            <br/>
-            <span class="hint-example">提示：配置了相同API的功能会自动合并请求，节省调用次数。</span>
-          </div>
-        </div>
-
-        <div class="pipeline-hint">
-          <div class="hint-icon">💡</div>
-          <div class="hint-content">
-            <strong>智能流水线：</strong>“主流程”默认一次性生成正文/行动选项/指令（1次调用）。
-            若开启“分步生成”，系统会拆成两次调用：第1步生成正文，第2步生成指令JSON（是否使用独立API由「指令生成」分配决定）。
-            <br/>
-            <span class="hint-example">示例：关闭分步生成=1次调用；开启分步生成=2次调用（第2步可单独指定模型以提高JSON稳定性）</span>
-          </div>
+          <Bot :size="15" class="section-icon" />
+          <h4 class="section-title">{{ t('生成方式') }}</h4>
+          <span class="section-rule" aria-hidden="true"></span>
         </div>
         <div class="settings-list">
-          <!-- ========== 全局设置 ========== -->
-          <div class="function-group-header">
-            <h5 class="group-title">⚙️ 全局设置</h5>
-            <span class="group-desc">影响所有API调用的通用配置</span>
-          </div>
-
-          <!-- 重试次数设置 -->
           <div class="setting-item">
             <div class="setting-info">
-              <label class="setting-name">重试次数</label>
-              <span class="setting-desc">API调用失败后的重试次数。0=不重试，1=重试1次，以此类推</span>
+              <label class="setting-name" for="api-streaming">{{ t('流式输出') }}</label>
+              <span class="setting-desc">{{ t('AI 回复边生成边显示，不用等整段写完') }}</span>
             </div>
             <div class="setting-control">
-              <input
-                type="number"
-                :value="retryCount"
-                @input="updateRetryCount(($event.target as HTMLInputElement).value)"
-                min="0"
-                max="5"
-                class="setting-number-input"
-              />
-              <span class="input-hint">次</span>
-            </div>
-          </div>
-
-          <!-- ========== 主游戏流程（3个） ========== -->
-          <div class="function-group-header">
-            <h5 class="group-title">🎮 主游戏流程</h5>
-            <span class="group-desc">控制游戏主要生成流程的API分配</span>
-          </div>
-
-          <!-- 1. 主游戏流程 -->
-          <div
-            class="setting-item"
-            :class="{ 'tavern-locked': isTavernEnvFlag && apiStore.apiAssignments.find(a => a.type === 'main') }"
-          >
-            <div class="setting-info">
-              <label class="setting-name">
-                {{ getFunctionName('main') }}
-                <span v-if="isTavernEnvFlag" class="locked-badge">🔒 酒馆API</span>
+              <label class="setting-switch">
+                <input id="api-streaming" type="checkbox" v-model="streamingEnabled" />
+                <span class="switch-slider"></span>
               </label>
-              <span class="setting-desc">{{ getFunctionDesc('main') }}</span>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <label class="setting-name" for="api-split">{{ t('分步生成') }}</label>
+              <span class="setting-desc">
+                {{ splitResponseGeneration
+                  ? t('每回合调用两次：第 1 步写正文和行动选项，第 2 步单独生成游戏指令')
+                  : t('每回合调用一次，正文和游戏指令一起生成。开启后更稳定，但多一次调用') }}
+              </span>
             </div>
             <div class="setting-control">
-              <template v-if="isTavernEnvFlag">
-                <span class="locked-text">使用酒馆配置</span>
-              </template>
-              <template v-else>
+              <label class="setting-switch">
+                <input id="api-split" type="checkbox" v-model="splitResponseGeneration" @change="saveSplitResponseSetting" />
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 仅在分步生成开启时出现 -->
+          <template v-if="splitResponseGeneration">
+            <div class="setting-item nested">
+              <div class="setting-info">
+                <label class="setting-name" for="api-step2">{{ t('第 2 步使用的 API') }}</label>
+                <span class="setting-desc">{{ t('负责输出结构化指令（JSON）。可以选一个更擅长 JSON 的模型，不选则沿用主流程 API') }}</span>
+              </div>
+              <div class="setting-control">
                 <select
-                  :value="apiStore.apiAssignments.find(a => a.type === 'main')?.apiId"
-                  @change="updateAssignment('main', ($event.target as HTMLSelectElement).value)"
+                  id="api-step2"
                   class="setting-select"
+                  :value="apiStore.apiAssignments.find(a => a.type === 'instruction_generation')?.apiId"
+                  @change="updateAssignment('instruction_generation', ($event.target as HTMLSelectElement).value)"
                 >
                   <option
                     v-for="api in apiStore.enabledAPIs"
                     :key="api.id"
                     :value="api.id"
                   >
-                    {{ getDisplayName(api) }}
+                    {{ api.id === 'default' ? t('沿用主流程 API') : getDisplayName(api) }}
                   </option>
                 </select>
-              </template>
+              </div>
+            </div>
+
+            <div class="setting-item nested">
+              <div class="setting-info">
+                <label class="setting-name" for="api-step2-stream">{{ t('第 2 步流式传输') }}</label>
+                <span class="setting-desc">{{ t('部分 API 不支持，第 2 步报错时请关闭') }}</span>
+              </div>
+              <div class="setting-control">
+                <label class="setting-switch">
+                  <input
+                    id="api-step2-stream"
+                    type="checkbox"
+                    :checked="apiStore.aiGenerationSettings.splitStep2Streaming"
+                    @change="apiStore.updateAIGenerationSettings({ splitStep2Streaming: ($event.target as HTMLInputElement).checked })"
+                  />
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </template>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <label class="setting-name" for="api-retry">{{ t('失败重试') }}</label>
+              <span class="setting-desc">{{ t('API 调用失败后自动重试的次数，0 为不重试') }}</span>
+            </div>
+            <div class="setting-control">
+              <input
+                id="api-retry"
+                type="number"
+                min="0"
+                max="5"
+                class="setting-number-input"
+                :value="retryCount"
+                @input="updateRetryCount(($event.target as HTMLInputElement).value)"
+              />
+              <span class="input-hint">{{ t('次') }}</span>
             </div>
           </div>
 
-          <!-- 2. 指令生成 -->
-          <div class="setting-item">
+          <template v-if="isTavernEnvFlag">
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-name" for="api-nsfw">{{ t('成人内容模式') }}</label>
+                <span class="setting-desc">{{ t('启用后NPC可能产生成人向互动内容') }}</span>
+              </div>
+              <div class="setting-control">
+                <label class="setting-switch">
+                  <input id="api-nsfw" type="checkbox" v-model="nsfwMode" @change="saveNsfwSettings" />
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div v-if="nsfwMode" class="setting-item nested">
+              <div class="setting-info">
+                <label class="setting-name" for="api-nsfw-gender">{{ t('性别偏好') }}</label>
+                <span class="setting-desc">{{ t('只让所选性别的 NPC 参与成人互动') }}</span>
+              </div>
+              <div class="setting-control">
+                <select id="api-nsfw-gender" v-model="nsfwGenderFilter" class="setting-select" @change="saveNsfwSettings">
+                  <option value="female">{{ t('仅女性') }}</option>
+                  <option value="male">{{ t('仅男性') }}</option>
+                  <option value="all">{{ t('不限性别') }}</option>
+                </select>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- 功能分配 -->
+      <div class="settings-section">
+        <div class="section-header">
+          <Workflow :size="15" class="section-icon" />
+          <h4 class="section-title">{{ t('功能分配') }}</h4>
+          <span class="section-rule" aria-hidden="true"></span>
+          <span class="mode-badge" :class="isTavernEnvFlag ? 'tavern' : 'web'">
+            {{ isTavernEnvFlag ? t('酒馆模式') : t('网页模式') }}
+          </span>
+        </div>
+
+        <p class="section-hint">
+          <component :is="isTavernEnvFlag ? Beer : Globe" :size="14" />
+          <span v-if="isTavernEnvFlag">{{ t('主流程固定走酒馆的 API；下面的辅助功能可单独指定 API，不指定则同样走酒馆。') }}</span>
+          <span v-else>{{ t('每个功能都可以指定用哪个 API；指定同一个 API 的功能会合并请求。') }}</span>
+        </p>
+
+        <div class="settings-list">
+          <!-- 主流程 -->
+          <div class="setting-item" :class="{ 'tavern-locked': isTavernEnvFlag }">
             <div class="setting-info">
-              <label class="setting-name">{{ getFunctionName('instruction_generation') }}</label>
-              <span class="setting-desc">{{ getFunctionDesc('instruction_generation') }}</span>
+              <span class="setting-name">
+                {{ t('主流程') }}
+                <span v-if="isTavernEnvFlag" class="locked-badge"><Lock :size="11" /> {{ t('酒馆') }}</span>
+              </span>
+              <span class="setting-desc">
+                {{ splitResponseGeneration ? t('生成正文和行动选项（分步生成的第 1 步）') : t('生成正文、行动选项和游戏指令') }}
+              </span>
             </div>
             <div class="setting-control">
+              <span v-if="isTavernEnvFlag" class="locked-text">{{ t('使用酒馆配置') }}</span>
               <select
-                :value="apiStore.apiAssignments.find(a => a.type === 'instruction_generation')?.apiId"
-                @change="updateAssignment('instruction_generation', ($event.target as HTMLSelectElement).value)"
+                v-else
                 class="setting-select"
+                :value="apiStore.apiAssignments.find(a => a.type === 'main')?.apiId"
+                @change="updateAssignment('main', ($event.target as HTMLSelectElement).value)"
               >
-                <option
-                  v-for="api in apiStore.enabledAPIs"
-                  :key="api.id"
-                  :value="api.id"
-                >
+                <option v-for="api in apiStore.enabledAPIs" :key="api.id" :value="api.id">
                   {{ getDisplayName(api) }}
                 </option>
               </select>
             </div>
           </div>
 
-          <!-- 分步/指令API提示（避免“主API/指令API”语义混淆） -->
-          <div v-if="splitResponseGeneration && apiStore.shouldEnableSplitGeneration" class="auto-split-hint">
-            <div class="hint-icon">⚡</div>
-            <div class="hint-text">
-              <strong>分步生成将使用独立「指令生成」API：</strong>
-              第1步（正文/行动）走主流程API；第2步（tavern_commands 等结构化JSON）走你选择的「指令生成」API。
-            </div>
-          </div>
-          <div v-else-if="splitResponseGeneration" class="auto-split-hint">
-            <div class="hint-icon">⚡</div>
-            <div class="hint-text">
-              <strong>分步生成已开启：</strong>
-              当前未配置独立「指令生成」API，第2步将复用主流程API。
-            </div>
-          </div>
-          <div v-else-if="apiStore.shouldEnableSplitGeneration" class="auto-split-hint warn">
-            <div class="hint-icon">ℹ️</div>
-            <div class="hint-text">
-              <strong>已配置独立「指令生成」API：</strong>
-              但“分步生成”当前关闭，因此该配置不会生效；开启分步生成后才会用于第2步。
-            </div>
-          </div>
-
-          <!-- 分步生成第2步流式设置 -->
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">分步第2步流式传输</label>
-              <span class="setting-desc">分步生成时，第2步（指令生成）是否使用流式传输（默认关闭，部分API不支持流式）</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input
-                  type="checkbox"
-                  :checked="apiStore.aiGenerationSettings.splitStep2Streaming"
-                  @change="apiStore.updateAIGenerationSettings({ splitStep2Streaming: ($event.target as HTMLInputElement).checked })"
-                />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- ========== 辅助功能（6个） ========== -->
           <div class="function-group-header">
-            <h5 class="group-title">🛠️ 辅助功能</h5>
-            <span class="group-desc">可选的辅助生成功能，支持Raw/标准模式切换</span>
+            <h5 class="group-title">{{ t('辅助功能') }}</h5>
+            <span class="group-desc">{{ t('不指定时使用主流程 API') }}</span>
           </div>
 
-          <!-- 辅助功能列表 -->
-            <div
-              v-for="funcType in ['memory_summary', 'text_optimization', 'world_generation', 'event_generation', 'sect_generation', 'crafting', 'embedding']"
-              :key="funcType"
-              class="setting-item"
-            >
+          <div v-for="funcType in auxiliaryFunctions" :key="funcType" class="setting-item">
             <div class="setting-info">
-              <label class="setting-name">
-                {{ getFunctionName(funcType as APIUsageType) }}
-                <span v-if="funcType !== 'embedding'" class="mode-indicator">
-                  {{ apiStore.getFunctionMode(funcType as APIUsageType) === 'raw' ? 'Raw' : '标准' }}
+              <span class="setting-name">
+                {{ getFunctionName(funcType) }}
+                <span v-if="isTavernEnvFlag && isFunctionActive(funcType)" class="mode-indicator">
+                  {{ apiStore.getFunctionMode(funcType) === 'raw' ? 'Raw' : t('标准') }}
                 </span>
-              </label>
-              <span class="setting-desc">{{ getFunctionDesc(funcType as APIUsageType) }}</span>
+              </span>
+              <span class="setting-desc">{{ getFunctionDesc(funcType) }}</span>
             </div>
             <div class="setting-control">
               <div class="control-row">
-                <!-- embedding 功能的启用开关 -->
-                <div v-if="funcType === 'embedding'" class="inline-toggle">
-                  <label class="toggle-label">启用</label>
-                  <label class="setting-switch compact">
-                    <input
-                      type="checkbox"
-                      v-model="vectorMemoryEnabled"
-                      @change="onVectorMemoryChange"
-                    />
-                    <span class="switch-slider"></span>
-                  </label>
-                </div>
+                <!-- 可开关的功能：先开关，开启后才出现 API 选择 -->
+                <label v-if="funcType === 'text_optimization'" class="setting-switch" :title="t('启用')">
+                  <input
+                    type="checkbox"
+                    :checked="apiStore.isFunctionEnabled('text_optimization')"
+                    @change="apiStore.setFunctionEnabled('text_optimization', ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="switch-slider"></span>
+                </label>
 
-                <!-- text_optimization 功能的启用开关 -->
-                <div v-if="funcType === 'text_optimization'" class="inline-toggle">
-                  <label class="toggle-label">启用</label>
-                  <label class="setting-switch compact">
-                    <input
-                      type="checkbox"
-                      :checked="apiStore.isFunctionEnabled('text_optimization')"
-                      @change="apiStore.setFunctionEnabled('text_optimization', ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span class="switch-slider"></span>
-                  </label>
-                </div>
-
-                <!-- API分配下拉框 -->
-                <select
-                  :value="apiStore.apiAssignments.find(a => a.type === funcType)?.apiId"
-                  @change="updateAssignment(funcType as APIUsageType, ($event.target as HTMLSelectElement).value)"
-                  class="setting-select"
-                  :class="{ 'disabled-hint': funcType === 'embedding' && !vectorMemoryEnabled }"
-                  :disabled="funcType === 'embedding' && !vectorMemoryEnabled"
-                  :title="funcType === 'embedding' && !vectorMemoryEnabled ? '请先启用向量检索功能' : ''"
-                >
-                  <option value="default">使用主API</option>
-                  <option
-                    v-for="api in apiStore.apiConfigs.filter(a => a.id !== 'default')"
-                    :key="api.id"
-                    :value="api.id"
-                    :disabled="!api.enabled"
+                <template v-if="isFunctionActive(funcType)">
+                  <select
+                    class="setting-select"
+                    :value="apiStore.apiAssignments.find(a => a.type === funcType)?.apiId"
+                    @change="updateAssignment(funcType, ($event.target as HTMLSelectElement).value)"
                   >
-                    {{ getDisplayName(api) }}{{ !api.enabled ? ' (未启用)' : '' }}
-                  </option>
-                </select>
+                    <option value="default">{{ t('沿用主流程 API') }}</option>
+                    <option
+                      v-for="api in apiStore.apiConfigs.filter(a => a.id !== 'default')"
+                      :key="api.id"
+                      :value="api.id"
+                      :disabled="!api.enabled"
+                    >
+                      {{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}
+                    </option>
+                  </select>
 
-                <!-- Raw/标准模式选择（仅非embedding功能且为酒馆模式时显示） -->
-                <select
-                  v-if="funcType !== 'embedding' && isTavernEnvFlag"
-                  :value="apiStore.getFunctionMode(funcType as APIUsageType)"
-                  @change="updateFunctionMode(funcType as APIUsageType, ($event.target as HTMLSelectElement).value as any)"
-                  class="setting-select mode-select"
-                >
-                  <option value="raw">Raw</option>
-                  <option value="standard">标准</option>
-                </select>
+                  <select
+                    v-if="isTavernEnvFlag"
+                    class="setting-select mode-select"
+                    :title="t('Raw：直接发送任务提示词；标准：附带酒馆预设')"
+                    :value="apiStore.getFunctionMode(funcType)"
+                    @change="updateFunctionMode(funcType, ($event.target as HTMLSelectElement).value as any)"
+                  >
+                    <option value="raw">Raw</option>
+                    <option value="standard">{{ t('标准') }}</option>
+                  </select>
+                </template>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- AI生成设置 -->
-      <div class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">🤖 {{ t('AI生成设置') }}</h4>
-        </div>
-        <div class="settings-list">
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('流式输出') }}</label>
-              <span class="setting-desc">{{ t('开启后AI响应逐字显示') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="streamingEnabled" />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
+          <!-- 叙事检索 Embedding 配置：检索开关与同步操作在记忆档案中统一管理 -->
+          <div class="function-group-header">
+            <h5 class="group-title">叙事检索</h5>
+            <span class="group-desc">为历史剧情检索提供 Embedding 模型</span>
           </div>
 
-          <div class="setting-item">
+          <div class="setting-item nested">
             <div class="setting-info">
-              <label class="setting-name">{{ t('分步生成') }}</label>
-              <span class="setting-desc">{{ t('开启后AI分两步生成：先输出正文，再生成指令') }}</span>
+              <label class="setting-name" for="api-embedding">Embedding API</label>
+              <span class="setting-desc">只在这里选择向量模型；叙事检索的开关、同步和召回参数在记忆档案中设置。</span>
             </div>
             <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="splitResponseGeneration" @change="saveSplitResponseSetting" />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div v-if="vectorMemoryEnabled" class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('检索数量') }}</label>
-              <span class="setting-desc">{{ t('每次检索的最大记忆条数') }}</span>
-            </div>
-            <div class="setting-control">
-              <select v-model.number="vectorMemoryMaxCount" @change="onVectorMemoryChange" class="setting-select">
-                <option :value="5">5条</option>
-                <option :value="10">10条（推荐）</option>
-                <option :value="15">15条</option>
-                <option :value="20">20条</option>
-              </select>
-            </div>
-          </div>
-
-          <div v-if="isTavernEnvFlag" class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('🔞 成人内容模式') }}</label>
-              <span class="setting-desc">{{ t('启用后NPC可能产生成人向互动内容') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="nsfwMode" @change="saveNsfwSettings" />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div v-if="isTavernEnvFlag && nsfwMode" class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('🔞 性别偏好过滤') }}</label>
-              <span class="setting-desc">{{ t('过滤参与成人互动的NPC性别') }}</span>
-            </div>
-            <div class="setting-control">
-              <select v-model="nsfwGenderFilter" @change="saveNsfwSettings" class="setting-select">
-                <option value="female">{{ t('仅女性') }}</option>
-                <option value="male">{{ t('仅男性') }}</option>
-                <option value="all">{{ t('不限性别') }}</option>
+              <select
+                id="api-embedding"
+                class="setting-select"
+                :value="apiStore.apiAssignments.find(a => a.type === 'embedding')?.apiId"
+                @change="updateAssignment('embedding', ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="default">{{ t('沿用主流程 API') }}</option>
+                <option
+                  v-for="api in apiStore.apiConfigs.filter(a => a.id !== 'default')"
+                  :key="api.id"
+                  :value="api.id"
+                  :disabled="!api.enabled"
+                >
+                  {{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}
+                </option>
               </select>
             </div>
           </div>
@@ -449,23 +403,23 @@
     </div>
 
     <!-- 新增/编辑API弹窗 -->
-    <div v-if="showAddDialog || showEditDialog" class="modal-overlay" @click.self="closeDialogs">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>{{ showEditDialog ? t('编辑API配置') : t('新增API配置') }}</h3>
-          <button class="close-btn" @click="closeDialogs">
-            <X :size="20" />
+    <div v-if="showAddDialog || showEditDialog" class="cc-modal-overlay api-modal-overlay" @click.self="closeDialogs">
+      <div class="cc-modal wide" role="dialog" aria-modal="true">
+        <div class="cc-modal-head">
+          <h3 class="cc-modal-title">{{ showEditDialog ? t('编辑API配置') : t('新增API配置') }}</h3>
+          <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="closeDialogs">
+            <X :size="18" />
           </button>
         </div>
-        <div class="modal-body">
+        <div class="cc-modal-body">
           <div class="form-group">
             <label>{{ t('配置名称') }}</label>
-            <input v-model="editingAPI.name" class="form-input" :placeholder="t('例如：主力API')" />
+            <input v-model="editingAPI.name" class="cc-input" :placeholder="t('例如：主力API')" />
           </div>
 
           <div class="form-group">
             <label>{{ t('API提供商') }}</label>
-            <select v-model="editingAPI.provider" class="form-select" @change="onProviderChange">
+            <select v-model="editingAPI.provider" class="cc-input" @change="onProviderChange">
               <option value="openai">OpenAI</option>
               <option value="claude">Claude</option>
               <option value="gemini">Gemini</option>
@@ -481,7 +435,7 @@
             <label>{{ t('API地址') }}</label>
             <input
               v-model="editingAPI.url"
-              class="form-input"
+              class="cc-input"
               :placeholder="getProviderPresetUrl(editingAPI.provider || 'openai')"
             />
           </div>
@@ -491,7 +445,7 @@
             <input
               v-model="editingAPI.apiKey"
               type="password"
-              class="form-input"
+              class="cc-input"
               placeholder="sk-..."
             />
           </div>
@@ -502,12 +456,12 @@
               <div class="model-input-row">
                 <input
                   v-model="editingAPI.model"
-                  class="form-input"
+                  class="cc-input"
                   :placeholder="getProviderPresetModel(editingAPI.provider || 'openai')"
                   @focus="showModelDropdown = true"
                   @input="filterModels"
                 />
-                <button class="utility-btn" @click="fetchModelsForEditing" :disabled="isFetchingModels">
+                <button type="button" class="cc-btn small fetch-btn" :title="t('获取模型列表')" @click="fetchModelsForEditing" :disabled="isFetchingModels">
                   <RefreshCw :size="16" :class="{ 'loading-pulse': isFetchingModels }" />
                 </button>
               </div>
@@ -531,7 +485,7 @@
               <input
                 v-model.number="editingAPI.temperature"
                 type="number"
-                class="form-input"
+                class="cc-input"
                 min="0"
                 max="2"
                 step="0.1"
@@ -542,7 +496,7 @@
               <input
                 v-model.number="editingAPI.maxTokens"
                 type="number"
-                class="form-input"
+                class="cc-input"
                 min="100"
                 :max="getProviderMaxOutputTokens(editingAPI.provider || 'openai')"
               />
@@ -587,9 +541,9 @@
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="closeDialogs">{{ t('取消') }}</button>
-          <button class="btn-confirm" @click="saveAPI">{{ t('保存') }}</button>
+        <div class="cc-modal-foot">
+          <button type="button" class="cc-btn" @click="closeDialogs">{{ t('取消') }}</button>
+          <button type="button" class="cc-btn primary" @click="saveAPI">{{ t('保存') }}</button>
         </div>
       </div>
     </div>
@@ -598,15 +552,20 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { Plus, Edit2, Trash2, Upload, Download, X, RefreshCw, FlaskConical } from 'lucide-vue-next';
+import {
+  Plus, Edit2, Trash2, Upload, Download, X, RefreshCw, FlaskConical,
+  Server, Workflow, Bot, Beer, Globe, Lock,
+} from 'lucide-vue-next';
 import { useAPIManagementStore, type APIConfig, type APIUsageType } from '@/stores/apiManagementStore';
 import { aiService, API_PROVIDER_PRESETS, type APIProvider } from '@/services/aiService';
 import { useUIStore } from '@/stores/uiStore';
-import { vectorMemoryService } from '@/services/vectorMemoryService';
 import { getNsfwSettingsFromStorage, type NsfwGenderFilter } from '@/utils/nsfw';
 import { isTavernEnv } from '@/utils/tavern';
 import { toast } from '@/utils/toast';
 import { useI18n } from '@/i18n';
+
+withDefaults(defineProps<{ closable?: boolean }>(), { closable: false });
+const emit = defineEmits<{ (e: 'close'): void }>();
 
 const { t } = useI18n();
 const apiStore = useAPIManagementStore();
@@ -617,15 +576,12 @@ onMounted(() => {
   apiStore.loadFromStorage();
   loadAIServiceConfig();
   loadLocalSettings();
-  loadVectorMemoryConfig();
 
 });
 
 // AI服务通用配置
 const streamingEnabled = ref(true);
 const splitResponseGeneration = ref(false); // 分步生成开关，默认关闭
-const vectorMemoryEnabled = ref(false);
-const vectorMemoryMaxCount = ref(10);
 const isTavernEnvFlag = ref(isTavernEnv());
 const nsfwMode = ref(true);
 const nsfwGenderFilter = ref<NsfwGenderFilter>('female');
@@ -698,30 +654,6 @@ const updateRetryCount = (value: string) => {
   aiService.saveConfig({ ...currentConfig, maxRetries: num });
 
   toast.success(`重试次数已设置为 ${num} 次`);
-};
-
-const loadVectorMemoryConfig = () => {
-  const config = vectorMemoryService.getConfig();
-  // 🔥 同时检查 apiStore 中的 embedding 启用状态，两者需要同步
-  const storeEnabled = apiStore.isFunctionEnabled('embedding');
-  vectorMemoryEnabled.value = config.enabled && storeEnabled;
-  vectorMemoryMaxCount.value = config.maxRetrieveCount;
-};
-
-const onVectorMemoryChange = () => {
-  // 🔥 同时更新 vectorMemoryService 和 apiStore 中的 embedding 启用状态
-  vectorMemoryService.saveConfig({
-    enabled: vectorMemoryEnabled.value,
-    maxRetrieveCount: vectorMemoryMaxCount.value,
-  });
-  // 同步到 apiStore，确保 embedding 功能启用状态一致
-  apiStore.setFunctionEnabled('embedding', vectorMemoryEnabled.value);
-
-  if (vectorMemoryEnabled.value) {
-    toast.success(`向量记忆检索已启用，每次最多检索 ${vectorMemoryMaxCount.value} 条`);
-  } else {
-    toast.info('向量记忆检索已禁用，将使用全量发送模式');
-  }
 };
 
 // 监听通用配置变化
@@ -819,50 +751,33 @@ const onProviderChange = () => {
 // 获取功能名称
 const getFunctionName = (type: APIUsageType): string => {
   const names: Record<APIUsageType, string> = {
-    main: '主流程（正文/行动）',
+    main: '主流程',
     memory_summary: '记忆总结',
-    embedding: '向量检索(Embedding)',
-    text_optimization: '文本优化',
-    instruction_generation: '指令生成（分步第2步）',
+    embedding: '叙事检索 Embedding',
+    text_optimization: '文本润色',
+    instruction_generation: '指令生成（分步）',
     world_generation: '世界生成',
-      event_generation: '事件生成',
-      sect_generation: '宗门生成',
-      crafting: '炼丹炼器'
-    };
+    event_generation: '事件生成',
+    sect_generation: '宗门生成',
+    crafting: '炼丹炼器',
+  };
   return names[type] || type;
 };
 
 // 获取功能描述
 const getFunctionDesc = (type: APIUsageType): string => {
-  if (isTavernEnvFlag.value) {
-    // 酒馆模式的描述
-    const descs: Record<APIUsageType, string> = {
-      main: '游戏主要交互（正文/行动选项/指令；酒馆模式下永远使用酒馆API）',
-      memory_summary: '压缩总结历史记忆，包括NPC记忆（可配置Raw/标准模式）',
-      embedding: '向量记忆语义检索用Embedding（需要embedding模型，建议使用独立API）',
-      text_optimization: '优化AI输出文本（可配置Raw/标准模式）',
-      instruction_generation: '分步生成的第2步：生成 tavern_commands 等结构化JSON（可单独指定更擅长JSON的模型）',
-      world_generation: '生成世界、地点等（可配置Raw/标准模式）',
-        event_generation: '生成世界事件（可配置Raw/标准模式）',
-        sect_generation: '生成宗门内容如藏经阁、贡献商店（可配置Raw/标准模式）',
-        crafting: '炼丹炼器系统（可配置Raw/标准模式）'
-      };
-    return descs[type] || '';
-  } else {
-    // 网页模式的描述
-    const descs: Record<APIUsageType, string> = {
-      main: '游戏主要交互与叙事生成（正文/行动选项/指令等的默认承载）',
-      memory_summary: '压缩总结历史记忆，包括NPC记忆（可用快速模型节省成本）',
-      embedding: '向量记忆语义检索用Embedding（需要embedding模型）',
-      text_optimization: '优化AI输出的文本质量',
-      instruction_generation: '分步生成的第2步：生成 tavern_commands 等结构化JSON（可单独指定更擅长JSON的模型）',
-      world_generation: '生成世界、地点等内容（开局时使用）',
-        event_generation: '生成世界事件（可用快速模型）',
-        sect_generation: '生成宗门内容如藏经阁、贡献商店（可用快速模型）',
-        crafting: '炼丹炼器系统（可用快速模型）'
-      };
-    return descs[type] || '';
-  }
+  const descs: Record<APIUsageType, string> = {
+    main: '生成正文、行动选项和游戏指令',
+    memory_summary: '把较早的对话和 NPC 记忆压缩成摘要，可用便宜的快速模型',
+    embedding: '把历史叙事转成向量，用于长程剧情检索',
+    text_optimization: '对 AI 写出的正文再润色一遍（开启后每回合多一次调用）',
+    instruction_generation: '分步生成的第 2 步：输出结构化游戏指令',
+    world_generation: '开局与探索时生成世界、地点',
+    event_generation: '生成世界大事件',
+    sect_generation: '生成宗门的藏经阁、贡献商店等内容',
+    crafting: '炼丹、炼器时的结果判定',
+  };
+  return descs[type] || '';
 };
 
 const updateFunctionMode = (type: APIUsageType, mode: 'raw' | 'standard') => {
@@ -871,9 +786,26 @@ const updateFunctionMode = (type: APIUsageType, mode: 'raw' | 'standard') => {
 };
 
 // 获取已分配到某API的功能列表
+// 辅助功能（叙事检索的 Embedding 在上方单独配置）
+const auxiliaryFunctions: APIUsageType[] = [
+  'memory_summary',
+  'text_optimization',
+  'world_generation',
+  'event_generation',
+  'sect_generation',
+  'crafting',
+];
+
+// 功能当前是否生效：可开关的功能在关闭时不显示 API 选择，也不计入卡片上的"已分配"
+const isFunctionActive = (type: APIUsageType): boolean => {
+  if (type === 'instruction_generation') return splitResponseGeneration.value;
+  if (type === 'text_optimization') return apiStore.isFunctionEnabled('text_optimization');
+  return true;
+};
+
 const getAssignedFunctions = (apiId: string): APIUsageType[] => {
   return apiStore.apiAssignments
-    .filter(a => a.apiId === apiId)
+    .filter(a => a.apiId === apiId && isFunctionActive(a.type))
     .map(a => a.type);
 };
 
@@ -1145,982 +1077,804 @@ const handleImport = () => {
 </script>
 
 <style scoped>
+/* ============================================================
+   API 管理 —— 令牌见 styles/xian-tokens.css，弹窗用 cc-modal
+   ============================================================ */
 .api-management-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-background);
+  min-height: 0;
   overflow: hidden;
-  padding: 1rem;
-  gap: 1rem;
-  position: relative;
+  background: var(--cc-shell-bg);
+  color: var(--cc-text);
 }
 
-/* 头部 */
+/* ---------- 头部 ---------- */
 .panel-header {
+  position: relative;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  background: var(--color-surface);
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1.1rem 1.25rem 1rem;
   flex-shrink: 0;
+  /* 覆盖 panel-theme.css 的通用卡片式头部 */
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--cc-border);
+  border-radius: 0;
+  backdrop-filter: none;
+}
+
+.panel-header::after {
+  content: '';
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cc-gold-rgb), 0.55), transparent);
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
+  min-width: 0;
 }
 
-.header-icon {
-  font-size: 1.5rem;
+.header-emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.25) 0%, rgba(var(--cc-accent-rgb), 0.06) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.5);
+}
+
+.header-emblem::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.4);
+}
+
+.emblem-glyph {
+  font-family: var(--cc-calligraphy);
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--cc-accent);
 }
 
 .header-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .panel-title {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 1.2rem;
   font-weight: 600;
-  color: var(--color-text);
+  letter-spacing: 0.18em;
+  color: var(--cc-text);
 }
 
 .settings-subtitle {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--cc-text-3);
 }
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .action-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  gap: 0.4rem;
+  /* 抵消全局 48px 圆形 .action-btn 样式 */
   width: auto !important;
   height: auto !important;
   min-width: 0;
-  min-height: 38px;
-  max-width: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-surface);
-  color: var(--color-text);
+  min-height: 34px;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 6px;
+  background: var(--cc-surface-2);
+  color: var(--cc-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-  line-height: 1.2;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  transition: background 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
 }
 
-/* 修复按钮文字被全局样式覆盖的问题 */
+.action-btn svg {
+  color: var(--cc-gold);
+}
+
 .action-btn .btn-text {
-  display: inline-block;
-  min-width: 0;
-  max-width: 100%;
-  text-align: center;
+  display: inline;
+  width: auto;
   font-size: inherit;
-  line-height: 1.2;
   color: inherit;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .action-btn:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
+  background: var(--cc-surface-hover);
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
 }
 
 .action-btn.primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-white-soft);
+  border-color: var(--cc-primary-border);
+  background: var(--cc-primary-bg);
+  color: #fff;
+  box-shadow: var(--cc-primary-shadow);
+}
+
+.action-btn.primary svg {
+  color: #fff;
 }
 
 .action-btn.primary:hover {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
+  filter: brightness(1.1);
 }
 
-/* 内容区域 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: var(--cc-surface-2);
+  color: var(--cc-text-2);
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: var(--cc-accent);
+  border-color: rgba(var(--cc-accent-rgb), 0.45);
+}
+
+.icon-btn.danger:hover:not(:disabled) {
+  color: var(--cc-danger);
+  background: rgba(var(--cc-danger-rgb), 0.1);
+  border-color: rgba(var(--cc-danger-rgb), 0.45);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.icon-btn.close-panel {
+  width: 34px;
+  height: 34px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.loading-pulse {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 内容 ---------- */
 .settings-container {
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
-  padding: 0 0.5rem 3rem 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  overflow-y: auto;
+  padding: 1.1rem 1.25rem 1.5rem;
 }
 
-.settings-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.settings-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-
-.settings-container::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 4px;
-}
-
-/* 设置区块 */
-.settings-section {
-  margin-bottom: 1.5rem;
-  background: var(--color-surface);
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
-  overflow: hidden;
+.settings-section + .settings-section {
+  margin-top: 1.5rem;
 }
 
 .section-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.25rem;
-  background: var(--color-surface-light);
-  border-bottom: 1px solid var(--color-border);
+  gap: 0.5rem;
+  margin: 0 0.25rem 0.7rem;
+}
+
+.section-icon {
+  flex-shrink: 0;
+  color: var(--cc-gold);
 }
 
 .section-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 600;
-  color: var(--color-text, #1e293b);
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+  color: var(--cc-text);
 }
 
-/* 流水线提示 */
-.pipeline-hint {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.875rem 1.25rem;
-  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), rgba(var(--color-accent-rgb), 0.08));
-  border-bottom: 1px solid var(--color-border);
+.section-rule {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  margin-left: 0.4rem;
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.45), transparent);
 }
 
-.hint-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.hint-content {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary, #64748b);
-  line-height: 1.5;
-}
-
-.hint-content strong {
-  color: var(--color-text, #1e293b);
-}
-
-.hint-example {
-  display: inline-block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-text-muted, #94a3b8);
-  font-style: italic;
+.section-rule::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  background: var(--cc-gold);
+  transform: rotate(45deg);
 }
 
 .section-count {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-}
-
-/* 模式标识 */
-.mode-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 1rem;
+  flex-shrink: 0;
   font-size: 0.75rem;
-  font-weight: 600;
+  color: var(--cc-text-3);
 }
 
-.mode-badge.tavern {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  border: 1px solid #f59e0b;
+.mode-badge {
+  flex-shrink: 0;
+  padding: 0.12rem 0.55rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--cc-gold);
 }
 
 .mode-badge.web {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  color: #1e40af;
-  border: 1px solid #3b82f6;
+  color: var(--cc-accent);
+  border-color: rgba(var(--cc-accent-rgb), 0.45);
 }
 
-/* 模式说明 */
-.mode-hint {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.875rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.mode-hint.tavern {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.08));
-}
-
-.mode-hint.web {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.08));
-}
-
-.mode-hint .hint-content em {
-  font-style: normal;
-  font-weight: 600;
-  color: var(--color-error);
-}
-
-/* API卡片列表 */
+/* ---------- API 卡片 ---------- */
 .api-list {
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
 }
 
 .api-card {
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-surface);
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
 .api-card:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.15);
-  transform: translateY(-2px);
-}
-
-.api-card.disabled {
-  opacity: 0.5;
-  filter: grayscale(0.3);
-}
-
-.api-card.disabled:hover {
-  transform: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-color: rgba(var(--cc-gold-rgb), 0.4);
+  box-shadow: var(--cc-glow);
 }
 
 .api-card.default {
-  border-color: #3b82f6;
-  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  border-color: rgba(var(--cc-gold-rgb), 0.35);
+}
+
+.api-card.disabled {
+  opacity: 0.55;
 }
 
 .api-card-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  row-gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, var(--color-surface-light) 0%, var(--color-surface) 100%);
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* 卡片开关样式 */
-.card-toggle {
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 28px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.card-toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.card-toggle .toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 28px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.card-toggle .toggle-slider:before {
-  position: absolute;
-  content: '';
-  height: 22px;
-  width: 22px;
-  left: 3px;
-  bottom: 3px;
-  background: var(--color-white-soft);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.card-toggle input:checked + .toggle-slider {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
-}
-
-.card-toggle input:checked + .toggle-slider:before {
-  transform: translateX(20px);
+  gap: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--cc-divider);
 }
 
 .api-info {
   flex: 1;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.15rem;
   min-width: 0;
-  flex-wrap: wrap;
 }
 
 .api-name {
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--color-text);
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--cc-text);
+}
+
+.api-card.default .api-name::after {
+  content: '默认';
+  margin-left: 0.4rem;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+  font-size: 0.65rem;
+  font-weight: 500;
+  vertical-align: 2px;
 }
 
 .api-provider {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  background: var(--color-surface-light);
-  padding: 0.25rem 0.625rem;
-  border-radius: 1rem;
-  font-weight: 500;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  color: var(--cc-text-3);
 }
 
 .api-provider.tavern-tag {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  border: 1px solid #f59e0b;
-  font-weight: 500;
+  color: var(--cc-gold);
 }
 
 .api-actions {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.icon-btn:hover {
-  background: var(--color-surface-light);
-  color: var(--color-text);
-  transform: scale(1.05);
-}
-
-.icon-btn.danger:hover {
-  background: rgba(var(--color-error-rgb), 0.15);
-  color: var(--color-error);
-}
-
-.icon-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.icon-btn:disabled:hover {
-  transform: none;
+  gap: 0.3rem;
 }
 
 .api-card-body {
-  padding: 0.75rem 1rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-/* 酒馆模式下默认API的提示样式 */
-.tavern-api-hint {
-  width: 100%;
-  padding: 0.5rem 0;
-}
-
-.tavern-api-hint .hint-text {
-  font-size: 0.875rem;
-  color: #92400e;
-  font-style: italic;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.7rem 0.85rem;
 }
 
 .api-detail {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.5rem;
-  font-size: 0.875rem;
   min-width: 0;
+  font-size: 0.8rem;
 }
 
 .detail-label {
-  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  color: var(--cc-text-3);
 }
 
 .detail-value {
-  color: var(--color-text);
-  font-weight: 500;
   min-width: 0;
-}
-
-.detail-value.url {
-  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--cc-text-2);
+}
+
+.detail-value.url {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.75rem;
 }
 
 .detail-value.success {
-  color: #059669;
+  color: var(--cc-success);
 }
 
 .detail-value.fail {
-  color: #dc2626;
+  color: var(--cc-danger);
 }
 
 .detail-value.unknown {
-  color: var(--color-text-secondary);
+  color: var(--cc-text-3);
+}
+
+.tavern-api-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--cc-gold);
 }
 
 .json-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--cc-text-2);
   cursor: pointer;
-  font-size: 0.875rem;
-  color: var(--color-text);
-  user-select: none;
 }
 
-.json-toggle input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: #3b82f6;
-}
-
-.thinking-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  color: var(--color-text);
-  user-select: none;
-}
-
-.thinking-toggle input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: #f59e0b;
-}
-
-.thinking-toggle span {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: #92400e;
-  font-weight: 500;
+.json-toggle input,
+.checkbox-label input {
+  accent-color: var(--cc-accent);
 }
 
 .api-card-footer {
-  padding: 0.5rem 1rem;
-  background: rgba(var(--color-primary-rgb), 0.05);
-  border-top: 1px solid var(--color-border);
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-start;
   flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem 0.7rem;
+  border-top: 1px dashed var(--cc-divider);
 }
 
 .assigned-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.6rem;
+  color: var(--cc-text-3);
 }
 
 .assigned-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0.3rem;
 }
 
 .function-tag {
-  font-size: 0.75rem;
-  background: var(--color-primary);
-  color: var(--color-white-soft);
-  padding: 0.125rem 0.5rem;
-  border-radius: 1rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.35);
+  border-radius: 999px;
+  background: rgba(var(--cc-gold-rgb), 0.07);
+  font-size: 0.72rem;
+  color: var(--cc-gold);
 }
 
-/* 设置列表 */
+/* 卡片开关 / 设置开关 */
+.card-toggle,
+.setting-switch {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 38px;
+  height: 20px;
+}
+
+.card-toggle input,
+.setting-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider,
+.switch-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: var(--cc-inset);
+  border: 1px solid var(--cc-border-strong);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.toggle-slider::before,
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f5f2ea;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+input:checked + .toggle-slider,
+input:checked + .switch-slider {
+  background: var(--cc-primary-bg);
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+}
+
+input:checked + .toggle-slider::before,
+input:checked + .switch-slider::before {
+  transform: translateX(18px);
+}
+
+input:focus-visible + .toggle-slider,
+input:focus-visible + .switch-slider {
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
+
+.setting-switch:not(.compact) {
+  width: 42px;
+  height: 22px;
+}
+
+.setting-switch:not(.compact) .switch-slider::before {
+  width: 16px;
+  height: 16px;
+}
+
+.setting-switch:not(.compact) input:checked + .switch-slider::before {
+  transform: translateX(20px);
+}
+
+/* ---------- 区块说明 ---------- */
+.section-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: -0.2rem 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--cc-text-3);
+}
+
+.section-hint svg {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  color: var(--cc-gold);
+}
+
+/* ---------- 设置列表 ---------- */
 .settings-list {
-  padding: 0.5rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-surface);
+  overflow: hidden;
 }
 
-/* 功能分组头部 */
 .function-group-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem 0.5rem;
-  margin-top: 1rem;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem 0.5rem;
+  background: rgba(var(--cc-gold-rgb), 0.05);
+  border-bottom: 1px solid var(--cc-divider);
 }
 
-.function-group-header:first-child {
-  margin-top: 0;
+.function-group-header:not(:first-child) {
+  border-top: 1px solid var(--cc-border);
 }
 
 .group-title {
+  position: relative;
   margin: 0;
-  font-size: 1rem;
+  padding-left: 0.85rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-text);
+  letter-spacing: 0.2em;
+  color: var(--cc-gold);
+}
+
+.group-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  background: var(--cc-gold);
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .group-desc {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-/* 自动分步生成提示 */
-.auto-split-hint {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  margin: 0.75rem 0.5rem;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(37, 99, 235, 0.05));
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 0.5rem;
-}
-
-.auto-split-hint.warn {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(251, 191, 36, 0.06));
-  border-color: rgba(245, 158, 11, 0.28);
-}
-
-.auto-split-hint.warn .hint-text {
-  color: #92400e;
-}
-
-.auto-split-hint.warn .hint-text strong {
-  color: #78350f;
-}
-
-.auto-split-hint .hint-icon {
-  font-size: 1.25rem;
-}
-
-.auto-split-hint .hint-text {
-  flex: 1;
-  font-size: 0.875rem;
-  color: #1e40af;
-  line-height: 1.5;
-}
-
-.auto-split-hint .hint-text strong {
-  font-weight: 600;
-  color: #1e3a8a;
+  font-size: 0.72rem;
+  color: var(--cc-text-3);
 }
 
 .setting-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-radius: 0.5rem;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
   transition: background 0.2s ease;
 }
 
 .setting-item:hover {
-  background: var(--color-surface-light);
+  background: var(--cc-surface-hover);
 }
 
-/* 控制行样式 */
-.control-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.setting-item + .setting-item {
+  border-top: 1px solid var(--cc-divider);
 }
 
-/* 内联开关样式 */
-.inline-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-right: 0.5rem;
+/* 从属于上一个开关的子设置：缩进 + 金色引线 */
+.setting-item.nested {
+  position: relative;
+  padding-left: 2.1rem;
+  background: rgba(var(--cc-gold-rgb), 0.03);
+  animation: nested-in 0.22s ease;
 }
 
-.toggle-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
+.setting-item.nested::before {
+  content: '';
+  position: absolute;
+  left: 1.15rem;
+  top: 0;
+  bottom: 50%;
+  width: 0.55rem;
+  border-left: 1px solid rgba(var(--cc-gold-rgb), 0.5);
+  border-bottom: 1px solid rgba(var(--cc-gold-rgb), 0.5);
+  border-bottom-left-radius: 4px;
 }
 
-.setting-switch.compact {
-  transform: scale(0.85);
+@keyframes nested-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-/* 模式指示器 */
-.mode-indicator {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 0.5rem;
-  padding: 0.125rem 0.4rem;
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  color: #1e40af;
-  font-size: 0.65rem;
-  font-weight: 600;
-  border-radius: 0.5rem;
-  border: 1px solid #93c5fd;
+.setting-item.tavern-locked {
+  background: rgba(var(--cc-gold-rgb), 0.04);
 }
 
 .setting-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .setting-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: var(--color-text);
+  letter-spacing: 0.04em;
+  color: var(--cc-text);
 }
 
 .setting-desc {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-}
-
-/* 酒馆模式锁定状态 */
-.setting-item.tavern-locked {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(245, 158, 11, 0.05));
-  border-radius: 0.5rem;
-}
-
-.locked-badge {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 0.5rem;
-  padding: 0.125rem 0.5rem;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  font-size: 0.7rem;
-  font-weight: 500;
-  border-radius: 0.75rem;
-  border: 1px solid #f59e0b;
-}
-
-.locked-text {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-surface-light);
-  border: 1px dashed var(--color-border);
-  border-radius: 0.5rem;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  font-style: italic;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--cc-text-3);
 }
 
 .setting-control {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
-.assignment-control {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  align-items: flex-end;
-}
-
-.function-mode-row {
+.control-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
-.mode-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.toggle-label,
+.input-hint,
+.locked-text {
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+}
+
+.locked-badge,
+.mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.02rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.locked-badge {
+  background: rgba(var(--cc-gold-rgb), 0.15);
+  color: var(--cc-gold);
+}
+
+.mode-indicator {
+  border: 1px solid var(--cc-border);
+  color: var(--cc-text-3);
+}
+
+.setting-select,
+.setting-number-input {
+  min-width: 150px;
+  max-width: 100%;
+  padding: 0.4rem 2rem 0.4rem 0.7rem;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 6px;
+  background: var(--cc-inset) var(--cc-caret) no-repeat right 0.65rem center / 12px;
+  color: var(--cc-text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .setting-select.mode-select {
-  min-width: 120px;
-}
-
-.setting-select {
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background-color: var(--color-surface);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 12px;
-  color: var(--color-text);
-  font-size: 0.875rem;
-  cursor: pointer;
-  appearance: none;
-  min-width: 140px;
-}
-
-.setting-select.disabled-hint {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background-color: #f3f4f6;
+  min-width: 84px;
 }
 
 .setting-select:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
-  background-color: #f3f4f6;
 }
 
-/* 数字输入框样式 */
 .setting-number-input {
-  width: 80px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.875rem;
+  width: 72px;
+  min-width: 0;
+  padding-right: 0.5rem;
+  background-image: none;
   text-align: center;
-  transition: all 0.2s;
+  cursor: text;
 }
 
+.setting-select:hover:not(:disabled),
+.setting-number-input:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+}
+
+.setting-select:focus-visible,
 .setting-number-input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+  border-color: var(--cc-accent);
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.18);
 }
 
-.setting-number-input:hover {
-  border-color: var(--color-border-hover);
-}
-
-.input-hint {
-  margin-left: 0.5rem;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-/* 开关样式 */
-.setting-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-
-.setting-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.switch-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #cbd5e1;
-  transition: 0.2s;
-  border-radius: 24px;
-}
-
-.switch-slider:before {
-  position: absolute;
-  content: '';
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: var(--color-white-soft);
-  transition: 0.2s;
-  border-radius: 50%;
-}
-
-input:checked + .switch-slider {
-  background-color: var(--color-primary);
-}
-
-input:checked + .switch-slider:before {
-  transform: translateX(20px);
-}
-
-/* 模态框 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--color-surface);
-  border-radius: 1rem;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.close-btn:hover {
-  background: var(--color-surface-light);
-  color: var(--color-text);
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
+/* ---------- 新增/编辑弹窗（外观见 cc-modal） ---------- */
+.api-modal-overlay {
+  z-index: 2100;
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
-.form-group label {
-  display: block;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.form-input,
-.form-select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-sizing: border-box;
-}
-
-.form-input:focus,
-.form-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+.form-group > label {
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--cc-text-2);
 }
 
 .form-row {
-  display: flex;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
 }
 
-.form-group.half {
-  flex: 1;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-weight: 500;
-  color: #374151;
-}
-
-.form-checkbox {
-  width: 1.25rem;
-  height: 1.25rem;
-  cursor: pointer;
-  accent-color: #3b82f6;
-}
-
-.form-hint {
-  margin-top: 0.5rem;
-  padding: 0.75rem;
-  background: #f3f4f6;
-  border-radius: 0.5rem;
-  font-size: 0.8125rem;
-  color: #6b7280;
-  line-height: 1.5;
-}
-
-.hint-warning {
-  color: #d97706;
-  font-weight: 500;
+.model-select-wrapper {
+  position: relative;
 }
 
 .model-input-row {
@@ -2128,333 +1882,112 @@ input:checked + .switch-slider:before {
   gap: 0.5rem;
 }
 
-.model-input-row .form-input {
-  flex: 1;
-}
-
-.model-select-wrapper {
-  position: relative;
+.fetch-btn {
+  flex-shrink: 0;
+  padding-inline: 0.7rem;
 }
 
 .model-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
-  max-height: 200px;
+  z-index: 5;
+  max-height: 220px;
   overflow-y: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  margin-top: 4px;
+  padding: 0.3rem;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 6px;
+  background: var(--cc-shell-bg);
+  box-shadow: var(--cc-shell-shadow);
 }
 
 .model-dropdown-item {
-  padding: 0.5rem 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 4px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--cc-text-2);
   cursor: pointer;
-  font-size: 0.875rem;
-  color: var(--color-text);
-  transition: background 0.15s ease;
 }
 
 .model-dropdown-item:hover {
-  background: var(--color-surface-light);
+  background: var(--cc-surface-hover);
+  color: var(--cc-text);
 }
 
 .model-dropdown-item.active {
-  background: rgba(var(--color-primary-rgb), 0.1);
-  color: var(--color-primary);
-  font-weight: 500;
+  color: var(--cc-accent);
+  background: rgba(var(--cc-accent-rgb), 0.1);
 }
 
-.utility-btn {
-  display: flex;
+.checkbox-label {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.utility-btn:hover {
-  background: var(--color-surface-light);
-  border-color: var(--color-border-hover);
-}
-
-.utility-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.model-list {
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.model-tag {
-  padding: 0.25rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 1rem;
-  font-size: 0.75rem;
-  background: var(--color-surface-light);
-  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+  color: var(--cc-text);
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.model-tag:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+.form-hint {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 6px;
+  background: var(--cc-surface);
+  font-size: 0.76rem;
+  line-height: 1.7;
+  color: var(--cc-text-3);
 }
 
-.model-tag.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-white-soft);
+.hint-warning {
+  color: var(--cc-warning);
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.btn-cancel,
-.btn-confirm {
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-cancel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-
-.btn-cancel:hover {
-  background: var(--color-surface-light);
-  border-color: var(--color-border-hover);
-}
-
-.btn-confirm {
-  background: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  color: var(--color-white-soft);
-}
-
-.btn-confirm:hover {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-
-/* 加载动画 */
-.loading-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* 响应式 */
+/* ---------- 响应式 ---------- */
 @media (max-width: 640px) {
-  .header-actions {
-    flex-wrap: wrap;
+  .panel-header {
+    padding: 0.9rem 0.9rem 0.8rem;
+  }
+
+  .settings-subtitle {
+    display: none;
   }
 
   .header-actions .action-btn {
     padding: 0.4rem 0.6rem;
-    font-size: 0.75rem;
   }
 
-  .header-actions .btn-text {
-    display: inline;
+  .settings-container {
+    padding: 0.9rem 0.75rem 1.25rem;
   }
 
-  .api-card-body {
+  .api-list {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-item {
     flex-direction: column;
-    gap: 0.5rem;
+    align-items: stretch;
+    gap: 0.6rem;
   }
 
-  /* 关键：极窄屏下把卡片右侧操作（编辑/删除）换到新行，避免被裁切 */
-  .api-actions {
-    width: 100%;
+  .setting-control {
     justify-content: flex-end;
   }
 
+  .setting-select {
+    flex: 1;
+  }
+
   .form-row {
-    flex-direction: column;
-    gap: 1rem;
+    grid-template-columns: 1fr;
   }
 }
 
-/* 深色主题 */
-[data-theme='dark'] .api-management-panel {
-  background: var(--color-background);
-}
-
-[data-theme='dark'] .panel-header,
-[data-theme='dark'] .settings-section {
-  background: #1e293b;
-  border-color: #475569;
-}
-
-[data-theme='dark'] .section-header {
-  background: #334155;
-  border-bottom-color: #475569;
-}
-
-[data-theme='dark'] .panel-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .setting-name,
-[data-theme='dark'] .api-name,
-[data-theme='dark'] .group-title {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .settings-subtitle,
-[data-theme='dark'] .setting-desc,
-[data-theme='dark'] .detail-label,
-[data-theme='dark'] .group-desc {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .api-card {
-  background: #334155;
-  border-color: #475569;
-}
-
-[data-theme='dark'] .api-card-header {
-  background: #1e293b;
-  border-bottom-color: #475569;
-}
-
-[data-theme='dark'] .setting-item:hover,
-[data-theme='dark'] .api-card:hover {
-  background: #334155;
-}
-
-[data-theme='dark'] .action-btn,
-[data-theme='dark'] .setting-select,
-[data-theme='dark'] .form-input,
-[data-theme='dark'] .form-select {
-  background: #374151;
-  border-color: #4b5563;
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .form-group label {
-  color: #e2e8f0;
-}
-
-[data-theme='dark'] .modal-content {
-  background: #1e293b;
-}
-
-[data-theme='dark'] .modal-header {
-  border-bottom-color: #475569;
-}
-
-[data-theme='dark'] .modal-header h3 {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .modal-footer {
-  border-top-color: #475569;
-}
-
-[data-theme='dark'] .api-provider {
-  background: #475569;
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .api-provider.tavern-tag {
-  background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
-  color: #fef3c7;
-  border-color: #b45309;
-}
-
-[data-theme='dark'] .tavern-api-hint .hint-text {
-  color: #fcd34d;
-}
-
-[data-theme='dark'] .model-tag {
-  background: #475569;
-  border-color: #4b5563;
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .model-dropdown {
-  background: #374151;
-  border-color: #4b5563;
-}
-
-[data-theme='dark'] .model-dropdown-item {
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .model-dropdown-item:hover {
-  background: #4b5563;
-}
-
-[data-theme='dark'] .model-dropdown-item.active {
-  background: #1e40af;
-  color: #93c5fd;
-}
-
-/* 深色主题 - 模式标识 */
-[data-theme='dark'] .mode-badge.tavern {
-  background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
-  color: #fef3c7;
-  border-color: #b45309;
-}
-
-[data-theme='dark'] .mode-badge.web {
-  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
-  color: #dbeafe;
-  border-color: #2563eb;
-}
-
-[data-theme='dark'] .mode-hint.tavern {
-  background: linear-gradient(135deg, rgba(120, 53, 15, 0.3), rgba(146, 64, 14, 0.2));
-}
-
-[data-theme='dark'] .mode-hint.web {
-  background: linear-gradient(135deg, rgba(30, 58, 138, 0.3), rgba(30, 64, 175, 0.2));
-}
-
-[data-theme='dark'] .mode-hint .hint-content em {
-  color: #fca5a5;
-}
-
-/* 深色主题 - 锁定状态 */
-[data-theme='dark'] .setting-item.tavern-locked {
-  background: linear-gradient(135deg, rgba(120, 53, 15, 0.2), rgba(146, 64, 14, 0.15));
-}
-
-[data-theme='dark'] .locked-badge {
-  background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
-  color: #fef3c7;
-  border-color: #b45309;
-}
-
-[data-theme='dark'] .locked-text {
-  background: #334155;
-  border-color: #475569;
-  color: #94a3b8;
+@media (max-width: 420px) {
+  .header-actions .btn-text {
+    display: none;
+  }
 }
 </style>

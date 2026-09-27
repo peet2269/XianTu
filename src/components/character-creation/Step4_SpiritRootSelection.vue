@@ -1,179 +1,195 @@
 <template>
   <div class="spirit-root-selection-container">
-    <div v-if="store.isLoading" class="loading-state">{{ $t('天地玄黄，探查灵根...') }}</div>
-    <div v-else-if="store.error" class="error-state">{{ $t('天机混沌：') }}{{ store.error }}</div>
+    <div v-if="store.isLoading" class="cc-state">{{ $t('天地玄黄，探查灵根...') }}</div>
+    <div v-else-if="store.error" class="cc-state error">{{ $t('天机混沌：') }}{{ store.error }}</div>
 
-    <div v-else class="spirit-root-layout">
-      <!-- 左侧面板：选择和操作 -->
-      <div class="spirit-root-left-panel">
-        <!-- 顶部功能按钮 -->
-        <div class="top-actions-container">
-          <button
-            v-if="store.isLocalCreation"
-            @click="isAdvancedCustomVisible = true"
-            class="action-item shimmer-on-hover"
-          >
-            <span class="action-name">{{ $t('高级自定义') }}</span>
+    <div v-else class="cc-split">
+      <!-- 左侧：选择与操作 -->
+      <div class="cc-panel">
+        <div class="cc-actions">
+          <button v-if="store.isLocalCreation" type="button" class="cc-action" @click="isAdvancedCustomVisible = true">
+            <PenLine :size="14" />
+            <span>{{ $t('高级自定义') }}</span>
           </button>
-          <button
-            @click="handleAIGenerate"
-            class="action-item shimmer-on-hover"
-          >
-            <span class="action-name">{{ $t('AI推演') }}</span>
+          <button type="button" class="cc-action" @click="handleAIGenerate">
+            <Sparkles :size="14" />
+            <span>{{ $t('AI推演') }}</span>
           </button>
         </div>
 
         <!-- 选择模式切换 -->
-        <div class="selection-mode-tabs">
-          <button 
-            :class="{ active: selectionMode === 'preset' }"
-            @click="selectionMode = 'preset'"
-            class="mode-tab"
-          >
-            {{ $t('预设灵根') }}
-          </button>
-          <button
-            :class="{ active: selectionMode === 'custom' }"
-            @click="selectionMode = 'custom'"
-            class="mode-tab"
-          >
-            {{ $t('组合选择') }}
-          </button>
-        </div>
-
-        <!-- 预设灵根模式 -->
-        <div v-if="selectionMode === 'preset'" class="preset-mode">
-          <div class="spirit-root-list-container">
-            <div
-              class="spirit-root-item"
-              :class="{ selected: isRandomSelected }"
-              @click="handleSelectRandom"
-              @mouseover="activeSpiritRoot = 'random'"
+        <div class="mode-switch">
+          <div class="cc-segmented" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="selectionMode === 'preset'"
+              :class="{ active: selectionMode === 'preset' }"
+              @click="selectionMode = 'preset'"
             >
-              <span class="spirit-root-name">{{ $t('随机灵根') }}</span>
-              <span class="spirit-root-cost">{{ $t('0 点') }}</span>
-            </div>
-            <div class="divider"></div>
-            <div
-              v-for="root in filteredSpiritRoots"
-              :key="root.id"
-              class="spirit-root-item"
-              :class="{
-                selected: store.characterPayload.spirit_root_id === root.id,
-                disabled: !canSelect(root),
-              }"
-              @click="handleSelectSpiritRoot(root)"
-              @mouseover="activeSpiritRoot = root"
+              {{ $t('预设灵根') }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="selectionMode === 'custom'"
+              :class="{ active: selectionMode === 'custom' }"
+              @click="selectionMode = 'custom'"
             >
-              <div class="item-content">
-                <div class="spirit-root-name-container">
-                  <span class="spirit-root-name">{{ getSpiritRootBaseName(root.name) }}</span>
-                  <span v-if="getSpiritRootTier(root)" class="spirit-root-tier" :class="`tier-${getSpiritRootTier(root)}`">
-                    {{ getSpiritRootTier(root) }}
-                  </span>
-                </div>
-                <span class="spirit-root-cost">{{ root.talent_cost }} {{ $t('点') }}</span>
-              </div>
-              <div v-if="root.source === 'cloud' && store.isLocalCreation" class="action-buttons">
-                <button @click.stop="openEditModal(root)" class="edit-btn" title="编辑此项">
-                  <Edit :size="14" />
-                </button>
-                <button @click.stop="handleDeleteSpiritRoot(root.id)" class="delete-btn" title="删除此项">
-                  <Trash2 :size="14" />
-                </button>
-              </div>
-            </div>
+              {{ $t('组合选择') }}
+            </button>
           </div>
         </div>
 
-        <!-- 组合选择模式 -->
-        <div v-if="selectionMode === 'custom'" class="custom-mode">
-          <div class="custom-selection-container">
-            <!-- 灵根类型选择 -->
-            <div class="selection-group">
-              <label class="selection-label">{{ $t('灵根类型') }}</label>
-              <div class="spirit-type-grid">
-                <button
-                  v-for="type in spiritRootTypes"
-                  :key="type.key"
-                  :class="{ selected: customSpirit.type === type.key }"
-                  @click="customSpirit.type = type.key"
-                  class="type-button"
-                  :style="{ '--element-color': type.color }"
-                >
-                  <span class="type-icon">{{ type.icon }}</span>
-                  <span class="type-name">{{ type.name }}</span>
-                </button>
-              </div>
+        <!-- 预设灵根 -->
+        <div v-if="selectionMode === 'preset'" class="cc-list" @mouseleave="resetActiveSpiritRoot">
+          <div
+            class="cc-item"
+            role="button"
+            tabindex="0"
+            :class="{ selected: isRandomSelected }"
+            @click="handleSelectRandom"
+            @keydown.enter.prevent="handleSelectRandom"
+            @mouseover="activeSpiritRoot = 'random'"
+            @focus="activeSpiritRoot = 'random'"
+          >
+            <div class="cc-item-main">
+              <span class="random-name">
+                <Dices :size="15" class="random-icon" />
+                <span class="cc-item-name">{{ $t('随机灵根') }}</span>
+              </span>
+              <span class="cc-item-meta">{{ $t('0 点') }}</span>
             </div>
-
-            <!-- 品级选择 -->
-            <div class="selection-group">
-              <label class="selection-label">{{ $t('灵根品级') }}</label>
-              <div class="tier-selection">
-                <button
-                  v-for="tier in spiritRootTiers"
-                  :key="tier.key"
-                  :class="[
-                    'tier-button',
-                    `tier-${tier.key}`,
-                    { selected: customSpirit.tier === tier.key }
-                  ]"
-                  @click="customSpirit.tier = tier.key"
+          </div>
+          <div class="cc-divider"></div>
+          <div
+            v-for="root in filteredSpiritRoots"
+            :key="root.id"
+            class="cc-item"
+            role="button"
+            :tabindex="canSelect(root) ? 0 : -1"
+            :aria-disabled="!canSelect(root)"
+            :class="{
+              selected: store.characterPayload.spirit_root_id === root.id,
+              disabled: !canSelect(root),
+            }"
+            @click="handleSelectSpiritRoot(root)"
+            @keydown.enter.prevent="handleSelectSpiritRoot(root)"
+            @mouseover="activeSpiritRoot = root"
+            @focus="activeSpiritRoot = root"
+          >
+            <div class="cc-item-main">
+              <span class="root-name-wrap">
+                <span class="cc-item-name">{{ getSpiritRootBaseName(root.name) }}</span>
+                <span
+                  v-if="getSpiritRootTier(root)"
+                  class="grade-chip"
+                  :style="{ '--grade': gradeColor(getSpiritRootTier(root)) }"
                 >
-                  <span class="tier-name">{{ tier.name }}</span>
-                  <span class="tier-multiplier">{{ tier.multiplier }}x</span>
-                  <span class="tier-cost">{{ tier.cost }}点</span>
-                </button>
-              </div>
+                  {{ getSpiritRootTier(root) }}
+                </span>
+              </span>
+              <span class="cc-item-meta">{{ root.talent_cost }} {{ $t('点') }}</span>
             </div>
-
-            <!-- 预览和确认 -->
-            <div class="custom-preview">
-              <div class="preview-title">{{ $t('预览') }}</div>
-              <div class="preview-content">
-                <div class="preview-name">
-                  <span>{{ getCustomSpiritName() }}</span>
-                  <span v-if="customSpirit.tier !== 'none'" class="preview-tier" :class="`tier-${customSpirit.tier}`">
-                    {{ getSpiritTierName(customSpirit.tier) }}
-                  </span>
-                </div>
-                <div class="preview-stats">
-                  <div class="stat">{{ $t('修炼倍率:') }} {{ getCustomSpiritMultiplier() }}x</div>
-                  <div class="stat">{{ $t('消耗点数:') }} {{ getCustomSpiritCost() }}{{ $t('点') }}</div>
-                </div>
-              </div>
-              <button 
-                @click="confirmCustomSpirit"
-                :disabled="!isCustomSpiritValid()"
-                class="confirm-custom-button"
-              >
-                {{ $t('确认选择') }}
+            <div v-if="root.source === 'cloud' && store.isLocalCreation" class="cc-item-tools">
+              <button type="button" class="cc-icon-btn" :title="$t('编辑此项')" @click.stop="openEditModal(root)">
+                <Edit :size="13" />
+              </button>
+              <button type="button" class="cc-icon-btn danger" :title="$t('删除此项')" @click.stop="handleDeleteSpiritRoot(root.id)">
+                <Trash2 :size="13" />
               </button>
             </div>
           </div>
         </div>
+
+        <!-- 组合选择 -->
+        <div v-if="selectionMode === 'custom'" class="custom-mode">
+          <section class="selection-group">
+            <h3 class="cc-section-title">{{ $t('灵根类型') }}</h3>
+            <div class="element-grid">
+              <button
+                v-for="type in spiritRootTypes"
+                :key="type.key"
+                type="button"
+                class="element-btn"
+                :class="{ selected: customSpirit.type === type.key }"
+                :style="{ '--element': type.color }"
+                :title="`${type.name}：${type.desc}`"
+                :aria-pressed="customSpirit.type === type.key"
+                @click="customSpirit.type = type.key"
+              >
+                <span class="element-glyph">{{ type.name.charAt(0) }}</span>
+                <span v-if="type.name.length > 1" class="element-name">{{ type.name }}</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="selection-group">
+            <h3 class="cc-section-title">{{ $t('灵根品级') }}</h3>
+            <div class="grade-grid">
+              <button
+                v-for="tier in spiritRootTiers"
+                :key="tier.key"
+                type="button"
+                class="grade-btn"
+                :class="{ selected: customSpirit.tier === tier.key }"
+                :style="{ '--grade': gradeColor(tier.key) }"
+                :aria-pressed="customSpirit.tier === tier.key"
+                @click="customSpirit.tier = tier.key"
+              >
+                <span class="grade-name">{{ tier.name }}</span>
+                <span class="grade-meta">{{ tier.multiplier }}x · {{ tier.cost }}{{ $t('点') }}</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="custom-preview">
+            <div class="preview-head">
+              <span class="preview-name">{{ getCustomSpiritName() }}</span>
+              <span
+                v-if="customSpirit.tier !== 'none'"
+                class="grade-chip"
+                :style="{ '--grade': gradeColor(customSpirit.tier) }"
+              >
+                {{ getSpiritTierName(customSpirit.tier) }}
+              </span>
+            </div>
+            <div class="preview-stats">
+              <span>{{ $t('修炼倍率:') }} <strong>{{ getCustomSpiritMultiplier() }}x</strong></span>
+              <span>{{ $t('消耗点数:') }} <strong>{{ getCustomSpiritCost() }}{{ $t('点') }}</strong></span>
+            </div>
+            <button
+              type="button"
+              class="cc-btn primary confirm-btn"
+              :disabled="!isCustomSpiritValid()"
+              @click="confirmCustomSpirit"
+            >
+              <Check :size="15" />
+              <span>{{ $t('确认选择') }}</span>
+            </button>
+          </section>
+        </div>
       </div>
 
-      <!-- 右侧详情 -->
-      <div class="spirit-root-details-container">
-        <div v-if="activeSpiritRoot || (selectionMode === 'custom' && customSpirit.type !== 'none')" class="spirit-root-details">
-          <h2>{{ getActiveDisplayName() }}</h2>
-          <div class="description-scroll">
+      <!-- 右侧：灵根详情 -->
+      <div class="cc-panel cc-detail">
+        <div
+          v-if="activeSpiritRoot || (selectionMode === 'custom' && customSpirit.type !== 'none')"
+          class="cc-detail-inner"
+        >
+          <div class="cc-detail-head">
+            <h2 class="cc-detail-title">{{ getActiveDisplayName() }}</h2>
+          </div>
+          <div class="cc-detail-rule"></div>
+          <div class="cc-detail-body">
             <p>{{ getActiveDescription() }}</p>
           </div>
-          <div class="stats-display">
-            <div class="stat-item">
-              <span class="stat-label">{{ $t('修炼倍率:') }}</span>
-              <span class="stat-value">{{ getActiveMultiplier() }}x</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">{{ $t('消耗天道点:') }}</span>
-              <span class="stat-value">{{ getActiveCost() }}{{ $t('点') }}</span>
-            </div>
+          <div class="cc-stat-row">
+            <span class="cc-stat">{{ $t('修炼倍率') }} <strong>{{ getActiveMultiplier() }}x</strong></span>
+            <span class="cc-stat">{{ $t('消耗天道点') }} <strong>{{ getActiveCost() }}</strong></span>
           </div>
         </div>
-        <div v-else class="placeholder">{{ $t('请选择一种灵根，或听天由命。') }}</div>
+        <div v-else class="cc-placeholder">{{ $t('请选择一种灵根，或听天由命。') }}</div>
       </div>
     </div>
 
@@ -186,7 +202,7 @@
       @close="isAdvancedCustomVisible = false"
       @submit="handleAdvancedCustomSubmit"
     />
-    
+
     <!-- 编辑模态框 -->
     <CustomCreationModal
       :visible="isEditModalVisible"
@@ -209,7 +225,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
-import { Trash2, Edit } from 'lucide-vue-next'
+import { Trash2, Edit, PenLine, Sparkles, Dices, Check } from 'lucide-vue-next'
 import { useCharacterCreationStore } from '../../stores/characterCreationStore'
 import type { SpiritRoot } from '../../types'
 import CustomCreationModal, { type ModalField } from './CustomCreationModal.vue'
@@ -222,7 +238,26 @@ import { parseJsonFromText } from '@/utils/jsonExtract'
 const emit = defineEmits(['ai-generate'])
 const store = useCharacterCreationStore()
 // UI状态
-const activeSpiritRoot = ref<SpiritRoot | 'random' | null>(null)
+// 详情区显示的灵根：默认为当前选择（未选具体灵根即为随机），悬停时预览
+const currentSpiritRootChoice = (): SpiritRoot | 'random' | null =>
+  store.selectedSpiritRoot ?? (store.characterPayload.spirit_root_id === null ? 'random' : null)
+const activeSpiritRoot = ref<SpiritRoot | 'random' | null>(currentSpiritRootChoice())
+const resetActiveSpiritRoot = () => {
+  activeSpiritRoot.value = currentSpiritRootChoice() ?? activeSpiritRoot.value
+}
+
+// 品级配色：同时支持中文品级名与组合选择中的 key
+const GRADE_COLORS: Record<string, string> = {
+  凡品: '#9ca3af', common: '#9ca3af',
+  下品: '#8b5cf6', low: '#8b5cf6',
+  中品: '#3b82f6', middle: '#3b82f6',
+  上品: '#10b981', high: '#10b981',
+  极品: '#f59e0b', supreme: '#f59e0b',
+  仙品: '#f97316', 天品: '#f97316', heaven: '#f97316',
+  神品: '#dc2626', divine: '#dc2626',
+  特殊: '#7c3aed', special: '#7c3aed',
+}
+const gradeColor = (tier: string) => GRADE_COLORS[tier] ?? '#9ca3af'
 const selectionMode = ref<'preset' | 'custom'>('preset')
 const isAdvancedCustomVisible = ref(false)
 const isEditModalVisible = ref(false)
@@ -670,952 +705,216 @@ const editInitialData = computed(() => {
 </script>
 
 <style scoped>
+/* 通用外观见 styles/creation-theme.css，这里只保留灵根特有的组合选择与品级配色 */
 .spirit-root-selection-container {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* ========== 深色玻璃拟态风格 ========== */
-.loading-state, .error-state, .placeholder {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  font-size: 1.1rem;
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.spirit-root-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 1.5rem;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* ========== 左侧面板 ========== */
-.spirit-root-left-panel {
-  display: flex;
-  flex-direction: column;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-/* 预设模式样式 */
-.preset-mode {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.spirit-root-list-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem;
-  min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.spirit-root-list-container::-webkit-scrollbar { width: 6px; }
-.spirit-root-list-container::-webkit-scrollbar-track { background: transparent; }
-.spirit-root-list-container::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-.spirit-root-list-container::-webkit-scrollbar-thumb:hover { background: rgba(147, 197, 253, 0.5); }
-
-/* ========== 选项卡样式 ========== */
-.spirit-root-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.1rem 1.2rem;
-  margin-bottom: 0.6rem;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: 1px solid transparent;
-  background: rgba(30, 41, 59, 0.4);
-}
-
-.item-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-grow: 1;
-}
-
-/* 按钮组容器 */
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  opacity: 0;
-  transition: opacity 0.2s;
-  margin-left: 0.5rem;
-}
-
-.spirit-root-item:hover .action-buttons {
-  opacity: 1;
-}
-
-.edit-btn, .delete-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 0.35rem;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.edit-btn:hover {
-  color: #93c5fd;
-  background: rgba(147, 197, 253, 0.1);
-}
-
-.delete-btn:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
-}
-
-.spirit-root-name-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.spirit-root-tier {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-align: center;
-  min-width: 28px;
+.mode-switch {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--cc-divider);
   flex-shrink: 0;
 }
 
-.spirit-root-tier.tier-下品 {
-  background: linear-gradient(135deg, #8B5CF6, #A78BFA);
-  color: white;
-}
-
-.spirit-root-tier.tier-中品 {
-  background: linear-gradient(135deg, #3B82F6, #60A5FA);
-  color: white;
-}
-
-.spirit-root-tier.tier-上品 {
-  background: linear-gradient(135deg, #10B981, #34D399);
-  color: white;
-}
-
-.spirit-root-tier.tier-极品 {
-  background: linear-gradient(135deg, #F59E0B, #FBBF24);
-  color: white;
-}
-
-.spirit-root-tier.tier-天品 {
-  background: linear-gradient(135deg, #EF4444, #F87171);
-  color: white;
-}
-
-.spirit-root-tier.tier-神品 {
-  background: linear-gradient(135deg, #DC2626, #F87171);
-  color: white;
-}
-
-.spirit-root-tier.tier-特殊 {
-  background: linear-gradient(135deg, #7C3AED, #A78BFA);
-  color: white;
-  border: 1px solid #A78BFA;
-}
-
-.spirit-root-tier.tier-凡品 {
-  background: rgba(156, 163, 175, 0.2);
-  color: #6B7280;
-  border: 1px solid #9CA3AF;
-}
-
-.spirit-root-item:hover {
-  background: rgba(51, 65, 85, 0.6);
-  border-color: rgba(147, 197, 253, 0.2);
-}
-
-.spirit-root-item.selected {
-  background: rgba(30, 58, 138, 0.4);
-  border-color: rgba(147, 197, 253, 0.4);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
-.spirit-root-item.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.spirit-root-item.disabled:hover {
-  background: rgba(30, 41, 59, 0.4);
-  border-color: transparent;
-}
-
-.spirit-root-name {
-  font-weight: 500;
-  color: #f1f5f9;
-}
-
-.spirit-root-item.selected .spirit-root-name {
-  color: #bfdbfe;
-}
-
-.spirit-root-cost {
-  color: #fbbf24;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.divider {
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(147, 197, 253, 0.2), transparent);
-  margin: 0.5rem 0;
-}
-
-.single-actions-container {
-  border-top: 1px solid var(--color-border);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-item {
-  flex: 1;
-  display: flex;
-  justify-content: center;
+.random-name,
+.root-name-wrap {
+  display: inline-flex;
   align-items: center;
-  padding: 0.8rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
-  font-size: 1rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: 0.5rem;
   min-width: 0;
 }
 
-.action-item:hover {
-  background: var(--color-surface-lighter);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.action-name {
-  font-weight: 500;
-}
-
-/* ========== 右侧详情面板 ========== */
-.spirit-root-details-container {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.spirit-root-details {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.spirit-root-details h2 {
-  margin: 0 0 1rem 0;
-  color: #93c5fd;
+.random-icon {
   flex-shrink: 0;
-  font-size: 1.5rem;
-  text-shadow: 0 0 20px rgba(147, 197, 253, 0.3);
+  color: var(--cc-gold);
 }
 
-.description-scroll {
-  flex: 1;
-  overflow-y: auto;
-  line-height: 1.7;
-  padding-right: 0.5rem;
-  min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.description-scroll p {
-  margin: 0;
-  white-space: pre-wrap;
-  color: #94a3b8;
-}
-
-.description-scroll::-webkit-scrollbar { width: 6px; }
-.description-scroll::-webkit-scrollbar-track { background: transparent; }
-.description-scroll::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-
-.cost-display {
-  text-align: right;
+/* 品级徽记：颜色由 --grade 决定 */
+.grade-chip {
+  --grade-ink: var(--grade);
+  flex-shrink: 0;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--grade) 55%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--grade) 16%, transparent);
+  color: var(--grade-ink);
+  font-size: 0.7rem;
   font-weight: 600;
-  color: #fbbf24;
-  flex-shrink: 0;
-  margin-top: 1rem;
-}
-
-/* 响应式适配 - 手机端优化 */
-@media (max-width: 1200px) {
-  .spirit-root-layout {
-    grid-template-columns: 1fr 1.8fr;
-    gap: 1.5rem;
-  }
-}
-
-@media (max-width: 1024px) {
-  .spirit-root-layout {
-    grid-template-columns: 1fr 1.5fr;
-    gap: 1.2rem;
-  }
-  
-  .spirit-root-details h2 {
-    font-size: 1.6rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .top-actions-container {
-    flex-wrap: wrap;
-    justify-content: stretch;
-  }
-  .top-actions-container .action-item {
-    flex-grow: 1;
-    text-align: center;
-  }
-  .spirit-root-layout {
-    /* 改为垂直堆叠布局 */
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    gap: 1rem;
-    height: auto;
-    overflow: visible;
-    padding: 0.8rem;
-  }
-  
-  .spirit-root-left-panel {
-    order: 1;
-    /* 移除max-height限制，让flex布局正常工作 */
-  }
-  
-  .spirit-root-details-container {
-    order: 2;
-    min-height: 300px;
-  }
-  
-  .spirit-root-list-container {
-    /* 移除max-height限制，让flex布局正常工作 */
-    /* 添加触摸滚动优化 */
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-  }
-  
-  /* 优化触摸体验 */
-  .spirit-root-item,
-  .action-item {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-}
-
-@media (max-width: 640px) {
-  .spirit-root-layout {
-    gap: 0.8rem;
-    padding: 0.6rem;
-  }
-  
-  
-  .spirit-root-list-container {
-    padding: 0.5rem;
-  }
-  
-  .spirit-root-item {
-    padding: 0.7rem;
-    font-size: 0.95rem;
-    margin-bottom: 0.4rem;
-  }
-  
-  .single-actions-container {
-    padding: 0.5rem;
-    gap: 0.4rem;
-  }
-  
-  .action-item {
-    padding: 0.7rem 1rem;
-    font-size: 0.9rem;
-  }
-  
-  .spirit-root-details-container {
-    padding: 1.2rem;
-    min-height: 250px;
-  }
-  
-  .spirit-root-details h2 {
-    font-size: 1.4rem;
-    margin-bottom: 0.8rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .top-actions-container {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .spirit-root-selection-container {
-    padding: 0.4rem;
-    height: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .spirit-root-layout {
-    gap: 0.6rem;
-    padding: 0;
-    height: auto;
-    min-height: 0;
-  }
-  
-  .spirit-root-left-panel {
-    border-radius: 6px;
-  }
-  
-  .spirit-root-list-container {
-    padding: 0.4rem;
-  }
-  
-  .spirit-root-item {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.9rem;
-    margin-bottom: 0.3rem;
-    border-radius: 4px;
-  }
-  
-  .spirit-root-name {
-    font-size: 0.9rem;
-  }
-  
-  .spirit-root-cost {
-    font-size: 0.8rem;
-  }
-  
-  .divider {
-    margin: 0.3rem 0;
-  }
-  
-  .single-actions-container {
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.4rem;
-  }
-  
-  .action-item {
-    padding: 0.6rem;
-    font-size: 0.85rem;
-    border-radius: 4px;
-  }
-  
-  .spirit-root-details-container {
-    padding: 1rem;
-    min-height: 200px;
-    border-radius: 6px;
-  }
-  
-  .spirit-root-details h2 {
-    font-size: 1.3rem;
-    margin-bottom: 0.6rem;
-  }
-  
-  .description-scroll {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    padding-right: 0.3rem;
-  }
-  
-  .cost-display {
-    font-size: 1rem;
-    text-align: center;
-    margin-top: 0.8rem;
-  }
-  
-  .placeholder {
-    font-size: 1rem;
-    padding: 1rem;
-    text-align: center;
-    min-height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .top-actions-container {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 0.5rem;
-  }
-  .top-actions-container .action-item {
-    text-align: center;
-  }
-}
-
-@media (max-width: 360px) {
-  .spirit-root-selection-container {
-    padding: 0.3rem;
-  }
-  
-  .spirit-root-layout {
-    gap: 0.4rem;
-  }
-  
-  
-  .spirit-root-list-container {
-    padding: 0.3rem;
-  }
-  
-  .spirit-root-item {
-    padding: 0.5rem 0.6rem;
-    font-size: 0.85rem;
-    margin-bottom: 0.2rem;
-  }
-  
-  .spirit-root-name {
-    font-size: 0.8rem;
-  }
-  
-  .spirit-root-cost {
-    font-size: 0.75rem;
-  }
-  
-  .spirit-root-details-container {
-    padding: 0.8rem;
-    min-height: 180px;
-  }
-  
-  .spirit-root-details h2 {
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .description-scroll {
-    font-size: 0.85rem;
-    line-height: 1.4;
-  }
-  
-  .cost-display {
-    font-size: 0.9rem;
-    margin-top: 0.6rem;
-  }
-  
-  .action-item {
-    padding: 0.5rem;
-    font-size: 0.8rem;
-  }
-  
-  .placeholder {
-    font-size: 0.9rem;
-    padding: 0.8rem;
-    min-height: 120px;
-  }
-}
-
-/* 自定义模式样式 */
-.stats-display {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-}
-
-.stat-value {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-/* 顶部功能按钮 - 深色玻璃拟态风格 */
-.top-actions-container {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(30, 41, 59, 0.3);
-  justify-content: center;
-}
-
-.top-actions-container .action-item {
-  padding: 0.5rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(30, 41, 59, 0.6);
-  color: #cbd5e1;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  font-size: 0.85rem;
-  font-weight: 500;
+  letter-spacing: 0.08em;
   white-space: nowrap;
-  letter-spacing: 0.05em;
 }
 
-.top-actions-container .action-item:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(147, 197, 253, 0.3);
-  color: #f1f5f9;
+[data-theme='light'] .grade-chip,
+[data-theme='light'] .grade-btn {
+  --grade-ink: color-mix(in srgb, var(--grade) 65%, #221d16);
 }
 
-/* 亮色主题顶部按钮 */
-[data-theme="light"] .top-actions-container {
-  background: rgba(241, 245, 249, 0.6);
-  border-bottom-color: rgba(59, 130, 246, 0.15);
-}
-
-[data-theme="light"] .top-actions-container .action-item {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #2563eb;
-}
-
-[data-theme="light"] .top-actions-container .action-item:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: #3b82f6;
-  color: #1e40af;
-}
-
-/* 选择模式标签页 */
-.selection-mode-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-}
-
-.mode-tab {
-  flex: 1;
-  padding: 0.8rem 1rem;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-}
-
-.mode-tab.active {
-  color: var(--color-primary);
-  background: var(--color-surface);
-  border-bottom: 2px solid var(--color-primary);
-}
-
-.mode-tab:hover:not(.active) {
-  background: rgba(136, 192, 208, 0.1);
-  color: var(--color-text);
-}
-
-/* 自定义模式样式 */
+/* ---------- 组合选择 ---------- */
 .custom-mode {
   flex: 1;
-  padding: 1rem;
+  min-height: 0;
   overflow-y: auto;
-}
-
-.custom-selection-container {
+  padding: 0.85rem 0.85rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .selection-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
+  margin: 0;
 }
 
-.selection-label {
-  font-weight: 600;
-  color: var(--color-text);
-  font-size: 0.9rem;
-}
-
-.spirit-type-grid {
+/* 五行符牌 */
+.element-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
 }
 
-.type-button {
+.element-btn {
+  --element-ink: var(--element);
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.8rem 0.5rem;
-  border: 2px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
+  justify-content: center;
+  gap: 0.1rem;
+  aspect-ratio: 1;
+  max-height: 64px;
+  padding: 0.25rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface-2);
+  color: var(--element-ink);
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 70px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease, transform 0.2s ease;
 }
 
-.type-button:hover {
-  border-color: var(--element-color, var(--color-primary));
-  background: rgba(136, 192, 208, 0.1);
+[data-theme='light'] .element-btn {
+  --element-ink: color-mix(in srgb, var(--element) 70%, #221d16);
 }
 
-.type-button.selected {
-  border-color: var(--element-color, var(--color-primary));
-  background: var(--element-color, var(--color-primary));
-  color: white;
+.element-btn:hover {
+  border-color: color-mix(in srgb, var(--element) 55%, transparent);
+  transform: translateY(-1px);
 }
 
-.type-icon {
-  font-size: 1.2rem;
+.element-btn.selected {
+  background: color-mix(in srgb, var(--element) 16%, transparent);
+  border-color: var(--element);
+  box-shadow: 0 0 16px -4px color-mix(in srgb, var(--element) 70%, transparent);
 }
 
-.type-name {
-  font-size: 0.8rem;
-  font-weight: 500;
+.element-glyph {
+  font-family: var(--cc-calligraphy);
+  font-size: 1.55rem;
+  line-height: 1;
 }
 
-.tier-selection {
+.element-name {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-text-3);
+}
+
+/* 品级 */
+.grade-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.grade-btn {
+  --grade-ink: var(--grade);
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.tier-button {
-  display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: center;
-  padding: 0.8rem 1rem;
-  border: 2px solid var(--color-border);
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--cc-border);
+  border-left: 3px solid var(--grade);
   border-radius: 6px;
-  background: var(--color-surface);
+  background: var(--cc-surface-2);
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.tier-button:hover {
-  border-color: var(--color-primary);
-  background: rgba(136, 192, 208, 0.1);
+.grade-btn:hover {
+  background: var(--cc-surface-hover);
 }
 
-.tier-button.selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: white;
+.grade-btn.selected {
+  background: color-mix(in srgb, var(--grade) 14%, transparent);
+  border-color: color-mix(in srgb, var(--grade) 70%, transparent);
+  border-left-color: var(--grade);
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--grade) 80%, transparent);
 }
 
-.tier-button.tier-common {
-  border-color: #9CA3AF;
-}
-
-.tier-button.tier-low {
-  border-color: #8B5CF6;
-}
-
-.tier-button.tier-middle {
-  border-color: #3B82F6;
-}
-
-.tier-button.tier-high {
-  border-color: #10B981;
-}
-
-.tier-button.tier-supreme {
-  border-color: #F59E0B;
-}
-
-.tier-button.tier-heaven {
-  border-color: #FF6B35;
-}
-
-.tier-button.tier-divine {
-  border-color: #DC2626;
-}
-
-.tier-button.tier-special {
-  border-color: #7C3AED;
-}
-
-.tier-name {
+.grade-name {
+  font-size: 0.88rem;
   font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--grade-ink);
 }
 
-.tier-multiplier {
-  color: var(--color-accent);
-  font-size: 0.9rem;
+.grade-meta {
+  font-size: 0.7rem;
+  color: var(--cc-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.tier-cost {
-  color: var(--color-text-secondary);
-  font-size: 0.8rem;
-}
-
+/* 预览 */
 .custom-preview {
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 8px;
+  background: rgba(var(--cc-gold-rgb), 0.05);
 }
 
-.preview-title {
-  font-weight: 600;
-  margin-bottom: 0.8rem;
-  color: var(--color-text);
-}
-
-.preview-content {
-  margin-bottom: 1rem;
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .preview-name {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.8rem;
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.preview-tier {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: var(--color-accent);
-  color: white;
+  font-family: var(--cc-calligraphy);
+  font-size: 1.35rem;
+  color: var(--cc-text);
 }
 
 .preview-stats {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  font-size: 0.8rem;
+  color: var(--cc-text-2);
 }
 
-.preview-stats .stat {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+.preview-stats strong {
+  color: var(--cc-gold);
+  font-variant-numeric: tabular-nums;
 }
 
-.confirm-custom-button {
+.confirm-btn {
   width: 100%;
-  padding: 0.8rem;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-primary);
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.confirm-custom-button:hover:not(:disabled) {
-  background: var(--color-primary-dark);
-}
+@media (max-width: 640px) {
+  .element-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 
-.confirm-custom-button:disabled {
-  background: var(--color-border);
-  color: var(--color-text-disabled);
-  cursor: not-allowed;
-}
-
-.actions-container {
-  border-top: 1px solid var(--color-border);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* 兼容新等级名称"仙品" */
-.spirit-root-tier.tier-仙品 { background: linear-gradient(135deg, #EF4444, #F87171); color: white; }
-
-/* ========== 亮色主题适配 ========== */
-[data-theme="light"] .spirit-root-left-panel,
-[data-theme="light"] .spirit-root-details-container {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .spirit-root-item {
-  background: rgba(255, 255, 255, 0.6);
-}
-
-[data-theme="light"] .spirit-root-item:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .spirit-root-item.selected {
-  background: rgba(219, 234, 254, 0.8);
-  border-color: rgba(59, 130, 246, 0.4);
-}
-
-[data-theme="light"] .spirit-root-name {
-  color: #1e293b;
-}
-
-[data-theme="light"] .spirit-root-item.selected .spirit-root-name {
-  color: #1e40af;
-}
-
-[data-theme="light"] .spirit-root-details h2 {
-  color: #2563eb;
-}
-
-[data-theme="light"] .description-scroll p {
-  color: #475569;
-}
-
-/* 亮色主题下的编辑/删除按钮 */
-[data-theme="light"] .edit-btn,
-[data-theme="light"] .delete-btn {
-  background: rgba(241, 245, 249, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.15);
-  color: #475569;
-}
-
-[data-theme="light"] .edit-btn:hover {
-  color: #2563eb;
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-[data-theme="light"] .delete-btn:hover {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
+  .element-glyph {
+    font-size: 1.25rem;
+  }
 }
 </style>

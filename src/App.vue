@@ -19,6 +19,7 @@
       @close="uiStore.closeStateChangeViewer"
     />
     <DetailModal />
+    <DialogHost />
     <!-- 全局操作按钮 - 只在非游戏界面显示 -->
     <!--
     <div v-if="!isInGameView" class="global-actions">
@@ -75,6 +76,7 @@
           <FileText :size="18" />
           <span>提示词管理</span>
         </button>
+        <div class="action-menu-divider" role="separator"></div>
         <button class="action-menu-item" :class="{ 'is-disabled': !backendReady }" @click="openWorkshop(close)">
           <Store :size="18" />
           <span>创意工坊</span>
@@ -83,14 +85,16 @@
           <UserCircle :size="18" />
           <span>账号中心</span>
         </button>
+        <div class="action-menu-divider" role="separator"></div>
         <button class="action-menu-item" @click="toggleTheme(); close()">
-          <component :is="themeMode === 'dark' ? Sun : Moon" :size="18" />
-          <span>{{ themeMode === 'dark' ? '切换亮色' : '切换暗色' }}</span>
+          <component :is="isDark ? Sun : Moon" :size="18" />
+          <span>{{ isDark ? '切换亮色' : '切换暗色' }}</span>
         </button>
         <button class="action-menu-item" @click="toggleFullscreen(); close()">
           <component :is="isFullscreenMode ? Minimize2 : Maximize2" :size="18" />
           <span>{{ isFullscreenMode ? '退出全屏' : '进入全屏' }}</span>
         </button>
+        <div class="action-menu-divider" role="separator"></div>
         <button class="action-menu-item" @click="showHelp(); close()">
           <BookOpen :size="18" />
           <span>教程说明</span>
@@ -119,107 +123,100 @@
 
     <!-- Settings Modal -->
     <div v-if="showSettingsModal" class="settings-modal-overlay" @click.self="showSettingsModal = false">
-      <div class="settings-modal-content">
-        <div class="settings-modal-header">
-          <h3>设置</h3>
-          <button class="close-btn" @click="showSettingsModal = false">&times;</button>
-        </div>
+      <div class="settings-modal-content settings-panel-modal">
         <div class="settings-modal-body">
-          <SettingsPanel />
+          <SettingsPanel closable @close="showSettingsModal = false" />
         </div>
       </div>
     </div>
 
     <!-- API管理弹窗 -->
     <div v-if="showAPIModal" class="settings-modal-overlay" @click.self="showAPIModal = false">
-      <div class="settings-modal-content">
-        <div class="settings-modal-header">
-          <h3>API管理</h3>
-          <button class="close-btn" @click="showAPIModal = false">&times;</button>
-        </div>
+      <div class="settings-modal-content settings-panel-modal api-panel-modal">
         <div class="settings-modal-body">
-          <APIManagementPanel />
+          <APIManagementPanel closable @close="showAPIModal = false" />
         </div>
       </div>
     </div>
 
     <!-- 提示词管理弹窗 -->
     <div v-if="showPromptModal" class="settings-modal-overlay" @click.self="showPromptModal = false">
-      <div class="settings-modal-content prompt-modal-content">
-        <div class="settings-modal-header">
-          <h3>提示词管理</h3>
-          <button class="close-btn" @click="showPromptModal = false">&times;</button>
-        </div>
+      <div class="settings-modal-content settings-panel-modal prompt-modal-content">
         <div class="settings-modal-body">
-          <PromptManagementPanel />
+          <PromptManagementPanel closable @close="showPromptModal = false" />
         </div>
       </div>
     </div>
 
     <!-- 赞助支持弹窗 -->
-    <div v-if="showSponsorModal" class="settings-modal-overlay" @click.self="showSponsorModal = false">
-      <div class="settings-modal-content sponsor-modal-content">
-        <div class="settings-modal-header">
-          <h3>赞助支持（自愿）</h3>
-          <button class="close-btn" @click="showSponsorModal = false">&times;</button>
+    <div v-if="showSponsorModal" class="cc-modal-overlay app-dialog" @click.self="showSponsorModal = false">
+      <div class="cc-modal sponsor-modal" role="dialog" aria-modal="true" aria-label="赞助支持">
+        <div class="cc-modal-head">
+          <h3 class="cc-modal-title">赞助支持</h3>
+          <button type="button" class="cc-modal-close" aria-label="关闭" @click="showSponsorModal = false">
+            <X :size="18" />
+          </button>
         </div>
-        <div class="settings-modal-body sponsor-modal-body">
-          <div class="sponsor-qr">
-            <img src="https://ddct.top/zhifubao.jpg" alt="支付宝赞助二维码" loading="lazy" />
-            <span>支付宝</span>
-          </div>
-          <div class="sponsor-qr">
-            <img src="https://ddct.top/weixing.jpg" alt="微信赞助二维码" loading="lazy" />
-            <span>微信</span>
+        <div class="cc-modal-body">
+          <p class="cc-hint sponsor-hint">完全自愿，不影响任何游戏内容。感谢道友护持仙途。</p>
+          <div class="sponsor-grid">
+            <figure class="sponsor-qr">
+              <img src="https://ddct.top/zhifubao.jpg" alt="支付宝赞助二维码" loading="lazy" />
+              <figcaption>支付宝</figcaption>
+            </figure>
+            <figure class="sponsor-qr">
+              <img src="https://ddct.top/weixing.jpg" alt="微信赞助二维码" loading="lazy" />
+              <figcaption>微信</figcaption>
+            </figure>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 教程弹窗 -->
-    <div v-if="showAuthorModal" class="help-overlay" @click.self="showAuthorModal = false">
-      <div class="help-modal">
-        <div class="help-header">
-          <h2 class="help-title">仙途教程</h2>
-          <button class="help-close" @click="showAuthorModal = false">
+    <div v-if="showAuthorModal" class="cc-modal-overlay app-dialog" @click.self="showAuthorModal = false">
+      <div class="cc-modal help-modal" role="dialog" aria-modal="true" aria-label="仙途教程">
+        <div class="cc-modal-head">
+          <h3 class="cc-modal-title">仙途教程</h3>
+          <button type="button" class="cc-modal-close" aria-label="关闭" @click="showAuthorModal = false">
             <X :size="18" />
           </button>
         </div>
 
-        <div class="help-body">
-          <div class="help-version">v{{ displayVersion }}</div>
+        <div class="cc-modal-body">
+          <div class="help-intro">
+            <span class="help-version">V{{ displayVersion }}</span>
+            <p class="help-desc">AI驱动的沉浸式修仙文字冒险游戏</p>
+          </div>
 
-          <p class="help-desc">AI驱动的沉浸式修仙文字冒险游戏</p>
-
-          <a href="https://ddct.top/" target="_blank" class="help-link-card">
+          <a href="https://ddct.top/" target="_blank" rel="noopener noreferrer" class="help-link-card">
             <Globe :size="18" />
             <span>查看官网介绍</span>
             <ArrowRight :size="16" />
           </a>
 
-          <div class="help-warning">
-            <span>⚠️ 游玩尽量使用推荐预设，了解原理后可自行调整</span>
+          <div class="help-tip">
+            <Lightbulb :size="16" />
+            <span>游玩尽量使用推荐预设，了解原理后可自行调整</span>
           </div>
 
-          <div class="help-section">
-            <h3>核心功能</h3>
+          <section>
+            <h4 class="cc-section-title">核心功能</h4>
             <div class="help-features">
-              <span>🎲 智能判定</span>
-              <span>🌟 三千大道</span>
-              <span>📖 动态剧情</span>
-              <span>💾 多存档</span>
-              <span>⚔️ 深度RPG</span>
-              <span>🗺️ 世界探索</span>
+              <span v-for="f in helpFeatures" :key="f.label">
+                <component :is="f.icon" :size="15" />
+                {{ f.label }}
+              </span>
             </div>
-          </div>
+          </section>
+        </div>
 
-          <div class="help-footer">
-            <div class="help-author">
-              <span>作者：千夜</span>
-              <a href="https://github.com/qianye60/XianTu" target="_blank">GitHub</a>
-            </div>
-            <div class="help-license">CC BY-NC-SA 4.0</div>
-          </div>
+        <div class="cc-modal-foot help-footer">
+          <span class="help-author">
+            作者：千夜 ·
+            <a href="https://github.com/qianye60/XianTu" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </span>
+          <span class="help-license">CC BY-NC-SA 4.0</span>
         </div>
       </div>
     </div>
@@ -227,54 +224,57 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watchEffect, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import $ from 'jquery'; // 导入 jQuery
-import { BookOpen, X, Maximize2, Minimize2, Moon, Sun, Settings, Store, Globe, UserCircle, Heart, ArrowRight, Plug, FileText } from 'lucide-vue-next'; // 导入图标
+import {
+  BookOpen, X, Maximize2, Minimize2, Moon, Sun, Settings, Store, Globe, UserCircle, Heart, ArrowRight,
+  Plug, FileText, Lightbulb, Dices, Sparkles, ScrollText, Save, Swords, Map as MapIcon,
+} from 'lucide-vue-next';
 import ToastContainer from './components/common/ToastContainer.vue';
 import GlobalLoadingOverlay from './components/common/GlobalLoadingOverlay.vue';
 import RetryConfirmDialog from './components/common/RetryConfirmDialog.vue';
 import DataValidationErrorDialog from './components/common/DataValidationErrorDialog.vue';
 import StateChangeViewer from './components/common/StateChangeViewer.vue';
 import DetailModal from './components/common/DetailModal.vue';
+import DialogHost from './components/common/DialogHost.vue';
 import ActionMenu from './components/common/ActionMenu.vue';
 import SettingsPanel from './components/dashboard/SettingsPanel.vue';
 import APIManagementPanel from './components/dashboard/APIManagementPanel.vue';
 import PromptManagementPanel from './components/dashboard/PromptManagementPanel.vue';
 import './style.css';
 import { useCharacterCreationStore } from './stores/characterCreationStore';
+import { requestCreationCancel, resetCreationCancel } from './services/characterInitialization';
 import { useCharacterStore } from './stores/characterStore';
 import { useUIStore } from './stores/uiStore';
 import { useGameStateStore } from './stores/gameStateStore';
+import { useTheme } from './composables/useTheme';
 import { toast } from './utils/toast';
 import { getTavernHelper } from './utils/tavern'; // 添加导入
-import { fetchBackendVersion, isBackendConfigured } from '@/services/backendConfig';
-import { heartbeatPresenceSilent } from '@/services/presence';
-import { endTravelBeacon } from '@/services/onlineTravel';
+import { isBackendConfigured } from '@/services/backendConfig';
 import { getFullscreenElement, requestFullscreen, exitFullscreen, explainFullscreenError } from './utils/fullscreen';
 import type { CharacterBaseInfo } from '@/types/game';
 import type { CharacterCreationPayload, Talent } from '@/types';
 
-const backendVersion = ref<string | null>(null);
-
 // --- 响应式状态定义 ---
 const isLoggedIn = ref(false);
-type ThemeMode = 'light' | 'dark';
-const normalizeTheme = (value: string | null): ThemeMode => {
-  if (value === 'light' || value === 'dark') return value;
-  return 'dark';
-};
-const themeMode = ref<ThemeMode>(normalizeTheme(localStorage.getItem('theme')));
+const { isDark, toggleTheme } = useTheme();
 const isFullscreenMode = ref(localStorage.getItem('fullscreen') === 'true');
 const showAuthorModal = ref(false);
+const helpFeatures = [
+  { icon: Dices, label: '智能判定' },
+  { icon: Sparkles, label: '三千大道' },
+  { icon: ScrollText, label: '动态剧情' },
+  { icon: Save, label: '多存档' },
+  { icon: Swords, label: '深度RPG' },
+  { icon: MapIcon, label: '世界探索' },
+];
 const showSettingsModal = ref(false);
 const showAPIModal = ref(false);
 const showSponsorModal = ref(false);
 const showPromptModal = ref(false);
 const backendReady = ref(isBackendConfigured());
-const displayVersion = computed(() => (
-  backendReady.value ? (backendVersion.value ?? '同步中') : APP_VERSION
-));
+const displayVersion = '5.0';
 
 // --- 路由与视图管理 ---
 const router = useRouter();
@@ -313,40 +313,12 @@ const characterStore = useCharacterStore();
 const uiStore = useUIStore();
 const gameStateStore = useGameStateStore();
 
-// --- 联机在线心跳（进入联机存档即轮询，停掉=下线） ---
-const onlineHeartbeatTimer = ref<number | null>(null);
-const ONLINE_HEARTBEAT_INTERVAL = 15_000;
-const isOnlineSaveActive = computed(() => isInGameView.value && characterStore.activeCharacterProfile?.模式 === '联机');
-
-const stopOnlineHeartbeat = () => {
-  if (onlineHeartbeatTimer.value) {
-    clearInterval(onlineHeartbeatTimer.value);
-    onlineHeartbeatTimer.value = null;
-  }
-};
-
-const startOnlineHeartbeat = () => {
-  stopOnlineHeartbeat();
-  if (!backendReady.value) return;
-  if (!isOnlineSaveActive.value) return;
-  // 立即心跳一次，随后轮询
-  void heartbeatPresenceSilent();
-  onlineHeartbeatTimer.value = window.setInterval(() => {
-    void heartbeatPresenceSilent();
-  }, ONLINE_HEARTBEAT_INTERVAL);
-};
-
-watch([isOnlineSaveActive, backendReady], () => {
-  if (isOnlineSaveActive.value && backendReady.value) startOnlineHeartbeat();
-  else stopOnlineHeartbeat();
-});
-
 // --- 事件处理器 ---
 const handleStartCreation = async (mode: 'single' | 'cloud') => {
   try {
     // 全局封锁联机模式：未配置后端则禁止进入 cloud
     if (mode === 'cloud' && !backendReady.value) {
-      toast.info('未配置后端服务器，联机共修不可用');
+      toast.info('未配置后端服务器，云端修行不可用');
       switchView('ModeSelection');
       return;
     }
@@ -419,12 +391,34 @@ const handleCreationComplete = async (rawPayload: CharacterCreationPayload) => {
     await characterStore.initializeStore();
   }
 
-  uiStore.startLoading('开始铸造法身...');
+  const onlyContinents = !!creationStore.worldGenerationConfig?.generateOnlyContinents;
+  const worldName = (rawPayload.world as { name?: string } | undefined)?.name;
+  uiStore.startStagedLoading({
+    title: '铸造法身',
+    onCancel: requestCreationCancel,
+    subtitle: [rawPayload.characterName, worldName].filter(Boolean).join(' · '),
+    stages: [
+      { key: 'prepare', label: '推演命格', hint: '计算先天属性、出身与年岁', glyph: '命' },
+      { key: 'world', label: '开辟天地', hint: onlyContinents ? 'AI 勾勒大陆格局' : 'AI 生成大陆、势力与地点', glyph: '界' },
+      ...(creationStore.splitResponseGeneration
+        ? [
+            { key: 'story', label: '书写开篇', hint: 'AI 撰写开局正文', glyph: '章' },
+            { key: 'commands', label: '推演指令', hint: 'AI 生成状态、物品、位置等指令', glyph: '令' },
+          ]
+        : [{ key: 'story', label: '书写开篇', hint: 'AI 撰写开局剧情与指令', glyph: '章' }]),
+      { key: 'apply', label: '落定因果', hint: '执行剧情指令、校准属性', glyph: '契' },
+      { key: 'save', label: '铭刻道籍', hint: '合并数据、写入存档', glyph: '籍', cancelable: false },
+      { key: 'enter', label: '踏入仙途', hint: '载入游戏界面', glyph: '启', cancelable: false },
+    ],
+  });
 
   // 在外层生成charId，确保重试时使用同一个ID
   const charId = `char_${Date.now()}`;
 
   const attemptCreation = async (): Promise<boolean> => {
+    resetCreationCancel();
+    uiStore.restartLoadingStages();
+    uiStore.enterLoadingStage('prepare');
     try {
       // 如果之前创建失败，先清理残留数据
       if (characterStore.rootState.角色列表[charId]) {
@@ -508,11 +502,14 @@ const handleCreationComplete = async (rawPayload: CharacterCreationPayload) => {
       characterStore.rootState.当前激活存档 = { 角色ID: charId, 存档槽位: slotKey };
       await characterStore.commitMetadataToStorage();
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      uiStore.enterLoadingStage('enter');
+      // 稍作停留：非流式时指令列表在最后一刻才出现，给玩家看一眼
+      await new Promise(resolve => setTimeout(resolve, 1200));
       toast.success(`【${createdBaseInfo.名字}】已成功踏入修行之路！`);
 
       // 跳转到游戏主界面路由
       await router.push('/game');
+      uiStore.completeLoadingStages();
 
       // 路由跳转后，尝试恢复全屏状态
       await new Promise(resolve => setTimeout(resolve, 100)); // 等待路由完全加载
@@ -589,16 +586,7 @@ const handleCreationComplete = async (rawPayload: CharacterCreationPayload) => {
   }
 };
 
-// --- 主题与全屏 ---
-watchEffect(() => {
-  document.documentElement.setAttribute('data-theme', themeMode.value);
-  localStorage.setItem('theme', themeMode.value);
-});
-
-const toggleTheme = () => {
-  themeMode.value = themeMode.value === 'dark' ? 'light' : 'dark';
-};
-
+// --- 全屏 ---
 const toggleFullscreen = () => {
   if (!getFullscreenElement()) {
     requestFullscreen(document.documentElement as any).then(() => {
@@ -638,12 +626,6 @@ const showHelp = () => {
 
 // --- 生命周期钩子 ---
 onMounted(async () => {
-  if (backendReady.value) {
-    const fetchedVersion = await fetchBackendVersion();
-    if (fetchedVersion) {
-      backendVersion.value = fetchedVersion;
-    }
-  }
   // 0. 等待 characterStore 初始化完成（加载 IndexedDB 数据）
   console.log('[App] 等待 characterStore 初始化...');
   await characterStore.initializeStore();
@@ -742,26 +724,10 @@ onMounted(async () => {
     }
   }, 5 * 60 * 1000); // 5分钟
 
-  // 6. 页面关闭时尝试结束穿越会话
-  const handleBeforeUnload = () => {
-    // 检查是否有活跃的穿越会话
-    const onlineState = gameStateStore.onlineState as any;
-    const sessionId = onlineState?.房间ID;
-    if (sessionId && characterStore.activeCharacterProfile?.模式 === '联机') {
-      // 尝试结束穿越会话
-      endTravelBeacon(Number(sessionId));
-      console.log('[App] beforeunload: 尝试结束穿越会话', sessionId);
-    }
-  };
-  window.addEventListener('beforeunload', handleBeforeUnload);
-
   // 统一的清理逻辑
   onUnmounted(() => {
-    stopOnlineHeartbeat();
     // 清理定时保存定时器
     clearInterval(saveInterval);
-    // 清理 beforeunload 监听
-    window.removeEventListener('beforeunload', handleBeforeUnload);
     // 清理父窗口resize监听
     try {
       if (targetParentWindow) {
@@ -793,624 +759,6 @@ watch(route, (newRoute, oldRoute) => {
 </script>
 
 <style scoped>
-/* ============ 教程弹窗样式 ============ */
-.help-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: 1rem;
-}
-
-.help-modal {
-  background: var(--color-surface);
-  border-radius: 12px;
-  max-width: 420px;
-  width: 100%;
-  max-height: 85vh;
-  overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-border);
-}
-
-.help-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-}
-
-.help-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.help-close {
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.help-close:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-}
-
-.help-body {
-  padding: 1.25rem;
-  overflow-y: auto;
-  max-height: calc(85vh - 60px);
-}
-
-.help-version {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb), 0.1);
-  padding: 2px 8px;
-  border-radius: 4px;
-  margin-bottom: 0.5rem;
-}
-
-.help-desc {
-  margin: 0 0 1rem;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-}
-
-.help-link-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0.75rem 1rem;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  color: var(--color-text);
-  text-decoration: none;
-  margin-bottom: 1rem;
-  transition: background 0.2s;
-}
-
-.help-link-card:hover {
-  background: var(--color-surface-hover);
-}
-
-.help-link-card span {
-  flex: 1;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.help-warning {
-  padding: 0.75rem;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  border-radius: 8px;
-  font-size: 0.85rem;
-  color: var(--color-text);
-  margin-bottom: 1rem;
-}
-
-.help-warning strong {
-  color: #ef4444;
-}
-
-.help-section h3 {
-  margin: 0 0 0.75rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.help-features {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 1rem;
-}
-
-.help-features span {
-  font-size: 0.8rem;
-  padding: 4px 10px;
-  background: var(--color-surface-light);
-  border-radius: 6px;
-  color: var(--color-text-secondary);
-}
-
-.help-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-.help-author {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.help-author a {
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
-.help-author a:hover {
-  text-decoration: underline;
-}
-
-.settings-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1500;
-  padding: 20px;
-}
-
-.game-info-header::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  opacity: 0.5;
-  animation: bgFloat 25s ease-in-out infinite;
-}
-
-@keyframes bgFloat {
-  0%, 100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(10px, 10px);
-  }
-}
-
-.game-info-header .header-bg {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-              radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
-}
-
-.game-info-header .header-content {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.game-info-header .game-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-}
-
-.game-info-header .title-icon {
-  font-size: 1.75rem;
-}
-
-.game-info-header .title-text {
-  font-size: 2rem;
-  font-weight: 900;
-  color: #fff;
-  letter-spacing: -0.02em;
-  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.4),
-               0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.version-subtitle-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.game-info-header .version-tag {
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
-  padding: 0.25rem 0.625rem;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.game-info-header .game-subtitle {
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 0.875rem;
-  margin: 0;
-  font-weight: 500;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-.game-info-header .close-btn {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  line-height: 1;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(8px);
-}
-
-.game-info-header .close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.08) rotate(90deg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* 内容区域 */
-.game-info-body {
-  padding: 2rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  background: var(--color-surface);
-}
-
-/* 官网介绍卡片 */
-.official-intro-card {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  padding: 1.5rem;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%);
-  border: 2px solid rgba(99, 102, 241, 0.2);
-  border-radius: 20px;
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.official-intro-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.official-intro-card:hover::before {
-  opacity: 1;
-}
-
-.official-intro-card:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
-  border-color: rgba(99, 102, 241, 0.4);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.3),
-              0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.intro-icon-wrapper {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6366f1;
-  flex-shrink: 0;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.official-intro-card:hover .intro-icon-wrapper {
-  transform: scale(1.15) rotate(-5deg);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35),
-              inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.intro-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.intro-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.intro-desc {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-
-.intro-arrow {
-  color: var(--color-text-secondary);
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.official-intro-card:hover .intro-arrow {
-  transform: translateX(6px);
-  color: #667eea;
-}
-
-/* 警告横幅 */
-.warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  padding: 1.25rem 1.5rem;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
-  border: 2px solid rgba(251, 191, 36, 0.3);
-  border-left: 4px solid #f59e0b;
-  border-radius: 16px;
-  font-size: 0.9rem;
-  color: var(--color-text);
-  box-shadow: 0 2px 12px rgba(251, 191, 36, 0.15);
-  backdrop-filter: blur(8px);
-}
-
-.warning-banner .warning-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.warning-banner strong {
-  color: #dc2626;
-  font-weight: 800;
-}
-
-/* 信息卡片 */
-.info-card {
-  background: var(--color-surface-light);
-  border: 2px solid var(--color-border);
-  border-radius: 18px;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
-}
-
-.info-card:hover {
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1),
-              0 0 0 1px rgba(99, 102, 241, 0.1);
-  transform: translateY(-2px);
-}
-
-.info-card .card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin-bottom: 1rem;
-}
-
-.info-card .card-icon {
-  font-size: 1.25rem;
-}
-
-.info-card .card-header h4 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--color-text);
-}
-
-.info-card .card-desc {
-  margin: 0;
-  font-size: 0.925rem;
-  line-height: 1.7;
-  color: var(--color-text-secondary);
-}
-
-/* 功能网格 */
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-}
-
-.feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.875rem;
-  padding: 1.125rem;
-  background: var(--color-surface);
-  border-radius: 14px;
-  border: 2px solid var(--color-border);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.feature-item::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.feature-item:hover::before {
-  opacity: 1;
-}
-
-.feature-item:hover {
-  border-color: rgba(99, 102, 241, 0.4);
-  background: var(--color-surface);
-  transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.15),
-              0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.feature-item .feature-icon {
-  font-size: 1.5rem;
-  flex-shrink: 0;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
-  transition: transform 0.3s ease;
-  position: relative;
-  z-index: 1;
-}
-
-.feature-item:hover .feature-icon {
-  transform: scale(1.1);
-}
-
-.feature-item .feature-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  position: relative;
-  z-index: 1;
-}
-
-.feature-item .feature-text strong {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.feature-item .feature-text span {
-  font-size: 0.825rem;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-
-/* 紧凑型卡片布局 */
-.info-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.info-card.compact {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-}
-
-.info-card.compact .card-header {
-  margin-bottom: 0.75rem;
-}
-
-.author-content, .copyright-content {
-  font-size: 0.925rem;
-  color: var(--color-text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-}
-
-.author-name {
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.github-link {
-  color: #6366f1;
-  text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.github-link:hover {
-  color: #8b5cf6;
-  text-decoration: underline;
-}
-
-/* 深色主题适配 */
-[data-theme='dark'] .game-info-header {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c026d3 100%);
-}
-
-[data-theme='dark'] .warning-banner {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
-  border-color: rgba(251, 191, 36, 0.35);
-  border-left-color: #f59e0b;
-}
-
-[data-theme='dark'] .warning-banner strong {
-  color: #fca5a5;
-}
-
-[data-theme='dark'] .official-intro-card {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
-  border-color: rgba(99, 102, 241, 0.25);
-}
-
-[data-theme='dark'] .official-intro-card:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%);
-  border-color: rgba(99, 102, 241, 0.45);
-}
-
-[data-theme='dark'] .intro-icon-wrapper {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.2) 100%);
-  color: #818cf8;
-}
-
-/* 滚动条美化 */
-.game-info-body::-webkit-scrollbar {
-  width: 8px;
-}
-
-.game-info-body::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 8px 0;
-}
-
-.game-info-body::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
-  transition: background 0.2s ease;
-}
-
-.game-info-body::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
-}
-
 .settings-modal-overlay {
   position: fixed;
   inset: 0;
@@ -1458,42 +806,26 @@ watch(route, (newRoute, oldRoute) => {
   overflow: auto;
 }
 
-.sponsor-modal-content {
-  width: min(540px, 100%);
+.settings-panel-modal {
+  width: min(720px, 100%);
+  height: min(820px, 88vh);
+  max-height: 88vh;
+  border-radius: 14px;
+  border-color: rgba(212, 184, 120, 0.3);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.api-panel-modal {
+  width: min(900px, 100%);
+}
+
+[data-theme='light'] .settings-panel-modal {
+  border-color: rgba(140, 105, 50, 0.3);
+  box-shadow: 0 30px 70px -10px rgba(50, 36, 14, 0.45);
 }
 
 .prompt-modal-content {
   width: min(900px, 100%);
-}
-
-.sponsor-modal-body {
-  padding: 1rem 1.25rem 1.5rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  justify-items: center;
-}
-
-.sponsor-qr {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.sponsor-qr img {
-  width: 100%;
-  max-width: 240px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
-  display: block;
-}
-
-.sponsor-qr span {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
 }
 
 .close-btn {
@@ -1513,5 +845,167 @@ watch(route, (newRoute, oldRoute) => {
 
 .close-btn:hover {
   background: var(--color-surface-hover);
+}
+
+/* ============ 教程 / 赞助弹窗（外观见 cc-modal） ============ */
+.app-dialog {
+  z-index: 10000;
+}
+
+.help-modal {
+  width: min(460px, 100%);
+}
+
+.help-intro {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.help-version {
+  padding: 0.05rem 0.5rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--cc-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.help-desc {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--cc-text-2);
+}
+
+.help-link-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 8px;
+  background: var(--cc-surface-2);
+  color: var(--cc-text);
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.help-link-card svg:first-child {
+  color: var(--cc-gold);
+}
+
+.help-link-card span {
+  flex: 1;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+}
+
+.help-link-card:hover {
+  background: var(--cc-surface-hover);
+  border-color: rgba(var(--cc-gold-rgb), 0.65);
+  color: var(--cc-accent);
+}
+
+.help-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(var(--cc-warning-rgb), 0.35);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: rgba(var(--cc-warning-rgb), 0.07);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--cc-text-2);
+}
+
+.help-tip svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--cc-warning);
+}
+
+.help-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.help-features span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 6px;
+  background: var(--cc-surface);
+  font-size: 0.8rem;
+  color: var(--cc-text-2);
+}
+
+.help-features svg {
+  flex-shrink: 0;
+  color: var(--cc-gold);
+}
+
+.help-footer {
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+}
+
+.help-author a {
+  color: var(--cc-accent);
+  text-decoration: none;
+}
+
+.help-author a:hover {
+  text-decoration: underline;
+}
+
+.sponsor-modal {
+  width: min(520px, 100%);
+}
+
+.sponsor-hint {
+  text-align: center;
+}
+
+.sponsor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.sponsor-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.sponsor-qr img {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  padding: 6px;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.sponsor-qr figcaption {
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-2);
+}
+
+@media (max-width: 480px) {
+  .help-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

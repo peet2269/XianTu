@@ -1,349 +1,415 @@
 <template>
-  <div class="settings-panel">
-    <!-- 头部 -->
-    <div class="panel-header">
-      <div class="header-left">
-        <div class="header-icon">⚙️</div>
-        <div class="header-info">
-          <h3 class="panel-title">{{ t('游戏设置') }}</h3>
-          <span class="settings-subtitle">{{ t('自定义您的游戏体验') }}</span>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="action-btn" @click="resetSettings">
-          <RotateCcw :size="16" />
-          <span class="btn-text">{{ t('重置') }}</span>
-        </button>
-        <button class="action-btn primary" @click="saveSettings">
-          <Save :size="16" />
-          <span class="btn-text">{{ t('保存') }}</span>
-        </button>
-      </div>
-    </div>
+  <div class="settings" :class="{ 'is-modal': closable }">
+    <!-- 弹窗模式（局外菜单打开）自带头部；局内由功能页容器提供标题和「恢复默认」 -->
+    <header v-if="closable" class="modal-head">
+      <h2 class="modal-title">{{ t('系统设置') }}</h2>
+      <button type="button" class="cc-btn small" @click="resetSettings">
+        <RotateCcw :size="14" />
+        <span>{{ t('恢复默认') }}</span>
+      </button>
+      <button type="button" class="modal-close" :aria-label="t('关闭')" :title="t('关闭')" @click="emit('close')">
+        <X :size="18" />
+      </button>
+    </header>
 
-    <!-- 设置内容 -->
-    <div class="settings-container">
-      <!-- 显示设置 -->
-      <div class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">🎨 {{ t('显示设置') }}</h4>
-        </div>
-        <div class="settings-list">
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('语言设置') }}</label>
-              <span class="setting-desc">{{ t('选择界面语言') }}</span>
-            </div>
-            <div class="setting-control">
-              <select v-model="currentLanguage" class="setting-select" @change="onLanguageChange">
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-          </div>
+    <div ref="scrollEl" class="settings-scroll" @scroll.passive="onScroll">
+      <div class="settings-grid">
+        <!-- 分组目录 -->
+        <nav class="toc" :aria-label="t('设置分组')">
+          <button
+            v-for="sec in sections"
+            :key="sec.id"
+            type="button"
+            class="toc-item"
+            :class="{ active: activeSection === sec.id }"
+            @click="scrollToSection(sec.id)"
+          >
+            <span class="toc-seal">{{ t(sec.seal) }}</span>
+            <span class="toc-text">
+              <b>{{ t(sec.label) }}</b>
+              <small>{{ t(sec.desc) }}</small>
+            </span>
+          </button>
+          <p class="toc-note"><Check :size="13" />{{ t('改动即时生效，自动保存') }}</p>
+        </nav>
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('主题模式') }}</label>
-              <span class="setting-desc">{{ t('选择界面主题风格') }}</span>
-            </div>
-            <div class="setting-control">
-              <select v-model="settings.theme" class="setting-select" @change="onSettingChange">
-                <option value="light">{{ t('明亮') }}</option>
-                <option value="dark">{{ t('暗黑') }}</option>
-                <option value="xiantu">{{ t('仙途') }}</option>
-                <option value="auto">{{ t('跟随系统') }}</option>
-              </select>
-            </div>
-          </div>
+        <div class="form">
+          <!-- 显示 -->
+          <section id="settings-sec-display" class="sec">
+            <header class="sec-head">
+              <span class="sec-seal">{{ t('显') }}</span>
+              <h3>{{ t('显示') }}</h3>
+            </header>
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('界面缩放') }}</label>
-              <span class="setting-desc">{{ t('调整UI界面大小') }}</span>
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('主题模式') }}</span>
+                <span class="row-desc">{{ t('选择界面主题风格') }}</span>
+              </div>
+              <div class="seg" role="radiogroup" :aria-label="t('主题模式')">
+                <button
+                  v-for="opt in themeOptions"
+                  :key="opt.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="themePreference === opt.value"
+                  :class="{ active: themePreference === opt.value }"
+                  @click="setTheme(opt.value)"
+                >
+                  <component :is="opt.icon" :size="14" />
+                  <span>{{ t(opt.label) }}</span>
+                </button>
+              </div>
             </div>
-            <div class="setting-control">
-              <div class="range-container">
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('语言设置') }}</span>
+                <span class="row-desc">{{ t('选择界面语言') }}</span>
+              </div>
+              <div class="seg" role="radiogroup" :aria-label="t('语言设置')">
+                <button
+                  v-for="opt in languageOptions"
+                  :key="opt.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="currentLanguage === opt.value"
+                  :class="{ active: currentLanguage === opt.value }"
+                  @click="changeLanguage(opt.value)"
+                >
+                  <span>{{ opt.label }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-ui-scale">{{ t('界面缩放') }}</label>
+                <span class="row-desc">{{ t('按钮、菜单、面板和文字一起放大缩小；只想调正文请用「阅读 → 正文字号」') }}</span>
+              </div>
+              <div class="range">
                 <input
-                  type="range"
+                  id="setting-ui-scale"
                   v-model.number="settings.uiScale"
-                  min="80"
-                  max="120"
-                  step="5"
-                  class="setting-range"
-                  @input="applyUIScale"
-                />
-                <span class="range-value">{{ settings.uiScale }}%</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('文字大小') }}</label>
-              <span class="setting-desc">{{ t('调整游戏文字显示大小（像素）') }}</span>
-            </div>
-            <div class="setting-control">
-              <div class="range-container">
-                <input
                   type="range"
-                  v-model.number="settings.fontSize"
-                  min="12"
-                  max="24"
-                  step="1"
-                  class="setting-range"
-                  @input="applyFontSize"
+                  min="80"
+                  max="130"
+                  step="5"
+                  :style="rangeFill(settings.uiScale, 80, 130)"
+                  @change="applyUIScale"
                 />
-                <span class="range-value">{{ settings.fontSize }}px</span>
+                <output>{{ settings.uiScale }}%</output>
               </div>
             </div>
-          </div>
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('快速动画') }}</label>
-              <span class="setting-desc">{{ t('加速界面动画和过渡效果') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="settings.fastAnimations" @change="applyAnimationSettings(); onSettingChange()" />
-                <span class="switch-slider"></span>
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-fast-anim">{{ t('快速动画') }}</label>
+                <span class="row-desc">{{ t('加速界面动画和过渡效果') }}</span>
+              </div>
+              <label class="switch">
+                <input id="setting-fast-anim" v-model="settings.fastAnimations" type="checkbox" @change="applyAnimationSettings" />
+                <span></span>
               </label>
             </div>
-          </div>
-        </div>
-      </div>
+          </section>
 
-      <!-- 游戏功能 -->
-      <div class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">🎮 {{ t('游戏功能') }}</h4>
-        </div>
-        <div class="settings-list">
-          <!-- 道号修改 -->
-          <div class="setting-item setting-item-full" v-if="currentPlayerName">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('修改道号') }}</label>
-              <span class="setting-desc">{{ t('修改当前角色的名字') }}</span>
-            </div>
-            <div class="setting-control-full" style="display: flex; gap: 0.5rem">
-              <input
-                v-model="newPlayerName"
-                class="form-input-inline"
-                :placeholder="currentPlayerName"
-                style="flex: 1"
-              />
-              <button
-                class="utility-btn primary"
-                @click="updatePlayerName"
-                :disabled="!newPlayerName || newPlayerName === currentPlayerName"
-              >
-                <Save :size="16" />
-                {{ t('确认') }}
-              </button>
-            </div>
-          </div>
+          <!-- 阅读 -->
+          <section id="settings-sec-reading" class="sec">
+            <header class="sec-head">
+              <span class="sec-seal">{{ t('阅') }}</span>
+              <h3>{{ t('阅读') }}</h3>
+            </header>
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('行动选项') }}</label>
-              <span class="setting-desc">{{ t('AI生成可选的行动建议') }}</span>
+            <div class="row stacked">
+              <div class="row-info">
+                <span class="row-name">{{ t('字体') }}</span>
+                <span class="row-desc">{{ t('作用于正文与界面；网络字体首次使用需加载片刻，失败时自动改用系统字体') }}</span>
+              </div>
+              <div class="fonts" role="radiogroup" :aria-label="t('字体')">
+                <button
+                  v-for="f in fontOptions"
+                  :key="f.key"
+                  type="button"
+                  role="radio"
+                  class="font-card"
+                  :class="{ active: settings.fontFamily === f.key }"
+                  :aria-checked="settings.fontFamily === f.key"
+                  @click="pickFont(f.key)"
+                >
+                  <span class="font-sample" :style="{ fontFamily: f.stack }">山河道途</span>
+                  <span class="font-name">{{ t(f.label) }}</span>
+                  <span class="font-desc">{{ t(f.desc) }}</span>
+                  <span v-if="settings.fontFamily === f.key" class="font-check"><Check :size="12" /></span>
+                </button>
+              </div>
             </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="uiStore.enableActionOptions" />
-                <span class="switch-slider"></span>
+
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-narrative-size">{{ t('正文字号') }}</label>
+                <span class="row-desc">{{ t('只影响中间的故事正文') }}</span>
+              </div>
+              <div class="range">
+                <input
+                  id="setting-narrative-size"
+                  v-model.number="settings.narrativeSize"
+                  type="range"
+                  min="14"
+                  max="22"
+                  step="1"
+                  :style="rangeFill(settings.narrativeSize, 14, 22)"
+                  @input="applyNarrativeSize(settings.narrativeSize)"
+                />
+                <output>{{ settings.narrativeSize }}px</output>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('正文行距') }}</span>
+                <span class="row-desc">{{ t('行与行之间的留白') }}</span>
+              </div>
+              <div class="seg" role="radiogroup" :aria-label="t('正文行距')">
+                <button
+                  v-for="opt in leadingOptions"
+                  :key="opt.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="settings.narrativeLeading === opt.value"
+                  :class="{ active: settings.narrativeLeading === opt.value }"
+                  @click="pickLeading(opt.value)"
+                >
+                  <span>{{ t(opt.label) }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('叙事配色') }}</span>
+                <span class="row-desc">{{ t(toneOptions.find((o) => o.value === settings.narrativeTone)?.desc || '') }}</span>
+              </div>
+              <div class="seg" role="radiogroup" :aria-label="t('叙事配色')">
+                <button
+                  v-for="opt in toneOptions"
+                  :key="opt.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="settings.narrativeTone === opt.value"
+                  :class="{ active: settings.narrativeTone === opt.value }"
+                  @click="pickTone(opt.value)"
+                >
+                  <span>{{ t(opt.label) }}</span>
+                </button>
+              </div>
+            </div>
+
+            <figure class="preview" :aria-label="t('正文预览')">
+              <figcaption>{{ t('预览') }}</figcaption>
+              <p class="p-env">【晨光初破，山岚如纱，自赤褐色的山岩裂隙间蒸腾而起。】</p>
+              <p>竹庐之内，千夜盘膝而坐，双手结出引气印，四周游离的火行灵气仿佛受到无形牵引。</p>
+              <p>秦岚站在门边，语速极快：<span class="p-dia">"师弟，黑砂岭的人至多半个时辰便会搜上岭来。"</span><span class="p-psy">此地已非善地。</span></p>
+            </figure>
+          </section>
+
+          <!-- 游戏 -->
+          <section id="settings-sec-game" class="sec">
+            <header class="sec-head">
+              <span class="sec-seal">{{ t('戏') }}</span>
+              <h3>{{ t('游戏') }}</h3>
+            </header>
+
+            <div v-if="currentPlayerName" class="row stacked">
+              <div class="row-info">
+                <label class="row-name" for="setting-player-name">{{ t('修改道号') }}</label>
+                <span class="row-desc">{{ t('修改当前角色的名字') }}</span>
+              </div>
+              <div class="inline">
+                <input
+                  id="setting-player-name"
+                  v-model="newPlayerName"
+                  class="field"
+                  :placeholder="currentPlayerName"
+                />
+                <button
+                  type="button"
+                  class="cc-btn small"
+                  :disabled="!newPlayerName || newPlayerName === currentPlayerName"
+                  @click="updatePlayerName"
+                >
+                  <Save :size="14" />
+                  <span>{{ t('确认') }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-action-options">{{ t('行动选项') }}</label>
+                <span class="row-desc">{{ t('AI生成可选的行动建议') }}</span>
+              </div>
+              <label class="switch">
+                <input id="setting-action-options" v-model="uiStore.enableActionOptions" type="checkbox" />
+                <span></span>
               </label>
             </div>
-          </div>
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('境界分层地图') }}</label>
-              <span class="setting-desc">{{ t('按角色境界分别记录世界地图，旧存档开启后将自动迁移') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="settings.realmLayeredMap" @change="onSettingChange" />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div class="setting-item setting-item-full">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('自定义行动选项提示词') }}</label>
-              <span class="setting-desc">{{
-                t('指导AI生成特定风格的行动选项（可选，留空使用默认）')
-              }}</span>
-            </div>
-            <div class="setting-control-full">
+            <div v-if="uiStore.enableActionOptions" class="row stacked nested">
+              <div class="row-info">
+                <label class="row-name" for="setting-action-prompt">{{ t('自定义行动选项提示词') }}</label>
+                <span class="row-desc">{{ t('指导AI生成特定风格的行动选项（可选，留空使用默认）') }}</span>
+              </div>
               <textarea
+                id="setting-action-prompt"
                 v-model="uiStore.actionOptionsPrompt"
-                class="setting-textarea"
+                class="field area"
                 :placeholder="t('例如：多生成修炼和探索类选项，减少战斗选项...')"
                 rows="3"
               ></textarea>
             </div>
-          </div>
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('存档保护强度') }}</label>
-              <span class="setting-desc">{{ t('控制AI指令的保护/拒绝力度；更低更自由，但更容易产生坏存档') }}</span>
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-realm-map">{{ t('境界分层地图') }}</label>
+                <span class="row-desc">{{ t('按角色境界分别记录世界地图，旧存档开启后将自动迁移') }}</span>
+              </div>
+              <label class="switch">
+                <input id="setting-realm-map" v-model="settings.realmLayeredMap" type="checkbox" />
+                <span></span>
+              </label>
             </div>
-            <div class="setting-control">
-              <select v-model="uiStore.commandProtectionMode" class="setting-select">
+
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-protection">{{ t('存档保护强度') }}</label>
+                <span class="row-desc">{{ t('控制AI指令的保护/拒绝力度；更低更自由，但更容易产生坏存档') }}</span>
+              </div>
+              <select id="setting-protection" v-model="uiStore.commandProtectionMode" class="field select">
                 <option value="strict">{{ t('严格（推荐）') }}</option>
                 <option value="skeleton">{{ t('仅骨干（更自由）') }}</option>
               </select>
             </div>
-          </div>
+          </section>
+
+          <!-- 高级 -->
+          <section id="settings-sec-advanced" class="sec">
+            <header class="sec-head">
+              <span class="sec-seal">{{ t('玄') }}</span>
+              <h3>{{ t('高级') }}</h3>
+            </header>
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('提示词管理') }}</span>
+                <span class="row-desc">{{ t('跳转到提示词页面修改提示词') }}</span>
+              </div>
+              <button type="button" class="cc-btn small" @click="openPromptManagement">
+                <FileText :size="14" />
+                <span>{{ t('打开') }}</span>
+              </button>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('正则替换规则') }}</span>
+                <span class="row-desc">{{ t('对AI输出进行替换：正则 / 纯文本（用于格式修正、屏蔽词替换等）') }}</span>
+              </div>
+              <button type="button" class="cc-btn small" @click="showReplaceRulesModal = true">
+                <Replace :size="14" />
+                <span>{{ t('编辑规则') }}</span>
+                <span v-if="enabledReplaceRulesCount > 0" class="badge">{{ enabledReplaceRulesCount }}</span>
+              </button>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <label class="row-name" for="setting-debug">{{ t('调试模式') }}</label>
+                <span class="row-desc">{{ t('启用开发者调试信息和详细日志') }}</span>
+              </div>
+              <label class="switch">
+                <input id="setting-debug" v-model="settings.debugMode" type="checkbox" />
+                <span></span>
+              </label>
+            </div>
+
+            <template v-if="settings.debugMode">
+              <div class="row nested">
+                <div class="row-info">
+                  <label class="row-name" for="setting-console-debug">{{ t('控制台调试') }}</label>
+                  <span class="row-desc">{{ t('在浏览器控制台显示详细调试信息') }}</span>
+                </div>
+                <label class="switch">
+                  <input id="setting-console-debug" v-model="settings.consoleDebug" type="checkbox" />
+                  <span></span>
+                </label>
+              </div>
+              <div class="row nested">
+                <div class="row-info">
+                  <label class="row-name" for="setting-perf">{{ t('性能监控') }}</label>
+                  <span class="row-desc">{{ t('监控组件性能和加载时间') }}</span>
+                </div>
+                <label class="switch">
+                  <input id="setting-perf" v-model="settings.performanceMonitor" type="checkbox" />
+                  <span></span>
+                </label>
+              </div>
+            </template>
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('设置备份') }}</span>
+                <span class="row-desc">{{ t('导出或导入设置配置文件') }}</span>
+              </div>
+              <div class="inline tight">
+                <button type="button" class="cc-btn small" @click="exportSettings">
+                  <Download :size="14" />
+                  <span>{{ t('导出') }}</span>
+                </button>
+                <button type="button" class="cc-btn small" @click="importSettings">
+                  <Upload :size="14" />
+                  <span>{{ t('导入') }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-info">
+                <span class="row-name">{{ t('清理缓存') }}</span>
+                <span class="row-desc">{{ t('清除游戏临时数据和缓存') }}</span>
+              </div>
+              <button type="button" class="cc-btn small danger" @click="clearCache">
+                <Trash2 :size="14" />
+                <span>{{ t('清理') }}</span>
+              </button>
+            </div>
+          </section>
         </div>
       </div>
+    </div>
 
-      <!-- 高级设置 -->
-      <div class="settings-section">
-        <div class="section-header">
-          <h4 class="section-title">{{ t('🔧 高级设置') }}</h4>
-        </div>
-        <div class="settings-list">
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('提示词管理') }}</label>
-              <span class="setting-desc">{{ t('跳转到提示词页面修改提示词') }}</span>
-            </div>
-            <div class="setting-control">
-              <button class="utility-btn" @click="openPromptManagement">
-                <FileText :size="16" />
-                {{ t('打开') }}
-              </button>
-            </div>
-          </div>
+    <TextReplaceRulesModal
+      :open="showReplaceRulesModal"
+      :rules="settings.replaceRules"
+      @close="showReplaceRulesModal = false"
+      @save="handleSaveReplaceRules"
+    />
 
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('调试模式') }}</label>
-              <span class="setting-desc">{{ t('启用开发者调试信息和详细日志') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="settings.debugMode" @change="onSettingChange" />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div class="setting-item" v-if="settings.debugMode">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('控制台调试') }}</label>
-              <span class="setting-desc">{{ t('在浏览器控制台显示详细调试信息') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input type="checkbox" v-model="settings.consoleDebug" @change="onSettingChange" />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div class="setting-item" v-if="settings.debugMode">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('性能监控') }}</label>
-              <span class="setting-desc">{{ t('监控组件性能和加载时间') }}</span>
-            </div>
-            <div class="setting-control">
-              <label class="setting-switch">
-                <input
-                  type="checkbox"
-                  v-model="settings.performanceMonitor"
-                  @change="onSettingChange"
-                />
-                <span class="switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('正则替换规则') }}</label>
-              <span class="setting-desc">{{ t('对AI输出进行替换：正则 / 纯文本（用于格式修正、屏蔽词替换等）') }}</span>
-            </div>
-            <div class="setting-control">
-              <button class="utility-btn" @click="showReplaceRulesModal = true">
-                {{ t('编辑规则') }} <span v-if="enabledReplaceRulesCount > 0">({{ enabledReplaceRulesCount }})</span>
-              </button>
-            </div>
-          </div>
-
-          <TextReplaceRulesModal
-            :open="showReplaceRulesModal"
-            :rules="settings.replaceRules"
-            @close="showReplaceRulesModal = false"
-            @save="handleSaveReplaceRules"
-          />
-
-          <!-- 提示词管理弹窗 -->
-          <div v-if="showPromptModal" class="prompt-modal-overlay" @click.self="showPromptModal = false">
-            <div class="prompt-modal-content">
-              <div class="prompt-modal-header">
-                <h3>提示词管理</h3>
-                <button class="close-btn" @click="showPromptModal = false">&times;</button>
-              </div>
-              <div class="prompt-modal-body">
-                <PromptManagementPanel />
-              </div>
-            </div>
-          </div>
-
-
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('导入设置') }}</label>
-              <span class="setting-desc">{{ t('从文件恢复设置配置') }}</span>
-            </div>
-            <div class="setting-control">
-              <button class="utility-btn" @click="importSettings">
-                <Upload :size="16" />
-                {{ t('导入') }}
-              </button>
-            </div>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('清理缓存') }}</label>
-              <span class="setting-desc">{{ t('清除游戏临时数据和缓存') }}</span>
-            </div>
-            <div class="setting-control">
-              <button class="utility-btn" @click="clearCache">
-                <Trash2 :size="16" />
-                {{ t('清理') }}
-              </button>
-            </div>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-info">
-              <label class="setting-name">{{ t('导出设置') }}</label>
-              <span class="setting-desc">{{ t('备份当前设置配置') }}</span>
-            </div>
-            <div class="setting-control">
-              <button class="utility-btn" @click="exportSettings">
-                <Download :size="16" />
-                {{ t('导出') }}
-              </button>
-            </div>
-          </div>
-        </div>
+    <!-- 提示词管理弹窗 -->
+    <div v-if="showPromptModal" class="prompt-modal-overlay" @click.self="showPromptModal = false">
+      <div class="prompt-modal-content">
+        <PromptManagementPanel closable @close="showPromptModal = false" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { Save, RotateCcw, Trash2, Download, Upload, FileText } from 'lucide-vue-next';
+import { ref, reactive, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue';
+import {
+  Save, RotateCcw, Trash2, Download, Upload, FileText, X, Check,
+  Sun, Moon, Monitor, Replace,
+} from 'lucide-vue-next';
 import { toast } from '@/utils/toast';
 import { debug } from '@/utils/debug';
 import { useI18n } from '@/i18n';
@@ -354,14 +420,81 @@ import { useCharacterStore } from '@/stores/characterStore';
 import { useGameStateStore } from '@/stores/gameStateStore';
 import { useUIStore } from '@/stores/uiStore';
 import { unwrapDadBundle } from '@/utils/dadBundle';
+import { useTheme, type ThemePreference } from '@/composables/useTheme';
+import { vectorMemoryService } from '@/services/vectorMemoryService';
+import { usePageActions } from '@/composables/usePageActions';
+import { confirmDialog } from '@/composables/useDialog';
+import {
+  FONT_OPTIONS, DEFAULT_FONT, DEFAULT_TONE, DEFAULT_NARRATIVE_SIZE, DEFAULT_LEADING, DEFAULT_UI_SCALE,
+  applyFont, applyNarrativeTone, applyNarrativeSize, applyNarrativeLeading, applyUIScale as applyRootUIScale,
+  ensureFontLoaded, type FontKey, type NarrativeTone, type NarrativeLeading,
+} from '@/utils/readingPrefs';
+
+const props = withDefaults(defineProps<{ closable?: boolean }>(), { closable: false });
+const emit = defineEmits<{ (e: 'close'): void }>();
 
 const { t, setLanguage, currentLanguage } = useI18n();
+const { preference: themePreference, setTheme } = useTheme();
+
+const themeOptions: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
+  { value: 'light', label: '明亮', icon: Sun },
+  { value: 'dark', label: '暗黑', icon: Moon },
+  { value: 'auto', label: '跟随系统', icon: Monitor },
+];
+
+const languageOptions = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+] as const;
+
+// 左侧分组目录
+const sections = [
+  { id: 'display', seal: '显', label: '显示', desc: '主题、语言与界面大小' },
+  { id: 'reading', seal: '阅', label: '阅读', desc: '字体、正文字号与叙事配色' },
+  { id: 'game', seal: '戏', label: '游戏', desc: '道号、行动选项与存档' },
+  { id: 'advanced', seal: '玄', label: '高级', desc: '提示词、替换规则与调试' },
+] as const;
+const activeSection = ref<string>('display');
+const scrollEl = ref<HTMLElement | null>(null);
+const scrollToSection = (id: string) => {
+  activeSection.value = id;
+  document.getElementById(`settings-sec-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+const onScroll = () => {
+  const box = scrollEl.value;
+  if (!box) return;
+  const top = box.getBoundingClientRect().top + 80;
+  let current: string = sections[0].id;
+  for (const sec of sections) {
+    const el = document.getElementById(`settings-sec-${sec.id}`);
+    if (el && el.getBoundingClientRect().top <= top) current = sec.id;
+  }
+  // 滚到底时最后一组也要能点亮
+  if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) current = sections[sections.length - 1].id;
+  activeSection.value = current;
+};
+
+const fontOptions = FONT_OPTIONS;
+const toneOptions: { value: NarrativeTone; label: string; desc: string }[] = [
+  { value: 'vivid', label: '彩色', desc: '环境青、对话金、心理紫' },
+  { value: 'plain', label: '素雅', desc: '只给对话着色，更像书页' },
+];
+const leadingOptions: { value: NarrativeLeading; label: string }[] = [
+  { value: 'tight', label: '紧凑' },
+  { value: 'normal', label: '适中' },
+  { value: 'loose', label: '宽松' },
+];
+
+const rangeFill = (value: number, min: number, max: number) => ({
+  '--fill': `${((value - min) / (max - min)) * 100}%`,
+});
 const characterStore = useCharacterStore();
 const gameStateStore = useGameStateStore();
 const uiStore = useUIStore();
-const onLanguageChange = () => {
-  setLanguage(currentLanguage.value);
-  toast.success('语言设置已更新');
+const changeLanguage = (lang: 'zh' | 'en') => {
+  if (currentLanguage.value === lang) return;
+  setLanguage(lang);
+  toast.success(t('语言设置已更新'));
 };
 
 // 道号修改相关
@@ -398,10 +531,15 @@ const updatePlayerName = async () => {
 
 // 设置数据结构
 const settings = reactive({
-  // 显示设置
-  theme: 'auto',
-  uiScale: 100,
-  fontSize: 16,
+  // 显示设置（主题由 useTheme 即时生效，这里仅用于导出/导入）
+  theme: themePreference.value as string,
+  uiScale: DEFAULT_UI_SCALE,
+
+  // 阅读
+  fontFamily: DEFAULT_FONT as FontKey,
+  narrativeTone: DEFAULT_TONE as NarrativeTone,
+  narrativeSize: DEFAULT_NARRATIVE_SIZE,
+  narrativeLeading: DEFAULT_LEADING as NarrativeLeading,
 
   // 游戏设置
   fastAnimations: false,
@@ -421,7 +559,22 @@ const settings = reactive({
 });
 
 const loading = ref(false);
-const hasUnsavedChanges = ref(false);
+
+// 自动保存：设置加载完成后，任何改动都即时应用并在 400ms 后静默写入
+const ready = ref(false);
+let persistTimer: number | null = null;
+watch(
+  settings,
+  () => {
+    if (!ready.value) return;
+    if (persistTimer) window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+      persistTimer = null;
+      void saveSettings({ silent: true });
+    }, 400);
+  },
+  { deep: true },
+);
 const showReplaceRulesModal = ref(false);
 const showPromptModal = ref(false);
 
@@ -464,24 +617,13 @@ const handleSaveReplaceRules = (rules: TextReplaceRule[]) => {
   const normalizedRules = normalizeReplaceRules(rules);
   (settings as any).replaceRules = normalizedRules;
   persistReplaceRules(normalizedRules);
-  onSettingChange();
 };
-
-// 监听所有设置变化
-watch(settings, () => {
-  hasUnsavedChanges.value = true;
-}, { deep: true });
 
 // 监听调试模式变化
 watch(() => settings.debugMode, (newValue) => {
   debug.setMode(newValue);
   debug.log('设置面板', `调试模式${newValue ? '已启用' : '已禁用'}`);
 });
-
-// 设置变更处理
-const onSettingChange = () => {
-  hasUnsavedChanges.value = true;
-};
 
 // 加载设置
 const loadSettings = async () => {
@@ -492,6 +634,8 @@ const loadSettings = async () => {
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
       Object.assign(settings, parsed);
+      delete (settings as Record<string, unknown>).fontSize;
+      settings.theme = themePreference.value;
       debug.log('设置面板', '设置加载成功', parsed);
     } else {
       debug.log('设置面板', '使用默认设置');
@@ -519,7 +663,7 @@ const loadSettings = async () => {
 };
 
 // 保存设置
-const saveSettings = async () => {
+const saveSettings = async ({ silent = false }: { silent?: boolean } = {}) => {
   if (loading.value) return;
 
   loading.value = true;
@@ -528,6 +672,7 @@ const saveSettings = async () => {
   try {
     // 验证设置
     validateSettings();
+    settings.theme = themePreference.value;
 
     // 保存到localStorage
     localStorage.setItem('dad_game_settings', JSON.stringify(settings));
@@ -547,8 +692,7 @@ const saveSettings = async () => {
     // 应用设置
     await applySettings();
 
-    hasUnsavedChanges.value = false;
-    toast.success('设置已保存并应用');
+    if (!silent) toast.success(t('设置已保存并应用'));
 
   } catch (error) {
     debug.error('设置面板', '保存设置失败', error);
@@ -565,8 +709,8 @@ const validateSettings = () => {
 
   try {
     // 验证UI缩放
-    if (settings.uiScale < 50 || settings.uiScale > 200) {
-      settings.uiScale = Math.max(50, Math.min(200, settings.uiScale));
+    if (settings.uiScale < 80 || settings.uiScale > 130) {
+      settings.uiScale = Math.max(80, Math.min(130, settings.uiScale));
       debug.warn('设置面板', `UI缩放值已修正为: ${settings.uiScale}%`);
     }
 
@@ -592,17 +736,18 @@ const applySettings = async () => {
   debug.group('应用设置');
 
   try {
-    // 应用主题
-    applyTheme();
-
     // 应用UI缩放
     applyUIScale();
 
-    // 应用字体大小
-    applyFontSize();
 
     // 应用动画设置
     applyAnimationSettings();
+
+    // 阅读偏好
+    applyFont(settings.fontFamily);
+    applyNarrativeTone(settings.narrativeTone);
+    applyNarrativeSize(settings.narrativeSize);
+    applyNarrativeLeading(settings.narrativeLeading);
 
     // 应用调试模式
     debug.setMode(settings.debugMode);
@@ -616,30 +761,24 @@ const applySettings = async () => {
   }
 };
 
-// 应用主题
-const applyTheme = () => {
-  let targetTheme = settings.theme;
-
-  if (settings.theme === 'auto') {
-    targetTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-
-  document.documentElement.setAttribute('data-theme', targetTheme);
-  debug.log('设置面板', `主题已应用: ${targetTheme}`);
-};
-
 // 应用UI缩放
 const applyUIScale = () => {
-  const scaleValue = settings.uiScale / 100;
-  document.documentElement.style.setProperty('--ui-scale', scaleValue.toString());
+  applyRootUIScale(settings.uiScale);
   debug.log('设置面板', `UI缩放已应用: ${settings.uiScale}%`);
 };
 
-// 应用字体大小
-const applyFontSize = () => {
-  const fontSize = `${settings.fontSize}px`;
-  document.documentElement.style.setProperty('--base-font-size', fontSize);
-  debug.log('设置面板', `字体大小已应用: ${fontSize}`);
+// 阅读偏好：点选即生效（自动保存由 watch 负责）
+const pickFont = (key: FontKey) => {
+  settings.fontFamily = key;
+  applyFont(key);
+};
+const pickTone = (tone: NarrativeTone) => {
+  settings.narrativeTone = tone;
+  applyNarrativeTone(tone);
+};
+const pickLeading = (leading: NarrativeLeading) => {
+  settings.narrativeLeading = leading;
+  applyNarrativeLeading(leading);
 };
 
 // 应用动画设置
@@ -649,74 +788,64 @@ const applyAnimationSettings = () => {
   debug.log('设置面板', `动画速度已应用: ${transitionSeconds}s`);
 };
 
-// 跳转到提示词管理页面
-const goToPromptManagement = () => {
-  // 检查当前是否在游戏中（/game路由下）
-  const currentPath = router.currentRoute.value.path;
-  if (currentPath.startsWith('/game')) {
-    // 在游戏中，跳转到游戏内的提示词管理
-    router.push('/game/prompts');
-  } else {
-    // 不在游戏中（如首页），跳转到独立的提示词管理页面
-    router.push('/prompts');
-  }
-};
-
 // uiStore 已在脚本顶部初始化
 // 重置设置
-const resetSettings = () => {
-  uiStore.showRetryDialog({
+const resetSettings = async () => {
+  const ok = await confirmDialog({
     title: '重置设置',
     message: '确定要重置所有设置为默认值吗？这将清除所有自定义配置。',
     confirmText: '确认重置',
-    cancelText: '取消',
-    onConfirm: () => {
-      debug.log('设置面板', '开始重置设置');
-      Object.assign(settings, {
-        theme: 'auto',
-        uiScale: 100,
-        fontSize: 16,
-        fastAnimations: false,
-        splitResponseGeneration: false,  // 默认关闭分步生成
-        debugMode: false,
-        consoleDebug: false,
-        performanceMonitor: false,
-      });
-      saveSettings();
-      toast.info('设置已重置为默认值');
-    },
-    onCancel: () => {}
+    danger: true,
   });
+  if (!ok) return;
+  debug.log('设置面板', '开始重置设置');
+  setTheme('dark');
+  Object.assign(settings, {
+    theme: 'dark',
+    uiScale: DEFAULT_UI_SCALE,
+    fontFamily: DEFAULT_FONT,
+    narrativeTone: DEFAULT_TONE,
+    narrativeSize: DEFAULT_NARRATIVE_SIZE,
+    narrativeLeading: DEFAULT_LEADING,
+    fastAnimations: false,
+    splitResponseGeneration: false,  // 默认关闭分步生成
+    debugMode: false,
+    consoleDebug: false,
+    performanceMonitor: false,
+  });
+  saveSettings();
+  toast.info('设置已重置为默认值');
 };
+
+// 局内页头的「恢复默认」；弹窗模式自带头部按钮
+usePageActions(() => (props.closable ? [] : [{ key: 'reset', title: '恢复默认', icon: RotateCcw, onClick: resetSettings }]));
 
 // 清理缓存
 const clearCache = async () => {
-  uiStore.showRetryDialog({
+  const ok = await confirmDialog({
     title: '清理缓存',
     message: '确定要清理缓存吗？这将删除临时数据但不会影响存档。',
     confirmText: '确认清理',
-    cancelText: '取消',
-    onConfirm: async () => {
-      debug.log('设置面板', '开始清理缓存');
-      try {
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.startsWith('dad_cache_') || key.startsWith('temp_') || key.startsWith('debug_') || key.includes('_temp'))) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        sessionStorage.clear();
-        debug.log('设置面板', `缓存清理完成，共清理 ${keysToRemove.length} 项数据`);
-        toast.success(`已清理 ${keysToRemove.length} 项缓存数据`);
-      } catch (error) {
-        debug.error('设置面板', '清理缓存失败', error);
-        toast.error('清理缓存失败');
-      }
-    },
-    onCancel: () => {}
+    danger: true,
   });
+  if (!ok) return;
+  debug.log('设置面板', '开始清理缓存');
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('dad_cache_') || key.startsWith('temp_') || key.startsWith('debug_') || key.includes('_temp'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    sessionStorage.clear();
+    debug.log('设置面板', `缓存清理完成，共清理 ${keysToRemove.length} 项数据`);
+    toast.success(`已清理 ${keysToRemove.length} 项缓存数据`);
+  } catch (error) {
+    debug.error('设置面板', '清理缓存失败', error);
+    toast.error('清理缓存失败');
+  }
 };
 
 // 导出设置
@@ -725,7 +854,7 @@ const exportSettings = () => {
 
   try {
     const exportData = {
-      settings: settings,
+      settings: { ...settings, theme: themePreference.value },
       exportInfo: {
         timestamp: new Date().toISOString(),
         version: '3.7.4',
@@ -797,6 +926,7 @@ const importSettings = () => {
       // 验证并合并设置
       const validatedSettings = { ...settings, ...settingsData };
       Object.assign(settings, validatedSettings);
+      setTheme(settings.theme);
 
       await saveSettings();
 
@@ -815,20 +945,35 @@ const openPromptManagement = () => {
   showPromptModal.value = true;
 };
 
-// 加载向量记忆配置（占位函数）
+// 读取向量记忆服务的真实配置，供设置面板初始化日志和调试状态使用。
 const loadVectorMemoryConfig = () => {
-  debug.log('设置面板', '向量记忆配置加载（功能待实现）');
-  // TODO: 实现向量记忆配置加载逻辑
+  const config = vectorMemoryService.getConfig();
+  const status = vectorMemoryService.getEmbeddingStatus();
+  debug.log('设置面板', '向量记忆配置已加载', {
+    enabled: config.enabled,
+    maxRetrieveCount: config.maxRetrieveCount,
+    minSimilarity: config.minSimilarity,
+    embeddingAvailable: status.available,
+    embeddingModel: status.model,
+  });
 };
 
-import { useRouter } from 'vue-router';
-const router = useRouter();
+onBeforeUnmount(() => {
+  if (persistTimer) {
+    window.clearTimeout(persistTimer);
+    void saveSettings({ silent: true });
+  }
+});
 
 // 组件挂载时加载设置
-onMounted(() => {
+onMounted(async () => {
   debug.log('设置面板', '组件已加载');
-  loadSettings();
+  await loadSettings();
   loadVectorMemoryConfig();
+  // 字体卡片里要用各自的字体写样字
+  FONT_OPTIONS.forEach((f) => ensureFontLoaded(f.key));
+  await nextTick();
+  ready.value = true;
 
   // 初始加载时不再强制应用设置，以避免覆盖全局主题
   // applySettings(); // 移除此调用
@@ -837,638 +982,664 @@ onMounted(() => {
 });
 </script>
 
+
 <style scoped>
-.settings-panel {
+/* ============================================================
+   系统设置 —— 版式 L6：左分组目录 + 右平铺表单（无卡片套卡片）
+   只用全局 --cc-* / --gm-* 令牌，暗亮主题自动跟随
+   ============================================================ */
+.settings {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-background);
-  overflow: hidden;
-  padding: 1rem;
-  gap: 1rem;
-  position: relative;
+  min-height: 0;
+  color: var(--cc-text);
 }
 
-/* 头部 */
-.panel-header {
+.settings.is-modal {
+  background: var(--cc-solid-bg);
+}
+
+/* ---------- 弹窗头部 ---------- */
+.modal-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  background: var(--color-surface);
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
+  gap: 0.6rem;
   flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  padding: 0.9rem 1.1rem 0.8rem 1.4rem;
+  border-bottom: 1px solid var(--gm-line);
 }
 
-.header-left {
+.modal-title {
+  flex: 1;
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--cc-text);
+}
+
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text-3);
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--gm-block-hover);
+  color: var(--cc-text);
+}
+
+/* ---------- 骨架 ---------- */
+.settings-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 760px);
+  justify-content: center;
+  gap: 3rem;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
+/* ---------- 分组目录 ---------- */
+.toc {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.toc-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cc-text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.toc-item:hover {
+  background: var(--gm-block-hover);
+  color: var(--cc-text);
+}
+
+.toc-item.active {
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.15), rgba(var(--cc-gold-rgb), 0.02));
+  color: var(--cc-text);
+}
+
+.toc-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--cc-gold);
+}
+
+.toc-seal,
+.sec-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 5px;
+  background: rgba(var(--cc-gold-rgb), 0.08);
+  color: var(--cc-gold);
+  font-family: var(--cc-calligraphy);
+  line-height: 1;
+}
+
+.toc-seal {
+  width: 30px;
+  height: 30px;
+  font-size: 17px;
+}
+
+.toc-item.active .toc-seal {
+  background: var(--cc-seal);
+  border-color: var(--cc-seal);
+  color: var(--cc-seal-text);
+}
+
+.toc-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
   min-width: 0;
 }
 
-.header-icon {
-  font-size: 1.5rem;
+.toc-text b {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
 }
 
-.header-info {
+.toc-text small {
+  font-size: 12px;
+  color: var(--cc-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toc-note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0;
+  padding: 0.8rem 0.7rem 0;
+  border-top: 1px solid var(--gm-line);
+  font-size: 12px;
+  color: var(--cc-text-3);
+}
+
+.toc-note svg {
+  color: var(--cc-success);
+}
+
+/* ---------- 分组 ---------- */
+.sec {
+  scroll-margin-top: 1.5rem;
+}
+
+.sec + .sec {
+  margin-top: 2.75rem;
+}
+
+.sec-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(var(--cc-gold-rgb), 0.28);
+}
+
+.sec-seal {
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+}
+
+.sec-head h3 {
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.3em;
+  color: var(--cc-text);
+}
+
+/* ---------- 行 ---------- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 0.25rem;
+  border-bottom: 1px solid var(--gm-line);
+}
+
+.row.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8rem;
+}
+
+.row.nested {
+  margin-left: 0.4rem;
+  padding-left: 1.1rem;
+  border-left: 2px solid rgba(var(--cc-gold-rgb), 0.25);
+}
+
+.row-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.panel-title {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text);
+.row-name {
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--cc-text);
 }
 
-.settings-subtitle {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
+.row-desc {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--cc-text-3);
 }
 
-.header-actions {
+/* ---------- 控件：分段 ---------- */
+.seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-inset);
+}
+
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text-2);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.seg button:hover {
+  color: var(--cc-text);
+}
+
+.seg button.active {
+  border-color: rgba(var(--cc-gold-rgb), 0.5);
+  background: rgba(var(--cc-gold-rgb), 0.14);
+  color: var(--cc-gold);
+}
+
+/* ---------- 控件：滑块 ---------- */
+.range {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
   flex-shrink: 0;
 }
 
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-  white-space: nowrap;
-}
+.range input {
+  --fill: 50%;
 
-/* 修复按钮文字被全局样式覆盖的问题 */
-.action-btn .btn-text {
-  display: inline;
-  width: auto;
-  text-align: left;
-  font-size: inherit;
-  color: inherit;
-  flex: 0 0 auto;
-}
-
-.action-btn:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
-
-.action-btn.primary {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: white;
-}
-
-.action-btn.primary:hover {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-
-/* 设置容器 */
-.settings-container {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  padding: 0 0.5rem 3rem 0.5rem;
-
-  /* 滚动条样式 */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-.settings-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.settings-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-
-.settings-container::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 4px;
-  transition: background 0.2s ease;
-}
-
-.settings-container::-webkit-scrollbar-thumb:hover {
-  background: transparent;
-}
-
-/* 设置区块 */
-.settings-section {
-  margin-bottom: 1.5rem;
-  background: var(--color-surface);
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
-  overflow: hidden;
-}
-
-.section-header {
-  padding: 1rem 1.25rem;
-  background: var(--color-surface-light);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.settings-list {
-  padding: 0.5rem;
-}
-
-/* 设置项 */
-.setting-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-radius: 0.5rem;
-  transition: background 0.2s ease;
-}
-
-.setting-item:hover {
-  background: var(--color-surface-light);
-}
-
-.setting-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.setting-name {
-  font-weight: 500;
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.setting-desc {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-}
-
-.setting-control {
-  display: flex;
-  align-items: center;
-}
-
-.model-control {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.5rem;
-}
-
-.model-select-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.model-search {
-  width: 100%;
-}
-
-/* 控件样式 */
-.setting-select {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  background: white;
-  color: #374151;
-  font-size: 0.875rem;
-  min-width: 80px;
-}
-
-.setting-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-.range-container {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.setting-range {
-  width: 100px;
-}
-
-.range-value {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  min-width: 40px;
-}
-
-/* 下拉选择框样式 */
-.setting-select {
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background-color: white;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 12px;
-  color: #374151;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
+  width: 180px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--cc-gold) var(--fill), color-mix(in srgb, var(--cc-text) 14%, transparent) var(--fill));
   appearance: none;
-  min-width: 120px;
+  cursor: pointer;
 }
 
-.setting-select:hover {
-  border-color: #94a3b8;
+.range input::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--cc-gold);
+  border-radius: 50%;
+  background: var(--cc-solid-bg);
+  box-shadow: 0 0 0 3px rgba(var(--cc-gold-rgb), 0.15);
+  appearance: none;
 }
 
-.setting-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.range input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--cc-gold);
+  border-radius: 50%;
+  background: var(--cc-solid-bg);
 }
 
-[data-theme='dark'] .setting-select {
-  background-color: #374151;
-  border-color: #4b5563;
-  color: #e5e7eb;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23e5e7eb' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+.range output {
+  min-width: 3.2em;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--cc-gold);
 }
 
-[data-theme='dark'] .setting-select:hover {
-  border-color: #6b7280;
-}
-
-/* 开关样式 */
-.setting-switch {
+/* ---------- 控件：开关 ---------- */
+.switch {
   position: relative;
-  display: inline-block;
+  flex-shrink: 0;
   width: 44px;
   height: 24px;
+  cursor: pointer;
 }
 
-.setting-switch input {
+.switch input {
+  position: absolute;
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.switch-slider {
+.switch span {
   position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #cbd5e1;
-  transition: 0.2s;
-  border-radius: 24px;
+  inset: 0;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 999px;
+  background: var(--cc-inset);
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.switch-slider:before {
-  position: absolute;
+.switch span::after {
   content: '';
-  height: 18px;
-  width: 18px;
+  position: absolute;
+  top: 3px;
   left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.2s;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
+  background: var(--cc-text-3);
+  transition: transform 0.2s ease, background 0.2s ease;
 }
 
-input:checked + .switch-slider {
-  background-color: #3b82f6;
+.switch input:checked + span {
+  border-color: rgba(var(--cc-gold-rgb), 0.7);
+  background: rgba(var(--cc-gold-rgb), 0.28);
 }
 
-input:checked + .switch-slider:before {
+.switch input:checked + span::after {
+  background: var(--cc-gold);
   transform: translateX(20px);
 }
 
-/* 全宽设置项 */
-.setting-item-full {
-  flex-direction: column;
-  align-items: flex-start;
+.switch input:focus-visible + span {
+  outline: 2px solid rgba(var(--cc-gold-rgb), 0.6);
+  outline-offset: 2px;
 }
 
-.setting-control-full {
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.setting-textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: white;
-  color: #374151;
-  font-size: 0.875rem;
-  font-family: inherit;
-  resize: vertical;
-  min-height: 60px;
-}
-
-.setting-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.setting-textarea::placeholder {
-  color: #9ca3af;
-}
-
-[data-theme='dark'] .setting-textarea {
-  background: #374151;
-  border-color: #4b5563;
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .setting-textarea::placeholder {
-  color: #6b7280;
-}
-
-/* 工具按钮 */
-.utility-btn {
+/* ---------- 控件：输入 ---------- */
+.inline {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  background: white;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
 }
 
-.utility-btn:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
+.inline.tight {
+  flex-shrink: 0;
 }
 
-/* 响应式设计 */
-@media (max-width: 640px) {
-  .setting-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .setting-control {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
-  .model-control {
-    justify-content: flex-start;
-  }
-
-  .model-select-row {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .model-select-row .setting-select,
-  .model-select-row .utility-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .range-container {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .header-actions {
-    flex-wrap: wrap;
-  }
-
-  .header-actions .action-btn {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.75rem;
-  }
-
-  .header-actions .btn-text {
-    display: inline;
-  }
-}
-
-/* 深色主题 */
-[data-theme='dark'] .settings-panel {
-  background: var(--color-background);
-}
-
-[data-theme='dark'] .panel-header,
-[data-theme='dark'] .settings-section {
-  background: #1e293b;
-  border-color: #475569;
-}
-
-[data-theme='dark'] .section-header {
-  background: #334155;
-  border-bottom-color: #475569;
-}
-
-[data-theme='dark'] .panel-title,
-[data-theme='dark'] .section-title,
-[data-theme='dark'] .setting-name {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .settings-subtitle,
-[data-theme='dark'] .setting-desc {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .setting-item:hover {
-  background: #334155;
-}
-
-[data-theme='dark'] .action-btn,
-[data-theme='dark'] .setting-select,
-[data-theme='dark'] .utility-btn {
-  background: #374151;
-  border-color: #4b5563;
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .action-btn:hover,
-[data-theme='dark'] .utility-btn:hover {
-  background: #4b5563;
-  border-color: #6b7280;
-}
-
-[data-theme='dark'] .switch-slider {
-  background-color: #4b5563;
-}
-
-/* 授权验证相关样式 */
-.form-input-inline {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.875rem;
-  min-width: 200px;
-  transition: all 0.2s ease;
-}
-
-.form-input-inline:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.auth-status {
-  padding: 0.5rem 1rem;
+.field {
+  min-width: 0;
+  height: 36px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--cc-border);
   border-radius: 6px;
-  font-size: 0.875rem;
+  background: var(--cc-inset);
+  color: var(--cc-text);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.inline .field {
+  flex: 1;
+}
+
+.field:focus {
+  outline: none;
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+}
+
+.field.area {
+  height: auto;
+  padding: 0.6rem 0.8rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.field.select {
+  flex-shrink: 0;
+  min-width: 180px;
+  padding-right: 2rem;
+  background: var(--cc-inset) var(--cc-caret) no-repeat right 0.7rem center;
+  appearance: none;
+  cursor: pointer;
+}
+
+.cc-btn.danger {
+  border-color: rgba(var(--cc-danger-rgb), 0.4);
+  color: var(--cc-danger);
+}
+
+.cc-btn.danger:hover:not(:disabled) {
+  border-color: rgba(var(--cc-danger-rgb), 0.7);
+  background: rgba(var(--cc-danger-rgb), 0.1);
+}
+
+.badge {
+  min-width: 18px;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ---------- 字体卡片 ---------- */
+.fonts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.font-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.85rem 0.9rem 0.75rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--gm-block);
+  color: var(--cc-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.font-card:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.45);
+  background: var(--gm-block-hover);
+}
+
+.font-card.active {
+  border-color: rgba(var(--cc-gold-rgb), 0.75);
+  background: linear-gradient(160deg, rgba(var(--cc-gold-rgb), 0.14), rgba(var(--cc-gold-rgb), 0.03));
+}
+
+.font-sample {
+  margin-bottom: 0.3rem;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: var(--cc-text);
+}
+
+.font-name {
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: var(--cc-text);
+}
+
+.font-desc {
+  font-size: 12px;
+  color: var(--cc-text-3);
+}
+
+.font-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+}
+
+/* ---------- 正文预览（用的就是正文的字号 / 行距 / 配色变量） ---------- */
+.preview {
+  margin: 1.1rem 0 0;
+  padding: 0.8rem 1.4rem 0.4rem;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.3);
+  border-radius: 8px;
+  background: var(--gm-block);
+}
+
+.preview figcaption {
+  margin-bottom: 0.6rem;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: var(--cc-text-3);
+}
+
+.preview p {
+  margin: 0 0 0.7rem;
+  font-size: var(--narrative-size, 17px);
+  line-height: var(--narrative-leading, 2);
+  letter-spacing: 0.04em;
+  text-indent: 2em;
+  color: var(--cc-text);
+}
+
+.preview .p-env {
+  color: var(--gm-text-env);
+}
+
+.preview .p-dia {
+  color: var(--gm-text-dialogue);
   font-weight: 500;
 }
 
-.auth-status.verified {
-  background: #d1fae5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+.preview .p-psy {
+  color: var(--gm-text-psy);
+  font-style: italic;
 }
 
-.auth-status.unverified {
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-.utility-btn.primary {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
-}
-
-.utility-btn.primary:hover {
-  background: var(--color-primary-dark, #2563eb);
-  border-color: var(--color-primary-dark, #2563eb);
-}
-
-[data-theme='dark'] .form-input-inline {
-  background: #334155;
-  border-color: #475569;
-  color: #e5e7eb;
-}
-
-[data-theme='dark'] .auth-status.verified {
-  background: rgba(5, 150, 105, 0.2);
-  color: #6ee7b7;
-  border-color: rgba(5, 150, 105, 0.3);
-}
-
-[data-theme='dark'] .auth-status.unverified {
-  background: rgba(220, 38, 38, 0.2);
-  color: #fca5a5;
-  border-color: rgba(220, 38, 38, 0.3);
-}
-
-/* 加载脉冲动画 */
-.loading-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-/* 提示词管理弹窗 */
+/* ---------- 提示词管理弹窗 ---------- */
 .prompt-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
+  z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
   padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
 }
 
 .prompt-modal-content {
-  background: var(--color-surface, #ffffff);
-  border-radius: 14px;
-  width: min(900px, 100%);
-  max-height: 85vh;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-  border: 1px solid var(--color-border);
-  animation: modalIn 0.2s ease;
+  width: min(900px, 100%);
+  height: min(820px, 88vh);
+  overflow: hidden;
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 12px;
+  background: var(--cc-solid-bg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
-.prompt-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
-}
-
-.prompt-modal-header h3 {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--color-text);
-}
-
-.prompt-modal-body {
-  flex: 1;
-  overflow: auto;
-  padding: 0;
-}
-
-@keyframes modalIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
+/* ---------- 窄容器（弹窗、平板、手机）：目录变成顶部横排 ---------- */
+@container (max-width: 820px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    padding: 0 1rem 2.5rem;
   }
-  to {
-    opacity: 1;
-    transform: scale(1);
+
+  .toc {
+    top: 0;
+    z-index: 2;
+    flex-direction: row;
+    gap: 0.3rem;
+    margin: 0 -1rem;
+    padding: 0.6rem 1rem;
+    overflow-x: auto;
+    background: var(--cc-solid-bg);
+    border-bottom: 1px solid var(--gm-line);
+  }
+
+  .toc-item {
+    width: auto;
+    flex-shrink: 0;
+    gap: 0.45rem;
+    padding: 0.35rem 0.7rem 0.35rem 0.4rem;
+  }
+
+  .toc-item.active::before,
+  .toc-text small,
+  .toc-note {
+    display: none;
+  }
+
+  .toc-seal {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+  }
+
+  .toc-text b {
+    font-size: 14px;
+    letter-spacing: 0.1em;
+  }
+
+  .sec {
+    scroll-margin-top: 4rem;
+  }
+
+  .fonts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
+@container (max-width: 520px) {
+  .row:not(.stacked) {
+    flex-wrap: wrap;
+    gap: 0.7rem;
+  }
+
+  .row-info {
+    flex-basis: 100%;
+  }
+
+  .range input {
+    width: 150px;
+  }
+
+  .field.select {
+    width: 100%;
+  }
+}
 </style>

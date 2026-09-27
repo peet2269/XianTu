@@ -1,60 +1,77 @@
 <template>
   <div class="talent-selection-container">
-    <div v-if="store.isLoading" class="loading-state">{{ $t('于时光长河中搜寻天赋...') }}</div>
-    <div v-else-if="store.error" class="error-state">{{ $t('天机紊乱') }}：{{ store.error }}</div>
+    <div v-if="store.isLoading" class="cc-state">{{ $t('于时光长河中搜寻天赋...') }}</div>
+    <div v-else-if="store.error" class="cc-state error">{{ $t('天机紊乱') }}：{{ store.error }}</div>
 
-    <div v-else class="talent-layout">
-      <!-- 左侧面板：列表和操作按钮 -->
-      <div class="talent-left-panel">
-        <!-- 顶部功能按钮 -->
-        <div class="top-actions-container">
-          <button
-            v-if="store.isLocalCreation"
-            @click="isCustomModalVisible = true"
-            class="action-item shimmer-on-hover"
-          >
-            <span class="action-name">{{ $t('自定义天赋') }}</span>
+    <div v-else class="cc-split">
+      <!-- 左侧：天赋列表（可多选） -->
+      <div class="cc-panel">
+        <div class="cc-actions">
+          <button v-if="store.isLocalCreation" type="button" class="cc-action" @click="isCustomModalVisible = true">
+            <PenLine :size="14" />
+            <span>{{ $t('自定义天赋') }}</span>
           </button>
-          <button @click="handleAIGenerate" class="action-item shimmer-on-hover">
-            <span class="action-name">{{ $t('AI推演') }}</span>
+          <button type="button" class="cc-action" @click="handleAIGenerate">
+            <Sparkles :size="14" />
+            <span>{{ $t('AI推演') }}</span>
           </button>
         </div>
 
-        <div class="talent-list-container">
+        <div class="list-summary">
+          <span>{{ $t('已选天赋') }}</span>
+          <strong>{{ store.selectedTalents.length }}</strong>
+        </div>
+
+        <div class="cc-list">
           <div
             v-for="talent in filteredTalents"
             :key="talent.id"
-            class="talent-item"
-            :class="{
-              selected: isSelected(talent),
-            }"
+            class="cc-item talent-item"
+            role="checkbox"
+            tabindex="0"
+            :aria-checked="isSelected(talent)"
+            :class="{ selected: isSelected(talent) }"
             @click="handleToggleTalent(talent)"
+            @keydown.enter.prevent="handleToggleTalent(talent)"
+            @keydown.space.prevent="handleToggleTalent(talent)"
             @mouseover="activeTalent = talent"
+            @focus="activeTalent = talent"
           >
-            <div class="item-content">
-              <span class="talent-name">{{ talent.name }}</span>
-              <span class="talent-cost">{{ talent.talent_cost || 0 }}{{ $t('点') }}</span>
+            <span class="check-box" aria-hidden="true">
+              <Check :size="11" :stroke-width="3.5" />
+            </span>
+            <div class="cc-item-main">
+              <span class="cc-item-name">{{ talent.name }}</span>
+              <span class="cc-item-meta">{{ talent.talent_cost || 0 }} {{ $t('点') }}</span>
             </div>
-            <div v-if="(talent.source === 'cloud' || talent.source === 'local') && store.isLocalCreation" class="action-buttons">
-              <button @click.stop="openEditModal(talent)" class="edit-btn" :title="$t('编辑此项')">
-                <Edit :size="14" />
+            <div v-if="(talent.source === 'cloud' || talent.source === 'local') && store.isLocalCreation" class="cc-item-tools">
+              <button type="button" class="cc-icon-btn" :title="$t('编辑此项')" @click.stop="openEditModal(talent)">
+                <Edit :size="13" />
               </button>
-              <button @click.stop="handleDeleteTalent(talent.id)" class="delete-btn" :title="$t('删除此项')">
-                <Trash2 :size="14" />
+              <button type="button" class="cc-icon-btn danger" :title="$t('删除此项')" @click.stop="handleDeleteTalent(talent.id)">
+                <Trash2 :size="13" />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="talent-details-container">
-        <div v-if="activeTalent" class="talent-details">
-          <h2>{{ activeTalent.name }}</h2>
-          <div class="description-scroll">
+      <!-- 右侧：天赋详情 -->
+      <div class="cc-panel cc-detail">
+        <div v-if="activeTalent" class="cc-detail-inner">
+          <div class="cc-detail-head">
+            <h2 class="cc-detail-title">{{ activeTalent.name }}</h2>
+            <span v-if="isSelected(activeTalent)" class="picked-seal">{{ $t('已选') }}</span>
+          </div>
+          <div class="cc-detail-rule"></div>
+          <div class="cc-detail-body">
             <p>{{ activeTalent.description || $t('此天赋之玄妙，需自行领悟。') }}</p>
           </div>
+          <div class="cc-stat-row">
+            <span class="cc-stat">{{ $t('消耗天道点') }} <strong>{{ activeTalent.talent_cost || 0 }}</strong></span>
+          </div>
         </div>
-        <div v-else class="placeholder">{{ $t('请选择天赋。') }}</div>
+        <div v-else class="cc-placeholder">{{ $t('请选择天赋。') }}</div>
       </div>
     </div>
 
@@ -89,7 +106,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Trash2, Edit } from 'lucide-vue-next'
+import { Trash2, Edit, PenLine, Sparkles, Check } from 'lucide-vue-next'
 import { useCharacterCreationStore } from '../../stores/characterCreationStore'
 import type { Talent } from '../../types'
 import CustomCreationModal, { type ModalField } from './CustomCreationModal.vue'
@@ -101,7 +118,8 @@ import { parseJsonFromText } from '@/utils/jsonExtract'
 
 const emit = defineEmits(['ai-generate'])
 const store = useCharacterCreationStore()
-const activeTalent = ref<Talent | null>(null) // For details view on hover/click
+// 详情区显示的天赋：默认为第一个已选天赋，悬停时预览
+const activeTalent = ref<Talent | null>(store.selectedTalents[0] ?? null)
 const isCustomModalVisible = ref(false)
 const isEditModalVisible = ref(false)
 const isAIPromptModalVisible = ref(false)
@@ -374,574 +392,66 @@ const editInitialData = computed(() => {
 </script>
 
 <style scoped>
+/* 通用外观见 styles/creation-theme.css，这里只保留多选相关样式 */
 .talent-selection-container {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* ========== 深色玻璃拟态风格 ========== */
-.loading-state, .error-state, .placeholder {
+.list-summary {
   display: flex;
-  justify-content: center;
   align-items: center;
-  height: 100%;
-  font-size: 1.1rem;
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.talent-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 1.5rem;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* ========== 左侧面板 ========== */
-.talent-left-panel {
-  display: flex;
-  flex-direction: column;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-/* 顶部功能按钮 - 深色玻璃拟态风格 */
-.top-actions-container {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(30, 41, 59, 0.3);
-  justify-content: center;
-}
-
-.top-actions-container .action-item {
+  justify-content: space-between;
   padding: 0.5rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(30, 41, 59, 0.6);
-  color: #cbd5e1;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  font-size: 0.85rem;
-  font-weight: 500;
-  white-space: nowrap;
-  letter-spacing: 0.05em;
-}
-
-.top-actions-container .action-item:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(147, 197, 253, 0.3);
-  color: #f1f5f9;
-}
-
-/* 亮色主题顶部按钮 */
-[data-theme="light"] .top-actions-container {
-  background: rgba(241, 245, 249, 0.6);
-  border-bottom-color: rgba(59, 130, 246, 0.15);
-}
-
-[data-theme="light"] .top-actions-container .action-item {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #2563eb;
-}
-
-[data-theme="light"] .top-actions-container .action-item:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: #3b82f6;
-  color: #1e40af;
-}
-
-.talent-list-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.talent-list-container::-webkit-scrollbar { width: 6px; }
-.talent-list-container::-webkit-scrollbar-track { background: transparent; }
-.talent-list-container::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-.talent-list-container::-webkit-scrollbar-thumb:hover { background: rgba(147, 197, 253, 0.5); }
-
-/* ========== 选项卡样式 ========== */
-.talent-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.1rem 1.2rem;
-  margin-bottom: 0.6rem;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: 1px solid transparent;
-  background: rgba(30, 41, 59, 0.4);
-}
-
-.item-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-grow: 1;
-  gap: 0.5rem;
-}
-
-.talent-cost {
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  white-space: nowrap;
+  border-bottom: 1px solid var(--cc-divider);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--cc-text-3);
   flex-shrink: 0;
 }
 
-/* 按钮组容器 */
-.action-buttons {
-  display: flex;
+.list-summary strong {
+  min-width: 1.6rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(var(--cc-gold-rgb), 0.15);
+  color: var(--cc-gold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 多选框 */
+.check-box {
+  display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  opacity: 0;
-  transition: opacity 0.2s;
-  margin-left: 0.5rem;
-}
-
-.talent-item:hover .action-buttons {
-  opacity: 1;
-}
-
-.edit-btn, .delete-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 0.35rem;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--cc-border-strong);
   border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  background: var(--cc-inset);
+  color: transparent;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-.edit-btn:hover {
-  color: #93c5fd;
-  background: rgba(147, 197, 253, 0.1);
+.talent-item.selected .check-box {
+  background: var(--cc-seal);
+  border-color: var(--cc-seal);
+  color: var(--cc-seal-text);
 }
 
-.delete-btn:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
-}
-
-.talent-item:hover {
-  background: rgba(51, 65, 85, 0.6);
-  border-color: rgba(147, 197, 253, 0.2);
-}
-
-.talent-item.selected {
-  background: rgba(30, 58, 138, 0.4);
-  border-color: rgba(147, 197, 253, 0.4);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
-.talent-name {
-  font-weight: 500;
-  color: #f1f5f9;
-}
-
-.talent-item.selected .talent-name {
-  color: #bfdbfe;
-}
-
-.single-actions-container {
-  border-top: 1px solid var(--color-border);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-item {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0.8rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
-  font-size: 1rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.action-item:hover {
-  background: var(--color-surface-lighter);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.action-name {
-  font-weight: 500;
-}
-
-/* ========== 右侧详情面板 ========== */
-.talent-details-container {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.talent-details {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.talent-details h2 {
-  margin: 0 0 1rem 0;
-  color: #93c5fd;
+.picked-seal {
   flex-shrink: 0;
-  font-size: 1.5rem;
-  text-shadow: 0 0 20px rgba(147, 197, 253, 0.3);
-}
-
-.description-scroll {
-  flex: 1;
-  overflow-y: auto;
-  line-height: 1.7;
-  margin-bottom: 1rem;
-  padding-right: 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.description-scroll p {
-  margin: 0;
-  white-space: pre-wrap;
-  color: #94a3b8;
-}
-
-.description-scroll::-webkit-scrollbar { width: 6px; }
-.description-scroll::-webkit-scrollbar-track { background: transparent; }
-.description-scroll::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-
-/* 响应式适配 - 手机端优化 */
-@media (max-width: 1200px) {
-  .talent-layout {
-    grid-template-columns: 1fr 1.8fr;
-    gap: 1.5rem;
-  }
-}
-
-@media (max-width: 1024px) {
-  .talent-layout {
-    grid-template-columns: 1fr 1.5fr;
-    gap: 1.2rem;
-  }
-  
-  .talent-details h2 {
-    font-size: 1.6rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .top-actions-container {
-    flex-wrap: wrap;
-    justify-content: stretch;
-  }
-  .top-actions-container .action-item {
-    flex-grow: 1;
-    text-align: center;
-  }
-  .talent-layout {
-    /* 改为垂直堆叠布局 */
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    gap: 1rem;
-    height: auto;
-    overflow: visible;
-    padding: 0.8rem;
-  }
-  
-  .talent-left-panel {
-    order: 1;
-    max-height: 40vh;
-  }
-  
-  .talent-details-container {
-    order: 2;
-    min-height: 300px;
-  }
-  
-  .talent-list-container {
-    max-height: 35vh;
-    /* 添加触摸滚动优化 */
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-  }
-  
-  /* 优化触摸体验 */
-  .talent-item,
-  .action-item {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-}
-
-@media (max-width: 640px) {
-  .talent-layout {
-    gap: 0.8rem;
-    padding: 0.6rem;
-  }
-  
-  .talent-left-panel {
-    max-height: 35vh;
-  }
-  
-  .talent-list-container {
-    max-height: 30vh;
-    padding: 0.5rem;
-  }
-  
-  .talent-item {
-    padding: 0.7rem;
-    font-size: 0.95rem;
-    margin-bottom: 0.4rem;
-  }
-  
-  .single-actions-container {
-    padding: 0.5rem;
-    gap: 0.4rem;
-  }
-  
-  .action-item {
-    padding: 0.7rem 1rem;
-    font-size: 0.9rem;
-  }
-  
-  .talent-details-container {
-    padding: 1.2rem;
-    min-height: 250px;
-  }
-  
-  .talent-details h2 {
-    font-size: 1.4rem;
-    margin-bottom: 0.8rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .top-actions-container {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .talent-selection-container {
-    padding: 0.4rem;
-    height: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .talent-layout {
-    gap: 0.6rem;
-    padding: 0;
-    height: auto;
-    min-height: 0;
-  }
-
-  .talent-left-panel {
-    max-height: none;
-    border-radius: 6px;
-  }
-  
-  .talent-list-container {
-    max-height: 26vh;
-    padding: 0.4rem;
-  }
-  
-  .talent-item {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.9rem;
-    margin-bottom: 0.3rem;
-    border-radius: 4px;
-  }
-  
-  .talent-name {
-    font-size: 0.9rem;
-  }
-  
-  .single-actions-container {
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.4rem;
-  }
-  
-  .action-item {
-    padding: 0.6rem;
-    font-size: 0.85rem;
-    border-radius: 4px;
-  }
-  
-  .talent-details-container {
-    padding: 1rem;
-    min-height: 200px;
-    border-radius: 6px;
-  }
-  
-  .talent-details h2 {
-    font-size: 1.3rem;
-    margin-bottom: 0.6rem;
-  }
-  
-  .description-scroll {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    padding-right: 0.3rem;
-  }
-  
-  .placeholder {
-    font-size: 1rem;
-    padding: 1rem;
-    text-align: center;
-    min-height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .top-actions-container {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 0.5rem;
-  }
-  .top-actions-container .action-item {
-    text-align: center;
-  }
-}
-
-@media (max-width: 360px) {
-  .talent-selection-container {
-    padding: 0.3rem;
-  }
-  
-  .talent-layout {
-    gap: 0.4rem;
-  }
-  
-  .talent-left-panel {
-    max-height: 28vh;
-  }
-  
-  .talent-list-container {
-    max-height: 24vh;
-    padding: 0.3rem;
-  }
-  
-  .talent-item {
-    padding: 0.5rem 0.6rem;
-    font-size: 0.85rem;
-    margin-bottom: 0.2rem;
-  }
-  
-  .talent-name {
-    font-size: 0.8rem;
-  }
-  
-  .talent-details-container {
-    padding: 0.8rem;
-    min-height: 180px;
-  }
-  
-  .talent-details h2 {
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .description-scroll {
-    font-size: 0.85rem;
-    line-height: 1.4;
-  }
-  
-  .action-item {
-    padding: 0.5rem;
-    font-size: 0.8rem;
-  }
-  
-  .placeholder {
-    font-size: 0.9rem;
-    padding: 0.8rem;
-    min-height: 120px;
-  }
-}
-
-/* ========== 亮色主题适配 ========== */
-[data-theme="light"] .talent-left-panel,
-[data-theme="light"] .talent-details-container {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .talent-item {
-  background: rgba(255, 255, 255, 0.6);
-}
-
-[data-theme="light"] .talent-item:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .talent-item.selected {
-  background: rgba(219, 234, 254, 0.8);
-  border-color: rgba(59, 130, 246, 0.4);
-}
-
-[data-theme="light"] .talent-name {
-  color: #1e293b;
-}
-
-[data-theme="light"] .talent-item.selected .talent-name {
-  color: #1e40af;
-}
-
-[data-theme="light"] .talent-details h2 {
-  color: #2563eb;
-}
-
-[data-theme="light"] .description-scroll p {
-  color: #475569;
-}
-
-/* 亮色主题下的编辑/删除按钮 */
-[data-theme="light"] .edit-btn,
-[data-theme="light"] .delete-btn {
-  background: rgba(241, 245, 249, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.15);
-  color: #475569;
-}
-
-[data-theme="light"] .edit-btn:hover {
-  color: #2563eb;
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-[data-theme="light"] .delete-btn:hover {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+  font-family: var(--cc-calligraphy);
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  transform: rotate(-4deg);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 240, 230, 0.5);
 }
 </style>

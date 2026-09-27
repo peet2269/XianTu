@@ -380,11 +380,25 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
     };
   };
 
+  // 导出用于云端同步的配置：API Key 不得离开本机，导入时保留本机已有 Key
+  const exportConfigForCloud = () => {
+    const data = exportConfig();
+    return {
+      ...data,
+      apiConfigs: data.apiConfigs.map(({ apiKey: _apiKey, ...rest }) => ({ ...rest, apiKey: '' })),
+    };
+  };
+
   // 导入配置
   const importConfig = (data: any) => {
     try {
       if (data.apiConfigs && Array.isArray(data.apiConfigs)) {
-        apiConfigs.value = data.apiConfigs;
+        // 不含 Key 的配置（如云端同步来的）沿用本机同 ID 配置的 Key
+        const localKeys = new Map(apiConfigs.value.map(c => [c.id, c.apiKey]));
+        apiConfigs.value = data.apiConfigs.map((c: APIConfig) => ({
+          ...c,
+          apiKey: c.apiKey || localKeys.get(c.id) || '',
+        }));
       }
       if (data.apiAssignments && Array.isArray(data.apiAssignments)) {
         apiAssignments.value = data.apiAssignments;
@@ -430,6 +444,7 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
     isFunctionEnabled,
     updateAIGenerationSettings,
     exportConfig,
+    exportConfigForCloud,
     importConfig
   };
 });

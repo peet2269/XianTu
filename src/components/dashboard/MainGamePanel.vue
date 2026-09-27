@@ -1,366 +1,238 @@
 <template>
-  <div class="main-game-panel">
-    <!-- 短期记忆区域 -->
-    <div class="memory-section" v-if="showMemorySection">
-      <div class="memory-header" @click="toggleMemory">
-        <span class="memory-title">{{ t('短期记忆') }}</span>
-        <ChevronDown v-if="memoryExpanded" :size="16" class="memory-icon" />
-        <ChevronRight v-else :size="16" class="memory-icon" />
-      </div>
-
-      <!-- 下拉悬浮的记忆内容 -->
-      <Transition name="memory-dropdown">
-        <div v-if="memoryExpanded" class="memory-dropdown">
-          <div class="memory-content">
-            <div v-for="(memory, index) in recentMemories" :key="index" class="memory-item">
-              {{ memory }}
-            </div>
-            <div v-if="recentMemories.length === 0" class="no-memory">
-              {{ t('脑海中一片清净，尚未留下修行痕迹...') }}
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </div>
-
-    <!-- 文本显示区域 - 当前AI回复 -->
-    <div class="content-area" ref="contentAreaRef" @scroll="handleContentScroll">
-      <!-- 左侧：当前叙述 -->
-      <div class="current-narrative">
-        <!-- AI生成状态指示器（生成时显示在顶部） -->
-        <div v-if="isAIProcessing" class="ai-processing-indicator">
-          <div class="streaming-meta">
-            <span class="narrative-time">{{ formatCurrentTime() }}</span>
-            <div class="streaming-indicator">
-              <span class="streaming-dot"></span>
-              <span class="streaming-text">{{ streamingContent ? `${streamingCharCount} ${t('字')}` : t('天道感应中...') }}</span>
-            </div>
-            <!-- 重置按钮 - 右侧 -->
-            <button
-              @click="forceResetAIProcessingState"
-              class="reset-state-btn"
-              :title="t('如果长时间无响应，点击此处重置状态')"
-            >
-              <RotateCcw :size="16" />
+  <div class="story">
+    <div ref="contentAreaRef" class="story-scroll" @scroll="handleContentScroll">
+      <article class="page">
+        <!-- 回合印记 -->
+        <header class="turn-bar">
+          <span class="turn-line" aria-hidden="true"></span>
+          <template v-if="isAIProcessing">
+            <span class="turn-state">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              {{ streamingContent ? `${t('天机流转')} · ${streamingCharCount} ${t('字')}` : t('天道感应中...') }}
+            </span>
+            <button type="button" class="turn-btn" :title="t('如果长时间无响应，点击此处重置状态')" @click="forceResetAIProcessingState">
+              <RotateCcw :size="14" /><span>{{ t('重置') }}</span>
             </button>
-          </div>
-        </div>
+          </template>
+          <template v-else>
+            <span class="turn-time">{{ gameTimeLabel }}</span>
+            <button v-if="snapshots.length > 0" type="button" class="turn-btn" :title="t('回退到上一条对话')" @click="rollbackToLastSnapshot">
+              <History :size="14" /><span>{{ t('回退') }}</span><em>{{ snapshots.length }}</em>
+            </button>
+            <button type="button" class="turn-btn" :title="t('世界事件')" @click="openEventsPanel">
+              <Bell :size="14" /><span>{{ t('事件') }}</span>
+            </button>
+            <button
+              type="button"
+              class="turn-btn"
+              :disabled="currentNarrativeStateChanges.length === 0"
+              :title="currentNarrativeStateChanges.length > 0 ? t('查看本次对话的变更日志') : t('本次对话无变更记录')"
+              @click="showStateChanges(currentNarrative.stateChanges)"
+            >
+              <FileClock :size="14" /><span>{{ t('变更') }}</span><em>{{ currentNarrativeStateChanges.length }}</em>
+            </button>
+          </template>
+          <span class="turn-line" aria-hidden="true"></span>
+        </header>
 
-        <!-- 思维链显示区域（可折叠）- 生成中和完成后都显示 -->
-        <div v-if="thinkingContent || lastThinkingContent" class="thinking-section">
-          <div class="thinking-header" @click="uiStore.toggleThinkingExpanded()">
-            <BrainCircuit :size="16" class="thinking-icon" />
+        <!-- 思维链 -->
+        <section v-if="thinkingContent || lastThinkingContent" class="thinking" :class="{ open: thinkingExpanded }">
+          <button type="button" class="thinking-head" :aria-expanded="thinkingExpanded" @click="uiStore.toggleThinkingExpanded()">
+            <BrainCircuit :size="15" />
             <span class="thinking-title">{{ t('思维过程') }}</span>
-            <span v-if="isThinkingPhase" class="thinking-badge streaming">{{ t('思考中...') }}</span>
-            <span v-else-if="thinkingContent || lastThinkingContent" class="thinking-badge completed">{{ t('已完成') }}</span>
-            <ChevronDown v-if="thinkingExpanded" :size="16" class="expand-icon" />
-            <ChevronRight v-else :size="16" class="expand-icon" />
+            <span class="thinking-state" :class="{ live: isThinkingPhase }">{{ isThinkingPhase ? t('思考中...') : t('已完成') }}</span>
+            <ChevronDown :size="15" class="thinking-caret" />
+          </button>
+          <div v-if="thinkingExpanded" class="thinking-body">
+            <FormattedText :text="thinkingContent || lastThinkingContent" />
           </div>
-          <Transition name="thinking-expand">
-            <div v-if="thinkingExpanded" class="thinking-content">
-              <FormattedText :text="thinkingContent || lastThinkingContent" />
-            </div>
-          </Transition>
+        </section>
+
+        <!-- 玩家上一句 -->
+        <div v-if="uiStore.lastSentUserIntentText && (streamingContent || !isAIProcessing)" class="intent">
+          <span class="gm-seal" aria-hidden="true">{{ t('我') }}</span>
+          <p class="intent-text">{{ uiStore.lastSentUserIntentText }}</p>
+          <span v-if="uiStore.lastSentUserIntentSource === 'action_option'" class="gm-chip gold">{{ t('行动推荐') }}</span>
+          <span v-else-if="uiStore.lastSentUserIntentSource === 'mixed'" class="gm-chip gold">{{ t('含推荐') }}</span>
         </div>
 
-        <!-- 流式输出内容（生成时实时显示，优先级最高） -->
-        <div v-if="isAIProcessing && streamingContent" class="streaming-narrative-content">
-          <div v-if="uiStore.lastSentUserIntentText" class="last-user-intent">
-            <div class="last-user-intent-header">
-              <span class="k">你的输入</span>
-              <span v-if="uiStore.lastSentUserIntentSource === 'action_option'" class="badge">来自行动推荐</span>
-              <span v-else-if="uiStore.lastSentUserIntentSource === 'mixed'" class="badge">含行动推荐</span>
-            </div>
-            <div class="last-user-intent-text">{{ uiStore.lastSentUserIntentText }}</div>
-          </div>
-          <div class="streaming-text">
-            <FormattedText :text="streamingContent" />
-          </div>
+        <!-- 正文 -->
+        <div v-if="isAIProcessing && streamingContent" class="prose">
+          <FormattedText :text="streamingContent" />
         </div>
-
-        <!-- 上一次的叙述内容（非生成时显示） -->
-        <div v-else-if="currentNarrative" class="narrative-content">
-          <div class="narrative-meta">
-            <span class="narrative-time">{{ currentNarrative.time }}</span>
-            <div class="meta-buttons">
-              <!-- 快照回退按钮 -->
-              <button
-                v-if="snapshots.length > 0"
-                @click="rollbackToLastSnapshot"
-                class="header-action-btn snapshot-btn"
-                :title="t('回退到上一条对话')"
-              >
-                <History :size="20" />
-                <span class="snapshot-count">{{ snapshots.length }}</span>
-              </button>
-
-              <button
-                @click="openEventsPanel"
-                class="header-action-btn event-btn"
-                :title="t('世界事件')"
-              >
-                <Bell :size="20" />
-              </button>
-
-              <span
-                v-if="isOnlineTraveling"
-                class="traveling-badge"
-                :title="travelingTooltip"
-              >穿越中</span>
-
-              <!-- 命令日志按钮 -->
-              <button
-                @click="showStateChanges(currentNarrative.stateChanges)"
-                class="variable-updates-toggle"
-                :class="{ disabled: currentNarrativeStateChanges.length === 0 }"
-                :disabled="currentNarrativeStateChanges.length === 0"
-                :title="currentNarrativeStateChanges.length > 0 ? t('查看本次对话的变更日志') : t('本次对话无变更记录')"
-              >
-                <ScrollText :size="16" />
-                <span class="update-count">{{ currentNarrativeStateChanges.length }}</span>
-              </button>
-            </div>
-          </div>
-          <div v-if="uiStore.lastSentUserIntentText" class="last-user-intent">
-            <div class="last-user-intent-header">
-              <span class="k">你的输入</span>
-              <span v-if="uiStore.lastSentUserIntentSource === 'action_option'" class="badge">来自行动推荐</span>
-              <span v-else-if="uiStore.lastSentUserIntentSource === 'mixed'" class="badge">含行动推荐</span>
-            </div>
-            <div class="last-user-intent-text">{{ uiStore.lastSentUserIntentText }}</div>
-          </div>
-          <div class="narrative-text">
+        <template v-else-if="currentNarrative">
+          <div class="prose">
             <FormattedText :text="currentNarrative.content" />
           </div>
 
-          <!-- 行动选项 -->
-          <div v-if="uiStore.enableActionOptions && currentNarrative.actionOptions?.length" class="action-options">
-            <button
-              v-for="(option, index) in currentNarrative.actionOptions"
-              :key="index"
-              @click="selectActionOption(option)"
-              class="action-option-btn"
-            >
-              {{ option }}
-            </button>
-          </div>
+          <section
+            v-if="uiStore.enableActionOptions && currentNarrative.actionOptions?.length"
+            class="choices"
+            :class="{ busy: isAIProcessing, single: currentNarrative.actionOptions.length > 6 }"
+            :aria-label="t('行动选项')"
+          >
+            <h3 class="choices-title">{{ t('何去何从') }}</h3>
+            <ol class="choice-list">
+              <li v-for="(option, index) in currentNarrative.actionOptions" :key="index">
+                <button type="button" class="choice" :disabled="isAIProcessing" @click="selectActionOption(option)">
+                  <span class="choice-no">{{ optionNumeral(index) }}</span>
+                  <span class="choice-text">{{ option }}</span>
+                </button>
+              </li>
+            </ol>
+          </section>
+        </template>
+        <div v-else class="gm-empty" data-glyph="机">
+          <p>{{ t('静待天机变化...') }}</p>
         </div>
-
-        <div v-else class="empty-narrative">
-          {{ t('静待天机变化...') }}
-        </div>
-      </div>
+      </article>
     </div>
 
+    <!-- 输入区 -->
+    <footer class="composer">
+      <div class="composer-inner">
+        <div v-if="actionQueue.pendingActions.length > 0" class="queue">
+          <span class="queue-label">{{ t('最近操作') }}</span>
+          <ul class="queue-list">
+            <li v-for="(action, index) in actionQueue.pendingActions" :key="action.id" class="gm-chip">
+              <span class="queue-text">{{ action.description }}</span>
+              <button
+                type="button"
+                class="queue-x"
+                :title="isUndoableAction(action) ? t('撤回并恢复') : t('删除此动作')"
+                :aria-label="isUndoableAction(action) ? t('撤回并恢复') : t('删除此动作')"
+                @click="removeActionFromQueue(index)"
+              >
+                <X :size="12" />
+              </button>
+            </li>
+          </ul>
+          <button type="button" class="queue-clear" @click="clearActionQueue">{{ t('清空') }}</button>
+        </div>
 
-    <!-- 输入区域 -->
-    <div class="input-section">
-      <!-- 动作队列显示区域 -->
-      <div v-if="actionQueue.pendingActions.length > 0" class="action-queue-display">
-        <div class="queue-header">
-          <span class="queue-title">{{ t('最近操作') }}</span>
-          <button @click="clearActionQueue" class="clear-queue-btn" :title="t('清空记录')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+        <div class="input-row" :class="{ focused: isInputFocused }">
+          <div v-if="showMemorySection" class="memo">
+            <button
+              type="button"
+              class="memo-btn"
+              :class="{ open: memoryExpanded }"
+              :aria-expanded="memoryExpanded"
+              :title="t('短期记忆')"
+              @click="toggleMemory"
+            >
+              <ScrollText :size="15" />
+              <span>{{ t('短期记忆') }}</span>
+              <em v-if="recentMemories.length">{{ recentMemories.length }}</em>
+            </button>
+            <div v-if="memoryExpanded" class="memo-pop">
+              <ol v-if="recentMemories.length" class="memo-list">
+                <li v-for="(memory, index) in recentMemories" :key="index">{{ memory }}</li>
+              </ol>
+              <p v-else class="memo-empty">{{ t('脑海中一片清净，尚未留下修行痕迹...') }}</p>
+            </div>
+          </div>
+
+          <input ref="imageInputRef" type="file" multiple accept="image/*" hidden @change="handleImageSelect" />
+
+          <div class="input-box">
+            <div v-if="selectedImages.length > 0" class="thumbs">
+              <div v-for="(image, index) in selectedImages" :key="index" class="thumb">
+                <img :src="getImagePreviewUrl(image)" :alt="image.name" />
+                <button type="button" :aria-label="t('移除图片')" @click="removeImage(index)"><X :size="12" /></button>
+              </div>
+            </div>
+            <textarea
+              ref="inputRef"
+              v-model="inputText"
+              class="game-input"
+              rows="1"
+              wrap="soft"
+              :placeholder="hasActiveCharacter ? t('请输入您的选择或行动...') : t('请先选择角色...')"
+              :disabled="!hasActiveCharacter || isAIProcessing"
+              @focus="isInputFocused = true"
+              @blur="isInputFocused = false"
+              @keydown="handleKeyDown"
+              @input="handleInput"
+            ></textarea>
+          </div>
+
+          <button
+            type="button"
+            class="send"
+            :disabled="!inputText.trim() || isAIProcessing || !hasActiveCharacter"
+            :title="t('发送')"
+            @click="sendMessage"
+          >
+            <Loader2 v-if="isAIProcessing" :size="16" class="cc-spin" />
+            <span v-else>{{ t('落笔') }}</span>
           </button>
         </div>
-        <div class="queue-actions">
-          <div
-            v-for="(action, index) in actionQueue.pendingActions"
-            :key="action.id"
-            class="queue-action-item"
-          >
-            <span class="action-text">{{ action.description }}</span>
-            <div class="action-controls">
-              <button
-                @click="removeActionFromQueue(index)"
-                class="remove-action-btn"
-                :title="isUndoableAction(action) ? t('撤回并恢复') : t('删除此动作')"
-              >
-                ×
-              </button>
-            </div>
+      </div>
+
+      <!-- 快捷行动（入口未开放，保留逻辑） -->
+      <div v-if="showActionModal" class="cc-modal-overlay" @click.self="hideActionSelector">
+        <div class="cc-modal" role="dialog" aria-modal="true" :aria-label="t('快捷行动')">
+          <div class="cc-modal-head">
+            <h2 class="cc-modal-title">{{ t('快捷行动') }}</h2>
+            <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="hideActionSelector"><X :size="18" /></button>
+          </div>
+          <div class="cc-modal-body quick-grid">
+            <button v-for="action in flatActions" :key="action.name" type="button" class="cc-btn" @click="selectAction(action)">{{ action.name }}</button>
           </div>
         </div>
       </div>
 
-      <div class="input-wrapper">
-        <!-- 隐藏的文件选择器 -->
-        <input
-          type="file"
-          ref="imageInputRef"
-          @change="handleImageSelect"
-          multiple
-          accept="image/*"
-          style="display: none"
-        />
-
-        <!-- 图片上传按钮 - 已禁用 -->
-        <button
-          v-if="false"
-          @click="openImagePicker"
-          class="action-selector-btn image-upload-btn"
-          :disabled="!hasActiveCharacter"
-          :title="t('上传图片')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </button>
-
-        <!-- 快捷行动按钮 - 已禁用 -->
-        <button
-          v-if="false"
-          @click="showActionSelector"
-          class="action-selector-btn"
-          :disabled="!hasActiveCharacter"
-          :title="t('快捷行动')"
-        >
-          <ChevronDown :size="16" />
-        </button>
-
-        <div class="input-container">
-          <!-- 图片预览区域 -->
-          <div v-if="selectedImages.length > 0" class="image-preview-container">
-            <div
-              v-for="(image, index) in selectedImages"
-              :key="index"
-              class="image-preview-item"
-            >
-              <img :src="getImagePreviewUrl(image)" :alt="image.name" />
-              <button @click="removeImage(index)" class="remove-image-btn" :title="t('移除图片')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
+      <div v-if="selectedAction" class="cc-modal-overlay" @click.self="cancelAction">
+        <div class="cc-modal" role="dialog" aria-modal="true" :aria-label="selectedAction.name">
+          <div class="cc-modal-head">
+            <h2 class="cc-modal-title">{{ selectedAction.name }}</h2>
+            <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="cancelAction"><X :size="18" /></button>
           </div>
-
-          <textarea
-            v-model="inputText"
-            @focus="isInputFocused = true"
-            @blur="isInputFocused = false"
-            @keydown="handleKeyDown"
-            @input="handleInput"
-            :placeholder="hasActiveCharacter ? t('请输入您的选择或行动...') : t('请先选择角色...')"
-            class="game-input"
-            ref="inputRef"
-            rows="1"
-            wrap="soft"
-            :disabled="!hasActiveCharacter || isAIProcessing"
-          ></textarea>
-        </div>
-
-        <button
-          @click="sendMessage"
-          :disabled="!inputText.trim() || isAIProcessing || !hasActiveCharacter"
-          class="send-button"
-        >
-          <Loader2 v-if="isAIProcessing" :size="16" class="animate-spin" />
-          <Send v-else :size="16" />
-        </button>
-      </div>
-
-      <!-- 行动选择弹窗 -->
-      <div v-if="showActionModal" class="action-modal-overlay" @click.self="hideActionSelector">
-        <div class="action-modal">
-          <div class="modal-header">
-            <h3>{{ t('快捷行动') }}</h3>
-            <button @click="hideActionSelector" class="close-btn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-          <div class="action-grid">
-            <button
-              v-for="action in flatActions"
-              :key="action.name"
-              @click="selectAction(action)"
-              class="quick-action-btn"
-              :class="action.type"
-            >
-              <div class="action-icon">{{ action.icon }}</div>
-              <div class="action-text">{{ action.name }}</div>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 行动配置弹窗 -->
-      <div v-if="selectedAction" class="action-config-overlay" @click.self="cancelAction">
-        <div class="action-config-modal">
-          <div class="config-header">
-            <h3>{{ selectedAction.icon }} {{ selectedAction.name }}</h3>
-            <button @click="cancelAction" class="close-btn">×</button>
-          </div>
-          <div class="config-content">
-            <p class="action-description">{{ selectedAction.description }}</p>
-
-            <!-- 时间配置 -->
-            <div v-if="selectedAction.timeRequired" class="config-section">
-              <label class="config-label">{{ t('修炼时间') }}</label>
-              <div class="time-selector">
+          <div class="cc-modal-body">
+            <p class="cc-hint">{{ selectedAction.description }}</p>
+            <div v-if="selectedAction.timeRequired" class="cc-field">
+              <label>{{ t('修炼时间') }}</label>
+              <div class="cc-segmented">
                 <button
                   v-for="timeOption in timeOptions"
                   :key="timeOption.value"
-                  @click="selectedTime = timeOption.value"
-                  class="time-btn"
+                  type="button"
                   :class="{ active: selectedTime === timeOption.value }"
+                  @click="selectedTime = timeOption.value"
                 >
                   {{ timeOption.label }}
                 </button>
               </div>
-              <div class="time-custom">
-                <label>{{ t('自定义：') }}</label>
-                <input
-                  v-model.number="customTime"
-                  type="number"
-                  min="1"
-                  max="365"
-                  class="time-input"
-                /> {{ t('天') }}
-              </div>
+              <label class="time-custom">
+                {{ t('自定义：') }}
+                <input v-model.number="customTime" type="number" min="1" max="365" class="cc-input" />
+                {{ t('天') }}
+              </label>
             </div>
-
-            <!-- 其他配置选项 -->
-            <div v-if="selectedAction.options" class="config-section">
-              <label class="config-label">{{ t('选项') }}</label>
-              <div class="action-options">
-                <label
-                  v-for="option in selectedAction.options"
-                  :key="option.key"
-                  class="option-item"
-                >
-                  <input
-                    type="radio"
-                    :name="'option-' + selectedAction.name"
-                    :value="option.key"
-                    v-model="selectedOption"
-                  />
+            <div v-if="selectedAction.options" class="cc-field">
+              <label>{{ t('选项') }}</label>
+              <div class="cc-segmented">
+                <label v-for="option in selectedAction.options" :key="option.key">
+                  <input v-model="selectedOption" type="radio" :name="'option-' + selectedAction.name" :value="option.key" />
                   <span>{{ option.label }}</span>
                 </label>
               </div>
             </div>
           </div>
-          <div class="config-actions">
-            <button @click="cancelAction" class="cancel-btn">{{ t('取消') }}</button>
-            <button @click="confirmAction" class="confirm-btn">{{ t('确认') }}</button>
+          <div class="cc-modal-foot">
+            <button type="button" class="cc-btn" @click="cancelAction">{{ t('取消') }}</button>
+            <button type="button" class="cc-btn primary" @click="confirmAction">{{ t('确认') }}</button>
           </div>
         </div>
       </div>
-    </div>
-
+    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onActivated, onUnmounted, nextTick, computed, watch } from 'vue';
 import {
-  Send, Loader2, ChevronDown, ChevronRight, ScrollText, RotateCcw, Shield, BrainCircuit, Bell, History
+  Loader2, ChevronDown, ScrollText, RotateCcw, Shield, BrainCircuit, Bell, History, FileClock, X
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 import { useI18n } from '@/i18n';
@@ -542,6 +414,18 @@ const handleChatSend = async ({ text, focus }: ChatBusPayload) => {
 };
 
 // 切换记忆面板
+// 行动选项序号：壹贰叁…
+const OPTION_NUMERALS = ['壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖', '拾'];
+const optionNumeral = (index: number) => OPTION_NUMERALS[index] ?? String(index + 1);
+
+// 回合印记显示游戏内时间
+const gameTimeLabel = computed(() => {
+  const g = gameStateStore.gameTime as any;
+  if (!g) return formatCurrentTime();
+  const pad = (n: unknown) => String(n ?? 0).padStart(2, '0');
+  return `${t('仙道')}${g.年}${t('年')}${g.月}${t('月')}${g.日}${t('日')} ${pad(g.小时)}:${pad(g.分钟)}`;
+});
+
 const toggleMemory = () => {
   memoryExpanded.value = !memoryExpanded.value;
 };
@@ -614,24 +498,6 @@ const gameStateStore = useGameStateStore();
 const isTavernEnvFlag = isTavernEnv();
 const enhancedActionQueue = EnhancedActionQueueManager.getInstance();
 const bidirectionalSystem = AIBidirectionalSystem;
-
-const isOnlineTraveling = computed(() => {
-  const online = gameStateStore.onlineState as any;
-  return online?.模式 === '联机' && !!online?.房间ID;
-});
-
-const travelingTooltip = computed(() => {
-  if (!isOnlineTraveling.value) return '';
-  const online = gameStateStore.onlineState as any;
-  const sessionId = online?.房间ID ? String(online.房间ID) : '';
-  const owner = online?.穿越目标?.主人用户名 ? String(online.穿越目标.主人用户名) : '';
-  const worldId = online?.穿越目标?.世界ID != null ? String(online.穿越目标.世界ID) : '';
-  const parts = ['联机穿越中'];
-  if (owner) parts.push(`目标：${owner}`);
-  if (worldId) parts.push(`世界#${worldId}`);
-  if (sessionId) parts.push(`会话#${sessionId}`);
-  return parts.join(' · ');
-});
 
 const openEventsPanel = () => {
   router.push('/game/events');
@@ -1834,9 +1700,9 @@ const adjustTextareaHeight = () => {
   const textarea = inputRef.value;
   if (textarea) {
     // 单行基准高度（根据line-height计算）
-    const lineHeight = 1.4; // 与CSS中的line-height一致
-    const fontSize = 0.9; // rem
-    const padding = 16; // 8px * 2
+    const lineHeight = 1.5; // 与CSS中的line-height一致
+    const fontSize = 0.95; // rem（15.2px）
+    const padding = 22; // 11px * 2
     const singleLineHeight = fontSize * 16 * lineHeight + padding; // 约36px
 
     // 计算所需高度
@@ -2188,2528 +2054,639 @@ const syncGameState = async () => {
 </script>
 
 <style scoped>
-/* 快照回退样式 */
-.rollback-group {
+.story {
+  --page-w: 820px;
+
   position: relative;
-  display: flex;
-  gap: 4px;
-}
-
-.snapshot-btn {
-  position: relative;
-}
-
-.snapshot-count {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: #3b82f6;
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.snapshot-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  min-width: 200px;
-  max-height: 300px;
-  overflow-y: auto;
-  z-index: 100;
-}
-
-.snapshot-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.snapshot-item:hover {
-  background: var(--color-surface-hover);
-}
-
-.snapshot-item:last-child {
-  border-bottom: none;
-}
-
-.snapshot-label {
-  font-size: 13px;
-  color: var(--color-text);
-}
-
-.snapshot-time {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
-/* 命令日志弹窗样式 */
-.command-log-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  backdrop-filter: blur(4px);
-}
-
-.command-log-modal {
-  background: var(--color-surface);
-  border-radius: 16px;
-  width: 100%;
-  max-width: 500px;
-  max-height: 80vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-border);
+  z-index: 1;
   display: flex;
   flex-direction: column;
-}
-
-/* 弹窗动画 */
-.command-log-modal-enter-active,
-.command-log-modal-leave-active {
-  transition: all 0.3s ease;
-}
-.command-log-modal-enter-from,
-.command-log-modal-leave-to {
-  opacity: 0;
-  transform: scale(0.9) translateY(20px);
-}
-
-.command-log-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, var(--color-surface-light) 0%, var(--color-surface-hover) 100%);
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.command-log-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.close-log-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-log-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  transform: rotate(90deg);
-}
-
-.command-log-content {
-  padding: 16px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.command-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.command-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.command-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: var(--color-primary);
-}
-
-.command-icon-wrapper {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-}
-
-.command-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.command-description {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text);
-  line-height: 1.4;
-}
-
-.command-values {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  font-family: var(--font-family-mono);
-}
-
-.old-value, .new-value {
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.old-value {
-  background: rgba(var(--color-error-rgb), 0.1);
-  color: var(--color-danger);
-  text-decoration: line-through;
-}
-
-.new-value {
-  background: rgba(var(--color-success-rgb), 0.1);
-  color: var(--color-success);
-  font-weight: 600;
-}
-
-.arrow {
-  color: var(--color-text-secondary);
-  font-weight: 600;
-}
-
-.no-commands {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-.no-commands .empty-icon {
-  opacity: 0.5;
-  margin-bottom: 1rem;
-}
-
-.no-commands .empty-text {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--color-text);
-  font-size: 1rem;
-}
-
-.no-commands .empty-hint {
-  font-size: 0.85rem;
-  opacity: 0.8;
-}
-
-/* 深色主题适配 */
-[data-theme="dark"] .command-log-modal {
-  background: #1e293b;
-  border-color: #475569;
-}
-[data-theme="dark"] .command-log-header {
-  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
-  border-color: #475569;
-}
-[data-theme="dark"] .command-item {
-  background: #334155;
-  border-color: #475569;
-}
-[data-theme="dark"] .command-item:hover {
-  border-color: var(--color-primary);
-}
-[data-theme="dark"] .command-icon-wrapper {
-  background: rgba(var(--color-primary-rgb), 0.1);
-}
-[data-theme="dark"] .old-value {
-  background: rgba(var(--color-error-rgb), 0.2);
-}
-[data-theme="dark"] .new-value {
-  background: rgba(var(--color-success-rgb), 0.2);
-}
-
-.main-game-panel {
-  width: 100%;
   height: 100%;
+  min-height: 0;
+}
+
+.story-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+.page {
   display: flex;
   flex-direction: column;
-  background: var(--color-background);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  box-sizing: border-box;
-}
-
-/* 短期记忆区域 */
-.memory-section {
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #fefbff 0%, #f8fafc 100%);
-  border-bottom: 1px solid #e2e8f0;
-  position: relative;
-  z-index: 20;
-  flex-shrink: 0;
-}
-
-.memory-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  padding: 4px 0;
-  transition: all 0.2s ease;
-}
-
-.memory-header:hover {
-  background: rgba(99, 102, 241, 0.05);
-  border-radius: 6px;
-  margin: -4px;
-  padding: 8px 4px;
-}
-
-.memory-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #6366f1;
-}
-
-.memory-icon {
-  color: #94a3b8;
-  transition: transform 0.2s ease;
-}
-
-/* 下拉悬浮效果 */
-.memory-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--color-surface);
-  border: 1px solid #e2e8f0;
-  border-top: none;
-  border-radius: 0 0 12px 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  z-index: 19;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.memory-content {
-  padding: 16px 20px;
-}
-
-.memory-item {
-  font-size: 0.85rem;
-  color: #374151;
-  margin-bottom: 12px;
-  padding: 12px 16px;
-  background: rgba(99, 102, 241, 0.05);
-  border-radius: 8px;
-  border-left: 3px solid #6366f1;
-  line-height: 1.5;
-}
-
-.memory-item:last-child {
-  margin-bottom: 0;
-}
-
-.no-memory {
-  font-size: 0.9rem;
-  color: #9ca3af;
-  font-style: italic;
-  text-align: center;
-  padding: 20px;
-}
-
-/* 下拉动画 */
-.memory-dropdown-enter-active,
-.memory-dropdown-leave-active {
-  transition: all 0.3s ease;
-}
-
-.memory-dropdown-enter-from {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-.memory-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-/* 思维链区域样式 */
-.thinking-section {
-  margin: 12px 16px;
-  background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
-  border: 1px solid #fcd34d;
-  border-radius: 10px;
-  overflow: hidden;
-  flex-shrink: 0; /* 防止被挤压 */
-  min-width: 0; /* 允许内容收缩但不被完全挤压 */
-}
-
-.thinking-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.thinking-header:hover {
-  background: rgba(251, 191, 36, 0.15);
-}
-
-.thinking-icon {
-  color: #d97706;
-  flex-shrink: 0;
-}
-
-.thinking-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #92400e;
-  flex: 1;
-}
-
-.thinking-badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.thinking-badge.streaming {
-  color: #b45309;
-  background: rgba(251, 191, 36, 0.3);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.thinking-badge.completed {
-  color: #166534;
-  background: rgba(34, 197, 94, 0.2);
-  animation: none;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-.expand-icon {
-  color: #b45309;
-  flex-shrink: 0;
-}
-
-.thinking-content {
-  padding: 12px 14px;
-  border-top: 1px solid rgba(251, 191, 36, 0.3);
-  font-size: 0.85rem;
-  color: #78350f;
-  line-height: 1.6;
-  max-height: 300px;
-  overflow-y: auto;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-/* 思维链展开动画 */
-.thinking-expand-enter-active,
-.thinking-expand-leave-active {
-  transition: all 0.3s ease;
-}
-
-.thinking-expand-enter-from,
-.thinking-expand-leave-to {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-/* 当前叙述显示区域 */
-.current-narrative {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  min-width: 0; /* 防止flex收缩问题 */
-  border-radius: 12px; /* 圆角 */
-  box-shadow: none !important; /* 移除阴影 */
-  background-color: var(--color-surface) !important; /* 提亮叙事区域但不刺眼 */
-  overflow-x: hidden; /* 防止水平滚动条 */
-  overflow-y: auto; /* 允许垂直滚动 */
-  padding-right: 12px; /* 给斜体字留出空间，防止被滚动条截断 */
-}
-
-/* 流式输出内容样式 */
-.streaming-narrative-content {
-  margin-top: 16px;
-  padding: 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  animation: fadeIn 0.3s ease-in;
-}
-
-/* 用户本回合输入展示（仅UI；不进入记忆/存档） */
-.last-user-intent {
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border: 1px dashed var(--color-border);
-  border-radius: 10px;
-  background: rgba(var(--color-primary-rgb), 0.05);
-}
-
-.last-user-intent-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-}
-
-.last-user-intent-header .k {
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.last-user-intent-header .badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.last-user-intent-text {
-  white-space: pre-wrap;
-  line-height: 1.55;
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-  overflow-wrap: anywhere;
-}
-
-.streaming-text,
-.narrative-text {
-  line-height: 1.8;
-  color: var(--color-text);
-  font-size: var(--base-font-size, 1rem);
-  max-width: 100%;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  word-break: break-word;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.content-area {
-  background-color: var(--color-surface) !important; /* 提亮内容区 */
-  padding: 20px 8px 20px 20px; /* 右侧留小间距给滚动条 */
-  flex: 1;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  /* 显示可见的滚动拇指，轨道透明 */
-  scrollbar-color: var(--color-border) transparent;
-  box-sizing: border-box;
-  min-height: 200px;
-  display: flex; /* 让子元素可以撑满高度 */
-  box-shadow: none !important; /* 移除阴影 */
-}
-
-/* 深色主题下 content-area 背景与内部一致 */
-[data-theme="dark"] .content-area {
-  background-color: #1E293B !important;
-}
-
-/* WebKit滚动条样式 */
-.content-area::-webkit-scrollbar {
-  width: 6px;
-  background: transparent;
-}
-
-.content-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.content-area::-webkit-scrollbar-track-piece {
-  background: transparent;
-}
-
-.content-area::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background-color: var(--color-border);
-}
-
-/* 悬停时略微增强可见度 */
-.content-area:hover::-webkit-scrollbar-thumb {
-  background-color: var(--color-text-secondary);
-}
-
-.content-area::-webkit-scrollbar-button {
-  display: none;
-}
-
-.content-area::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-
-/* AI处理状态指示器（生成时显示在顶部） */
-.ai-processing-indicator {
+  gap: 1.35rem;
   width: 100%;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
-  flex-shrink: 0; /* 防止被挤压 */
-  box-sizing: border-box;
+  max-width: var(--page-w);
+  margin: 0 auto;
 }
 
-/* 重置状态按钮 */
-.reset-state-btn {
-  padding: 6px;
-  font-size: 13px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: 1px solid transparent;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
+/* ---------- 回合印记 ---------- */
+.turn-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-left: auto; /* 推到右侧 */
-}
-
-.reset-state-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-danger);
-  border-color: var(--color-border-hover);
-  transform: translateY(-1px);
-}
-
-/* 流式状态元数据布局 */
-.streaming-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 12px;
-}
-
-.streaming-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
-
-.streaming-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-
-.streaming-text {
-  font-weight: 500;
-}
-
-/* 等待动画样式 */
-.waiting-animation {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 0; /* 增加一些垂直空间 */
-}
-
-.thinking-dots {
-  display: flex;
-  gap: 8px;
-}
-
-.thinking-dots .dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  animation: thinking 1.4s ease-in-out infinite;
-}
-
-.thinking-dots .dot:nth-child(1) {
-  animation-delay: 0s;
-}
-
-.thinking-dots .dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.thinking-dots .dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes thinking {
-  0%, 60%, 100% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-  30% {
-    transform: scale(1.3);
-    opacity: 1;
-  }
-}
-
-/* .waiting-text is no longer used */
-
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 currentColor; opacity: 0.8; }
-  70% { box-shadow: 0 0 0 6px transparent; opacity: 1; }
-  100% { box-shadow: 0 0 0 0 transparent; opacity: 0.8; }
-}
-
-/* 输入框右侧的流式传输选项样式 - 删除旧样式 */
-
-/* 输入框容器样式 */
-.input-container {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: stretch; /* 让内部元素垂直拉伸 */
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: var(--color-surface);
-  transition: all 0.2s ease;
-  min-height: 32px; /* 减小最小高度以对应单行 */
-  max-width: 100%; /* 防止横向扩展 */
-  overflow: hidden; /* 确保内容不会溢出容器 */
-}
-
-.input-container:focus-within {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.input-container:has(.game-input:disabled) {
-  background: #f9fafb;
-}
-
-/* 输入框内部的文本区域 */
-.input-container .game-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 8px 16px;
-  padding-right: 0; /* 右侧留给流式传输选项 */
-  outline: none;
-  box-shadow: none;
-  resize: none;
-  overflow-y: auto;
-  width: 100%; /* 确保宽度填满容器 */
-  min-height: 24px; /* 单行高度 */
-  max-height: 120px;
-  min-width: 0; /* 允许缩小 */
-  box-sizing: border-box;
-  word-wrap: break-word;
-  white-space: pre-wrap; /* 保持换行和空格 */
-  overflow-wrap: break-word;
-  /* 移除自动高度相关样式，用JS控制 */
-  height: auto;
-  line-height: 1.4;
-  /* 透明滚动条（Firefox） */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-.input-container .game-input:focus {
-  border: none;
-  box-shadow: none;
-}
-
-/* 透明滚动条（WebKit） */
-.input-container .game-input::-webkit-scrollbar {
-  width: 6px;
-  background: transparent;
-}
-
-.input-container .game-input::-webkit-scrollbar-track,
-.input-container .game-input::-webkit-scrollbar-track-piece,
-.input-container .game-input::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-.input-container .game-input::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background-color: transparent;
-}
-
-.input-container .game-input:hover::-webkit-scrollbar-thumb {
-  background-color: transparent;
-}
-
-/* 输入框内部的流式传输选项 */
-.stream-toggle-inside {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  padding: 4px 12px;
-  border-left: 1px solid #e5e7eb;
-  margin-left: 8px;
-  cursor: pointer;
-  user-select: none;
-  flex-shrink: 0;
-  align-self: stretch; /* 垂直拉伸以匹配容器高度 */
-  min-height: 32px; /* 减小最小高度以对应单行 */
-}
-
-.stream-toggle-inside:hover {
-  color: var(--color-text);
-}
-
-.stream-toggle-inside input[type="checkbox"] {
-  width: 12px;
-  height: 12px;
-  cursor: pointer;
-}
-
-.stream-toggle-inside .label-text {
-  cursor: pointer;
-}
-
-/* 当前叙述显示区域 */
-/* .current-narrative 样式已合并到 line 1996 */
-
-.narrative-content {
-  line-height: 1.8;
-  color: var(--color-text);
-  font-size: 0.95rem;
-  background: var(--color-surface); /* 确保叙述内容区域背景一致 */
-}
-
-.action-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
-  margin-bottom: 16px;
-}
-
-.action-option-btn {
-  padding: 8px 16px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  white-space: normal;
-  word-break: break-word;
-  max-width: 100%;
-  text-align: center;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.action-option-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
-}
-
-/* 绘图按钮 */
-.header-action-btn.image-gen-btn {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-primary);
-  /* cursor: pointer; */
-  padding: 6px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  margin-right: 4px;
-}
-
-.header-action-btn.image-gen-btn:hover:not(:disabled) {
-  background: rgba(var(--color-primary-rgb), 0.1);
-  transform: scale(1.1);
-  box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.3);
-}
-
-.header-action-btn.image-gen-btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.narrative-meta {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f3f4f6;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.meta-buttons {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-action-btn.rollback-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.header-action-btn.rollback-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-primary);
-}
-
-.header-action-btn.event-btn {
-  background: rgba(99, 102, 241, 0.10);
-  border: 1px solid rgba(99, 102, 241, 0.20);
-  color: rgba(99, 102, 241, 0.95);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.header-action-btn.event-btn:hover {
-  background: rgba(99, 102, 241, 0.16);
-  border-color: rgba(99, 102, 241, 0.35);
-}
-
-.traveling-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: rgba(234, 88, 12, 0.95);
-  background: rgba(234, 88, 12, 0.12);
-  border: 1px solid rgba(234, 88, 12, 0.25);
-  white-space: nowrap;
-}
-
-[data-theme="dark"] .header-action-btn.event-btn {
-  background: rgba(99, 102, 241, 0.16);
-  border-color: rgba(99, 102, 241, 0.25);
-  color: rgba(165, 180, 252, 0.95);
-}
-
-[data-theme="dark"] .traveling-badge {
-  color: rgba(251, 146, 60, 0.95);
-  background: rgba(251, 146, 60, 0.16);
-  border-color: rgba(251, 146, 60, 0.28);
-}
-
-.narrative-time {
-  font-size: 0.8rem;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-/* 变量更新按钮 */
-.variable-updates-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  color: white;
-  border: none;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-
-.variable-updates-toggle::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.variable-updates-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
-  background: linear-gradient(135deg, #2563eb, #1e40af);
-}
-
-.variable-updates-toggle:hover::before {
-  left: 100%;
-}
-
-.variable-updates-toggle.active {
-  background: linear-gradient(135deg, #10b981, #059669);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
-}
-
-.variable-updates-toggle.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: linear-gradient(135deg, #9ca3af, #6b7280);
-  box-shadow: 0 2px 8px rgba(156, 163, 175, 0.3);
-}
-
-.variable-updates-toggle.disabled:hover {
-  transform: none;
-  background: linear-gradient(135deg, #9ca3af, #6b7280);
-  box-shadow: 0 2px 8px rgba(156, 163, 175, 0.3);
-}
-
-.variable-updates-toggle.disabled::before {
-  display: none;
-}
-
-.update-count {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 10px;
-  min-width: 18px;
-  text-align: center;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* 悬浮面板覆盖层 */
-.variable-updates-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  backdrop-filter: blur(4px);
-}
-
-/* 悬浮面板主体 */
-.variable-updates-modal {
-  background: var(--color-surface);
-  border-radius: 16px;
-  width: 100%;
-  max-width: 500px;
-  max-height: 80vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-border);
-  animation: modal-appear 0.3s ease-out;
-}
-
-@keyframes modal-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.9) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* 悬浮面板动画 */
-.variable-updates-modal-enter-active,
-.variable-updates-modal-leave-active {
-  transition: all 0.3s ease;
-}
-
-.variable-updates-modal-enter-from {
-  opacity: 0;
-  transform: scale(0.9) translateY(20px);
-}
-
-.variable-updates-modal-leave-to {
-  opacity: 0;
-  transform: scale(0.9) translateY(20px);
-}
-
-/* 悬浮面板头部 */
-.variable-updates-modal .updates-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.variable-updates-modal .updates-header h4 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.close-updates-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-updates-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  transform: rotate(90deg);
-}
-
-/* 悬浮面板内容 */
-.variable-updates-modal .updates-content {
-  padding: 16px;
-  overflow-y: auto;
-  max-height: 60vh;
-}
-
-/* 移除重复的样式，让内部FormattedText组件处理 */
-
-.empty-narrative {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #9ca3af;
-  font-style: italic;
-  font-size: 0.9rem;
-}
-
-/* 动作队列显示区域 */
-.action-queue-display {
-  margin-bottom: 12px;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.queue-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.queue-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #6366f1;
-}
-
-.clear-queue-btn {
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.clear-queue-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-.queue-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.queue-action-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: rgba(99, 102, 241, 0.05);
-  border: 1px solid rgba(99, 102, 241, 0.1);
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-.action-text {
-  flex: 1;
-  color: #374151;
-  line-height: 1.4;
-  margin-right: 8px;
-}
-
-.action-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.undo-indicator {
-  font-size: 12px;
-  opacity: 0.7;
-  animation: rotate 2s linear infinite;
-}
-
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.remove-action-btn {
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 16px;
-  line-height: 1;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.remove-action-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-.input-section {
-  padding: 16px 20px 20px 20px; /* 进一步增加底部内边距 */
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
-
-.input-wrapper {
-  display: flex;
-  gap: 12px;
-  align-items: stretch; /* 改为stretch让所有元素高度一致 */
-  width: 100%;
-  max-width: none;
-}
-
-.game-input {
-  /* 这些样式现在由 .input-container 处理 */
-  font-size: 0.9rem;
-  line-height: 1.4;
-  color: #374151;
-  resize: none;
-  /* 移除固定高度，改为自动调整 */
-  /* min-height: 44px; */
-  /* max-height: 120px; */
-  font-family: inherit;
-  /* 移除过渡效果，避免高度调整时的闪烁 */
-  /* transition: all 0.2s ease; */
-}
-
-/* 移除原来的 focus 样式，现在由容器处理 */
-/* .game-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-} */
-
-.game-input:disabled {
-  /* background: #f9fafb; */
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.game-input::placeholder {
-  color: #9ca3af;
-}
-
-.send-button {
-  width: 42px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
+  gap: 0.6rem;
   min-height: 32px;
-  align-self: stretch;
-  display: flex;
+  font-size: 13px;
+  color: var(--cc-text-2);
+}
+
+.turn-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cc-gold-rgb), 0.35));
+}
+
+.turn-line:last-child {
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.35), transparent);
+}
+
+.turn-time {
+  padding: 0 0.4rem;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text);
+}
+
+.turn-state {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.25);
-  margin-left: 8px;
+  gap: 0.5rem;
+  letter-spacing: 0.15em;
+  color: var(--cc-gold);
 }
 
-.send-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cc-gold);
+  animation: mg-pulse 1.4s ease-in-out infinite;
 }
 
-.send-button:disabled {
-  background: #d1d5db;
-  color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 深色主题 */
-[data-theme="dark"] .main-game-panel {
-  background: var(--color-background);
-}
-
-/* 叙述内容深色主题 */
-[data-theme="dark"] .narrative-content {
-  background: var(--color-background);
-  color: #e2e8f0;
-}
-
-[data-theme="dark"] .narrative-meta {
-  border-bottom-color: #374151;
-}
-
-[data-theme="dark"] .narrative-time {
-  color: #94a3b8;
-}
-
-/* 深色主题 - 变量更新按钮 */
-[data-theme="dark"] .variable-updates-toggle {
-  background: linear-gradient(135deg, #3b82f6, #1e3a8a);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
-}
-
-[data-theme="dark"] .variable-updates-toggle:hover {
-  background: linear-gradient(135deg, #2563eb, #1e40af);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
-}
-
-[data-theme="dark"] .variable-updates-toggle.active {
-  background: linear-gradient(135deg, #10b981, #065f46);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-}
-
-[data-theme="dark"] .variable-updates-toggle.active:hover {
-  background: linear-gradient(135deg, #059669, #047857);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.5);
-}
-
-[data-theme="dark"] .variable-updates-toggle.disabled {
-  background: linear-gradient(135deg, #4b5563, #374151);
-  box-shadow: 0 2px 8px rgba(75, 85, 99, 0.4);
-}
-
-[data-theme="dark"] .variable-updates-toggle.disabled:hover {
-  background: linear-gradient(135deg, #4b5563, #374151);
-  box-shadow: 0 2px 8px rgba(75, 85, 99, 0.4);
-}
-
-[data-theme="dark"] .variable-updates-overlay {
-  background: rgba(0, 0, 0, 0.7);
-}
-
-[data-theme="dark"] .variable-updates-modal {
-  background: #1e293b;
-  border-color: #475569;
-}
-
-[data-theme="dark"] .variable-updates-modal .updates-header {
-  background: linear-gradient(135deg, #334155 0%, #475569 100%);
-  border-color: #475569;
-}
-
-[data-theme="dark"] .variable-updates-modal .updates-header h4 {
-  color: #e2e8f0;
-}
-
-[data-theme="dark"] .close-updates-btn {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .close-updates-btn:hover {
-  background: #475569;
-  color: #e2e8f0;
-}
-
-[data-theme="dark"] .empty-narrative {
-  color: #6b7280;
-}
-
-/* 确保深色主题下当前叙述区域背景一致 */
-[data-theme="dark"] .current-narrative {
-  background-color: #1E293B !important;
-}
-
-/* 深色主题 - 流式输出内容 */
-[data-theme="dark"] .streaming-narrative-content {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-[data-theme="dark"] .streaming-text {
-  color: #e2e8f0;
-}
-
-
-[data-theme="dark"] .ai-processing-display {
-  background: var(--color-background) !important;
-}
-
-[data-theme="dark"] .reset-state-btn {
-  background: rgba(var(--color-error-rgb), 0.2);
-  color: var(--color-danger);
-  border-color: rgba(var(--color-error-rgb), 0.3);
-}
-
-[data-theme="dark"] .reset-state-btn:hover {
-  background: rgba(var(--color-error-rgb), 0.3);
-  border-color: rgba(var(--color-error-rgb), 0.5);
-}
-
-[data-theme="dark"] .narrative-content {
-  background: #1E293B !important;
-}
-
-[data-theme="dark"] .input-section {
-  background: #334155;
-  border-top-color: #475569;
-}
-
-[data-theme="dark"] .game-input {
-  /* background: #1e293b; - 现在由容器处理 */
-  /* border-color: #475569; - 现在由容器处理 */
-  color: #e2e8f0;
-}
-
-/* 移除重复的深色主题 focus 样式 */
-/* [data-theme="dark"] .game-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-} */
-
-[data-theme="dark"] .game-input:disabled {
-  /* background: #0f172a; - 现在由容器处理 */
-  color: #64748b;
-}
-
-[data-theme="dark"] .game-input::placeholder {
-  color: #64748b;
-}
-
-[data-theme="dark"] .send-button {
-  background: #3b82f6;
-}
-
-[data-theme="dark"] .send-button:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-[data-theme="dark"] .send-button:disabled {
-  background: #374151;
-  color: #64748b;
-}
-
-/* 短期记忆深色主题 */
-[data-theme="dark"] .memory-section {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  border-color: #475569;
-}
-
-[data-theme="dark"] .memory-header:hover {
-  background: rgba(99, 102, 241, 0.1);
-}
-
-[data-theme="dark"] .memory-title {
-  color: #818cf8;
-}
-
-[data-theme="dark"] .memory-icon {
-  color: #64748b;
-}
-
-[data-theme="dark"] .memory-dropdown {
-  background: #1e293b;
-  border-color: #475569;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .memory-item {
-  background: rgba(129, 140, 248, 0.1);
-  border-left-color: #818cf8;
-  color: #e2e8f0;
-}
-
-/* 思维链深色主题 */
-[data-theme="dark"] .thinking-section {
-  background: linear-gradient(135deg, #422006 0%, #451a03 100%);
-  border-color: #92400e;
-}
-
-[data-theme="dark"] .thinking-header:hover {
-  background: rgba(251, 191, 36, 0.1);
-}
-
-[data-theme="dark"] .thinking-icon {
-  color: #fbbf24;
-}
-
-[data-theme="dark"] .thinking-title {
-  color: #fcd34d;
-}
-
-[data-theme="dark"] .thinking-badge.streaming {
-  color: #fcd34d;
-  background: rgba(251, 191, 36, 0.2);
-}
-
-[data-theme="dark"] .thinking-badge.completed {
-  color: #86efac;
-  background: rgba(34, 197, 94, 0.15);
-}
-
-[data-theme="dark"] .expand-icon {
-  color: #fbbf24;
-}
-
-[data-theme="dark"] .thinking-content {
-  background: rgba(0, 0, 0, 0.2);
-  border-top-color: rgba(251, 191, 36, 0.2);
-  color: #fef3c7;
-}
-
-/* 等待覆盖层深色主题 - 更新为AI处理显示样式 */
-[data-theme="dark"] .streaming-meta {
-  border-bottom-color: #374151;
-}
-
-[data-theme="dark"] .streaming-indicator {
-  color: #60a5fa;
-}
-
-[data-theme="dark"] .streaming-dot {
-  background: #60a5fa;
-}
-
-[data-theme="dark"] .thinking-dots .dot {
-  background: #60a5fa;
-}
-
-[data-theme="dark"] .waiting-text {
-  color: #94a3b8;
-}
-
-/* 输入框右侧流式传输选项深色主题 - 更新为内部样式 */
-[data-theme="dark"] .input-container {
-  background: #1e293b;
-  border-color: #475569;
-}
-
-[data-theme="dark"] .input-container:focus-within {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="dark"] .input-container:has(.game-input:disabled) {
-  background: #0f172a;
-}
-
-[data-theme="dark"] .stream-toggle-inside {
-  color: #94a3b8;
-  border-left-color: #475569;
-}
-
-[data-theme="dark"] .stream-toggle-inside:hover {
-  color: #e2e8f0;
-}
-
-/* 行动选择器按钮 */
-.action-selector-btn {
-  width: 44px;
-  min-height: 32px; /* 减小最小高度以匹配输入框 */
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  display: flex;
+.turn-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.3rem;
+  height: 28px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 14px;
+  background: var(--gm-block);
+  color: var(--cc-text-2);
+  font-size: 13px;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  transition: all 0.2s ease;
-  color: #6366f1;
-  align-self: stretch; /* 垂直拉伸以匹配容器高度 */
-  flex-shrink: 0;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
-.action-selector-btn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #6366f1;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+.turn-btn svg {
+  color: var(--cc-gold);
 }
 
-.action-selector-btn:disabled {
+.turn-btn em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--cc-text-3);
+}
+
+.turn-btn:hover:not(:disabled) {
+  color: var(--cc-text);
+  border-color: rgba(var(--cc-gold-rgb), 0.55);
+}
+
+.turn-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* 行动选择弹窗 */
-.action-modal-overlay,
-.action-config-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+/* ---------- 思维链 ---------- */
+.thinking {
+  border-left: 2px solid color-mix(in srgb, var(--gm-cultivation) 60%, transparent);
+  background: var(--gm-block);
+}
+
+.thinking-head {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  border: none;
+  background: none;
+  color: var(--cc-text-2);
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.thinking-head > svg:first-child {
+  color: var(--gm-cultivation);
+}
+
+.thinking-title {
+  flex: 1;
+}
+
+.thinking-state {
+  font-size: 12px;
+  color: var(--cc-text-3);
+}
+
+.thinking-state.live {
+  color: var(--gm-cultivation);
+  animation: mg-pulse 1.6s ease-in-out infinite;
+}
+
+.thinking-caret {
+  transform: rotate(-90deg);
+  transition: transform 0.25s ease;
+}
+
+.thinking.open .thinking-caret {
+  transform: none;
+}
+
+.thinking-body {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0 1rem 0.9rem;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--cc-text-2);
+}
+
+/* ---------- 玩家输入 ---------- */
+.intent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 6px;
+  background: var(--gm-block);
+}
+
+.intent .gm-seal {
+  margin-top: 0.15rem;
+}
+
+.intent-text {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--cc-text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- 正文 ---------- */
+.prose {
+  font-size: var(--narrative-size, 17px);
+  line-height: var(--narrative-leading, 2);
+  letter-spacing: 0.04em;
+  color: var(--cc-text);
+}
+
+/* ---------- 行动签 ---------- */
+.choices {
+  margin-top: 0.25rem;
+}
+
+.choices-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 0.9rem;
+  font-family: var(--cc-calligraphy);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.4em;
+  color: var(--cc-gold);
+}
+
+.choices-title::before,
+.choices-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cc-gold-rgb), 0.45));
+}
+
+.choices-title::after {
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.45), transparent);
+}
+
+.choice-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choices.single .choice-list {
+  grid-template-columns: 1fr;
+}
+
+.choice-list li:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--gm-block);
+  color: var(--cc-text);
+  font-size: 15px;
+  line-height: 1.7;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.choice:hover:not(:disabled) {
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+  background: var(--cc-selected-bg);
+  transform: translateY(-1px);
+}
+
+.choice:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.choice-no {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(2px);
-}
-
-.action-modal {
-  background: var(--color-surface);
-  border-radius: 12px;
-  max-width: 480px;
-  width: 90%;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-}
-
-.action-config-modal {
-  background: var(--color-surface);
-  border-radius: 12px;
-  max-width: 400px;
-  width: 90%;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-}
-
-.modal-header,
-.config-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--color-primary, #3b82f6);
-}
-
-.modal-header h3,
-.config-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: white;
-}
-
-.close-btn {
+  flex-shrink: 0;
   width: 28px;
   height: 28px;
-  border: none;
-  background: var(--color-surface-light);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: white;
-  transition: all 0.2s ease;
-}
-
-.close-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-}
-
-.action-grid {
-  padding: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.quick-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: var(--color-surface);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.8rem;
-  min-height: 70px;
-}
-
-.quick-action-btn:hover {
-  border-color: #3b82f6;
-  background: #f8fafc;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
-.quick-action-btn.cultivation {
-  border-color: rgba(34, 197, 94, 0.2);
-  background: rgba(34, 197, 94, 0.03);
-}
-
-.quick-action-btn.cultivation:hover {
-  border-color: #22c55e;
-  background: rgba(34, 197, 94, 0.08);
-}
-
-.quick-action-btn.exploration {
-  border-color: rgba(59, 130, 246, 0.2);
-  background: rgba(59, 130, 246, 0.03);
-}
-
-.quick-action-btn.exploration:hover {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.quick-action-btn.social {
-  border-color: rgba(20, 184, 166, 0.2);
-  background: rgba(20, 184, 166, 0.03);
-}
-
-.quick-action-btn.social:hover {
-  border-color: #14b8a6;
-  background: rgba(20, 184, 166, 0.08);
-}
-
-.quick-action-btn.other {
-  border-color: rgba(156, 163, 175, 0.2);
-  background: rgba(156, 163, 175, 0.03);
-}
-
-.quick-action-btn.other:hover {
-  border-color: #9ca3af;
-  background: rgba(156, 163, 175, 0.08);
-}
-
-.action-icon {
-  font-size: 1.2rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.5);
+  border-radius: 4px;
+  font-family: var(--cc-calligraphy);
+  font-size: 17px;
   line-height: 1;
+  color: var(--cc-gold);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-.action-text {
-  font-weight: 500;
-  color: #374151;
-  text-align: center;
-  line-height: 1.2;
+.choice:hover:not(:disabled) .choice-no {
+  border-color: var(--cc-seal);
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
 }
 
-/* 配置弹窗内容 */
-.config-content {
-  padding: 20px;
+.choice-text {
+  min-width: 0;
+  padding-top: 0.1rem;
+  word-break: break-word;
 }
 
-.action-description {
-  margin: 0 0 20px 0;
-  color: #6b7280;
-  line-height: 1.5;
-}
-
-.config-section {
-  margin-bottom: 20px;
-}
-
-.config-section:last-child {
-  margin-bottom: 0;
-}
-
-.config-label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #374151;
-  font-size: 0.875rem;
-}
-
-.time-selector {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.time-btn {
-  padding: 8px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: var(--color-surface);
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
-
-.time-btn:hover {
-  border-color: #3b82f6;
-}
-
-.time-btn.active {
-  border-color: #3b82f6;
-  background: #3b82f6;
-  color: white;
-}
-
-.time-custom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.875rem;
-}
-
-.time-input {
-  width: 80px;
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.action-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.option-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.option-item:hover {
-  border-color: #3b82f6;
-  background: #f8fafc;
-}
-
-.option-item input[type="radio"] {
-  margin: 0;
-}
-
-.config-actions {
-  padding: 20px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.cancel-btn,
-.confirm-btn {
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.cancel-btn {
-  border: 1px solid #d1d5db;
-  background: var(--color-surface);
-  color: #6b7280;
-}
-
-.cancel-btn:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
-}
-
-.confirm-btn {
-  border: 1px solid #3b82f6;
-  background: #3b82f6;
-  color: white;
-}
-
-.confirm-btn:hover {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-
-/* 深色主题适配 */
-[data-theme="dark"] .action-selector-btn {
-  background: #374151;
-  border-color: #4b5563;
-  color: #d1d5db;
-}
-
-[data-theme="dark"] .action-selector-btn:hover:not(:disabled) {
-  background: #4b5563;
-  border-color: #6b7280;
-}
-
-[data-theme="dark"] .action-modal,
-[data-theme="dark"] .action-config-modal {
-  background: #1f2937;
-}
-
-[data-theme="dark"] .modal-header,
-[data-theme="dark"] .config-header,
-[data-theme="dark"] .config-actions {
-  border-color: #374151;
-}
-
-[data-theme="dark"] .modal-header h3,
-[data-theme="dark"] .config-header h3,
-[data-theme="dark"] .category-title,
-[data-theme="dark"] .config-label,
-[data-theme="dark"] .action-name {
-  color: #f9fafb;
-}
-
-[data-theme="dark"] .close-btn {
-  background: #374151;
-  color: #d1d5db;
-}
-
-[data-theme="dark"] .close-btn:hover {
-  background: #4b5563;
-  color: #f9fafb;
-}
-
-[data-theme="dark"] .action-btn {
-  background: #374151;
-  border-color: #4b5563;
-}
-
-[data-theme="dark"] .action-btn:hover {
-  border-color: #3b82f6;
-  background: #1f2937;
-}
-
-[data-theme="dark"] .time-btn,
-[data-theme="dark"] .option-item {
-  background: #374151;
-  border-color: #4b5563;
-  color: #d1d5db;
-}
-
-[data-theme="dark"] .time-input {
-  background: #374151;
-  border-color: #4b5563;
-  color: #f9fafb;
-}
-
-[data-theme="dark"] .cancel-btn {
-  background: #374151;
-  border-color: #4b5563;
-  color: #d1d5db;
-}
-
-[data-theme="dark"] .cancel-btn:hover {
-  background: #4b5563;
-}
-
-/* 深色主题动作队列样式 */
-[data-theme="dark"] .action-queue-display {
-  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
-  border-color: #4b5563;
-}
-
-[data-theme="dark"] .queue-title {
-  color: #818cf8;
-}
-
-[data-theme="dark"] .clear-queue-btn {
-  color: #9ca3af;
-}
-
-[data-theme="dark"] .clear-queue-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
-}
-
-[data-theme="dark"] .queue-action-item {
-  background: rgba(129, 140, 248, 0.1);
-  border-color: rgba(129, 140, 248, 0.2);
-}
-
-[data-theme="dark"] .action-text {
-  color: #e5e7eb;
-}
-
-[data-theme="dark"] .remove-action-btn {
-  color: #9ca3af;
-}
-
-[data-theme="dark"] .remove-action-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
-}
-
-[data-theme="dark"] .action-controls {
-  color: #d1d5db;
-}
-
-[data-theme="dark"] .undo-indicator {
-  filter: brightness(1.2);
-}
-
-/* 变更描述样式 */
-.change-description {
-  color: var(--color-text);
-  font-size: 0.8rem;
-  margin-bottom: 6px;
-  padding: 4px 8px;
-  background: var(--color-surface-light);
-  border-radius: 4px;
-  border-left: 2px solid var(--color-primary);
-  line-height: 1.3;
-  font-style: italic;
-}
-
-/* 深色主题下的变更描述 */
-[data-theme="dark"] .change-description {
-  background: #334155;
-  color: #e2e8f0;
-  border-left-color: #60a5fa;
-}
-
-/* 空状态样式 */
-.no-changes {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-.no-changes .empty-icon {
-  opacity: 0.5;
-  margin-bottom: 1rem;
-  color: var(--color-text-secondary);
-}
-
-.no-changes .empty-text {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--color-text);
-  font-size: 0.9rem;
-}
-
-.no-changes .empty-hint {
-  font-size: 0.8rem;
-  opacity: 0.8;
-  line-height: 1.4;
-}
-
-/* 图片预览容器样式 */
-.image-preview-container {
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.image-preview-item {
+/* ---------- 输入区 ---------- */
+.composer {
   position: relative;
-  width: 60px;
-  height: 60px;
-  border-radius: 6px;
+  flex-shrink: 0;
+  padding: 0.5rem 2rem 1rem;
+}
+
+.composer-inner {
+  max-width: var(--page-w);
+  margin: 0 auto;
+}
+
+.queue {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.queue-label {
+  flex-shrink: 0;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  color: var(--cc-gold);
+}
+
+.queue-list {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+  max-height: 64px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queue-list .gm-chip {
+  padding-right: 0.25rem;
+}
+
+.queue-text {
+  max-width: 16em;
   overflow: hidden;
-  border: 2px solid #e5e7eb;
-  transition: all 0.2s ease;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.image-preview-item:hover {
-  border-color: #3b82f6;
-  transform: scale(1.05);
+.queue-x {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--cc-text-3);
+  cursor: pointer;
 }
 
-.image-preview-item img {
+.queue-x:hover {
+  color: var(--cc-danger);
+}
+
+.queue-clear {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--cc-text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.queue-clear:hover {
+  color: var(--cc-danger);
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.input-row.focused .input-box {
+  border-color: rgba(var(--cc-gold-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--cc-gold-rgb), 0.08);
+}
+
+.memo {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.memo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 42px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: var(--gm-block);
+  color: var(--cc-text-2);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.memo-btn svg {
+  color: var(--cc-gold);
+}
+
+.memo-btn em {
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 8px;
+  background: rgba(var(--cc-gold-rgb), 0.15);
+  color: var(--cc-gold);
+  font-size: 12px;
+  font-style: normal;
+  text-align: center;
+}
+
+.memo-btn:hover,
+.memo-btn.open {
+  color: var(--cc-text);
+}
+
+.memo-pop {
+  position: absolute;
+  left: -0.4rem;
+  bottom: calc(100% + 0.9rem);
+  z-index: 20;
+  width: min(560px, 80vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 8px;
+  background: var(--cc-solid-bg);
+  box-shadow: var(--cc-shell-shadow);
+}
+
+.memo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memo-list li {
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  background: var(--gm-block);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--cc-text-2);
+  white-space: pre-wrap;
+}
+
+.memo-empty {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  font-size: 14px;
+  color: var(--cc-text-2);
+}
+
+.input-box {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--cc-inset) 82%, transparent);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.3rem;
+}
+
+.thumb {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.remove-image-btn {
+.thumb button {
   position: absolute;
   top: 2px;
   right: 2px;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: rgba(239, 68, 68, 0.9);
+  display: inline-flex;
+  padding: 2px;
   border: none;
   border-radius: 50%;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: all 0.2s ease;
-}
-
-.image-preview-item:hover .remove-image-btn {
-  opacity: 1;
-}
-
-.remove-image-btn:hover {
-  background: rgba(220, 38, 38, 1);
-  transform: scale(1.1);
-}
-
-/* 图片上传按钮特殊样式 */
-.image-upload-btn svg {
-  color: #10b981;
-}
-
-.image-upload-btn:hover:not(:disabled) svg {
-  color: #059669;
-}
-
-/* 深色主题图片预览样式 */
-[data-theme="dark"] .image-preview-container {
-  background: #0f172a;
-  border-bottom-color: #475569;
-}
-
-[data-theme="dark"] .image-preview-item {
-  border-color: #475569;
-}
-
-[data-theme="dark"] .image-preview-item:hover {
-  border-color: #3b82f6;
-}
-
-/* 最新消息text样式 */
-.latest-message-text {
-  margin-top: 20px;
-  padding: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid #818cf8;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: #475569;
-  line-height: 1.7;
-}
-
-.latest-text-header {
-  font-weight: 600;
-  color: #6366f1;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
-}
-
-[data-theme="dark"] .latest-message-text {
-  background: #334155;
-  border-color: #4b5563;
-  border-left-color: #818cf8;
-  color: #cbd5e1;
-}
-
-[data-theme="dark"] .latest-text-header {
-  color: #a5b4fc;
-}
-
-/* Cultivation Panel */
-.cultivation-panel-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   background: rgba(0, 0, 0, 0.6);
-  display: flex;
+  color: #fff;
+  cursor: pointer;
+}
+
+.game-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+  max-height: 120px;
+  padding: 9px 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--cc-text);
+  font-family: inherit;
+  font-size: 15.2px;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: hidden;
+}
+
+.game-input::placeholder {
+  color: var(--cc-text-3);
+  letter-spacing: 0.1em;
+}
+
+.game-input:focus,
+.game-input:focus-visible {
+  outline: none;
+}
+
+.send {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 1001; /* Higher than action modal */
-  backdrop-filter: blur(4px);
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 0.95rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.38);
+  border-radius: 6px;
+  background: var(--gm-block);
+  color: var(--cc-text-2);
+  font-family: var(--cc-calligraphy);
+  font-size: 18px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-.cultivation-panel {
-  background: linear-gradient(145deg, #f9fafb, #f3f4f6);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 800px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  flex-direction: column;
-  animation: modal-appear 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+.send:hover:not(:disabled) {
+  border-color: rgba(var(--cc-gold-rgb), 0.75);
+  background: color-mix(in srgb, var(--cc-gold) 12%, var(--gm-block));
+  color: var(--cc-gold);
 }
 
-.cultivation-panel .panel-header {
-  padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.send:disabled {
+  border-color: var(--cc-border);
+  background: transparent;
+  color: var(--cc-text-3);
+  cursor: not-allowed;
 }
 
-.cultivation-panel .panel-header h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1f2937;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cultivation-panel .panel-content {
-  padding: 24px;
+.quick-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
 }
 
-.cultivation-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.cultivation-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
-  border-color: #a5b4fc;
-}
-
-.cultivation-card .card-header {
+.time-custom {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
-.cultivation-card .card-icon {
-  color: #6366f1;
-}
-.cultivation-zap .card-icon { color: #f59e0b; }
-.cultivation-shield .card-icon { color: #3b82f6; }
-.cultivation-braincircuit .card-icon { color: #8b5cf6; }
-
-.cultivation-card .card-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #111827;
+.time-custom .cc-input {
+  width: 90px;
 }
 
-.cultivation-card .card-description {
-  font-size: 0.85rem;
-  color: #4b5563;
-  line-height: 1.6;
-  flex-grow: 1;
-  margin: 0 0 16px 0;
+@keyframes mg-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
-.cultivation-card .card-config {
-  margin-bottom: 16px;
+/* ---------- 响应式 ---------- */
+@media (max-width: 1024px) {
+  .story-scroll {
+    padding: 1.25rem 1.25rem 2rem;
+  }
+
+  .composer {
+    padding: 0.5rem 1.25rem 0.9rem;
+  }
 }
 
-.cultivation-card .config-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #6b7280;
-  margin-bottom: 8px;
-  display: block;
-}
-
-.cultivation-card .time-selector {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.cultivation-card .time-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 6px;
-  background: #e5e7eb;
-  border-radius: 3px;
-  outline: none;
-  opacity: 0.7;
-  transition: opacity .2s;
-}
-.cultivation-card .time-slider:hover {
-  opacity: 1;
-}
-.cultivation-card .time-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #6366f1;
-  cursor: pointer;
-  border-radius: 50%;
-}
-.cultivation-card .time-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: #6366f1;
-  cursor: pointer;
-  border-radius: 50%;
-}
-
-.cultivation-card .time-display {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1f2937;
-  min-width: 50px;
-  text-align: right;
-}
-
-.start-cultivation-btn {
-  width: 100%;
-  padding: 10px;
-  border: none;
-  border-radius: 8px;
-  background: #4f46e5;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.start-cultivation-btn:hover {
-  background: #4338ca;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
-}
-
-.cultivation-zap .start-cultivation-btn { background: #f59e0b; }
-.cultivation-zap .start-cultivation-btn:hover { background: #d97706; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
-.cultivation-shield .start-cultivation-btn { background: #3b82f6; }
-.cultivation-shield .start-cultivation-btn:hover { background: #2563eb; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); }
-.cultivation-braincircuit .start-cultivation-btn { background: #8b5cf6; }
-.cultivation-braincircuit .start-cultivation-btn:hover { background: #7c3aed; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3); }
-
-/* Dark theme for cultivation panel */
-[data-theme="dark"] .cultivation-panel {
-  background: linear-gradient(145deg, #1f2937, #111827);
-  border-color: #374151;
-}
-[data-theme="dark"] .cultivation-panel .panel-header {
-  border-color: #374151;
-}
-[data-theme="dark"] .cultivation-panel .panel-header h3 {
-  color: #f3f4f6;
-}
-[data-theme="dark"] .cultivation-card {
-  background: #1f2937;
-  border-color: #374151;
-}
-[data-theme="dark"] .cultivation-card:hover {
-  border-color: #a5b4fc;
-}
-[data-theme="dark"] .cultivation-card .card-title {
-  color: #f9fafb;
-}
-[data-theme="dark"] .cultivation-card .card-description {
-  color: #9ca3af;
-}
-[data-theme="dark"] .cultivation-card .config-label {
-  color: #9ca3af;
-}
-[data-theme="dark"] .cultivation-card .time-slider {
-  background: #4b5563;
-}
-[data-theme="dark"] .cultivation-card .time-display {
-  color: #f3f4f6;
-}
-
-
-/* 手机端响应式修复 */
 @media (max-width: 768px) {
-  .main-game-panel {
-    width: 100%;
-    max-width: 100vw;
-    overflow-x: hidden;
+  .turn-btn span {
+    display: none;
   }
 
-  .content-area {
-    padding: 4px;
-    overflow-x: hidden;
-    width: 100%;
-    box-sizing: border-box;
+  .choice-list {
+    grid-template-columns: 1fr;
   }
 
-  .current-narrative {
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: hidden;
-    width: 100%;
+  .memo-btn span {
+    display: none;
   }
 
-  .streaming-narrative-content,
-  .narrative-content {
-    overflow-x: hidden;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    max-width: 100%;
-    padding: 8px;
+  .send {
+    padding: 0 0.7rem;
+    letter-spacing: 0.08em;
+  }
+}
+
+@media (max-width: 480px) {
+  .story-scroll {
+    padding: 0.9rem 0.8rem 1.5rem;
   }
 
-  .streaming-text,
-  .narrative-text {
-    max-width: 100%;
-    overflow-x: hidden;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    font-size: 0.85rem;
+  .composer {
+    padding: 0.4rem 0.6rem 0.7rem;
   }
 
-  .input-wrapper {
-    gap: 4px;
-    padding: 4px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .input-container {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .game-input {
-    font-size: 0.85rem;
-    padding: 6px 8px;
-  }
-
-  .send-button {
-    padding: 8px 12px;
-    flex-shrink: 0;
-    min-width: 44px;
-  }
-
-  .stream-toggle-inside {
-    font-size: 0.75rem;
-    padding: 0 6px;
+  .prose {
+    font-size: 16px;
+    line-height: 1.9;
   }
 }
 </style>

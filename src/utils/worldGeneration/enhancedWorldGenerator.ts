@@ -44,6 +44,8 @@ export interface EnhancedWorldGenConfig {
   characterBackground?: string;
   mapConfig?: WorldMapConfig;
   onStreamChunk?: (chunk: string) => void; // 流式输出回调
+  onRetry?: (attempt: number, reason: string) => void; // 重试回调（供加载遮罩显示）
+  shouldAbort?: () => boolean; // 返回 true 时停止重试（用户取消）
   useStreaming?: boolean; // 是否使用流式传输（默认true）
   enableHehuanEasterEgg?: boolean; // 是否启用合欢宗彩蛋（仅在地图初始化时启用）
   existingFactions?: Array<{ 名称: string; 位置?: any; 势力范围?: any[] }>; // 现有势力（防止重叠）
@@ -77,8 +79,12 @@ export class EnhancedWorldGenerator {
    */
   async generateValidatedWorld(): Promise<{ success: boolean; worldInfo?: WorldInfo; errors?: string[] }> {
     for (let i = 0; i <= this.config.maxRetries; i++) {
+      if (this.config.shouldAbort?.()) {
+        return { success: false, errors: ['已取消'] };
+      }
       try {
         if (i > 0) {
+          this.config.onRetry?.(i, this.previousErrors[0] ?? '');
           await new Promise(resolve => setTimeout(resolve, this.config.retryDelay * i));
           this.reduceCountsForRetry(i);
         }

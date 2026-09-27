@@ -3,45 +3,63 @@
     <VideoBackground />
 
     <div class="account-panel">
-      <div class="header">
-        <div class="title-row">
-          <h2 class="title">账号中心</h2>
-          <span class="status" :class="{ ok: loggedIn, warn: !loggedIn }">
-            {{ loggedIn ? '已登录' : '未登录' }}
-          </span>
-        </div>
-        <p class="subtitle">集中管理账号信息</p>
-      </div>
+      <span class="frame-corner tl" aria-hidden="true"></span>
+      <span class="frame-corner tr" aria-hidden="true"></span>
+      <span class="frame-corner bl" aria-hidden="true"></span>
+      <span class="frame-corner br" aria-hidden="true"></span>
 
-      <div v-if="!backendReady" class="backend-locked">
-        <p>未配置后端服务器，账号中心不可用。</p>
-        <div class="actions">
-          <button class="btn btn-secondary" @click="goBack">返回</button>
+      <header class="header">
+        <div class="emblem" aria-hidden="true"><span>籍</span></div>
+        <div class="title-block">
+          <div class="title-row">
+            <h2 class="title">账号中心</h2>
+            <span class="status" :class="loggedIn ? 'ok' : 'warn'">
+              {{ loggedIn ? '已登录' : '未登录' }}
+            </span>
+          </div>
+          <p class="subtitle">道籍在册，集中管理账号信息</p>
         </div>
+      </header>
+
+      <div v-if="!backendReady" class="cc-state locked">
+        <Lock :size="18" />
+        <span>未配置后端服务器，账号中心不可用。</span>
       </div>
 
       <template v-else>
-        <div v-if="loading" class="loading">加载中…</div>
+        <div v-if="loading" class="cc-state">
+          <Loader2 :size="20" class="cc-spin" />
+          <span>加载中…</span>
+        </div>
         <div v-else class="sections">
           <details v-for="section in sections" :key="section.title" class="section" :open="section.open">
-            <summary class="section-title">{{ section.title }}</summary>
+            <summary class="section-title">
+              <ChevronRight :size="15" class="chevron" />
+              <span>{{ section.title }}</span>
+            </summary>
             <div class="section-body">
-              <div v-if="section.items.length" class="info-list">
+              <dl v-if="section.items.length" class="info-list">
                 <div v-for="item in section.items" :key="item.label" class="info-row">
-                  <span class="info-label">{{ item.label }}</span>
-                  <span class="info-value">{{ item.value }}</span>
+                  <dt>{{ item.label }}</dt>
+                  <dd>{{ item.value }}</dd>
                 </div>
-              </div>
+              </dl>
               <div v-else class="info-empty">{{ section.emptyText || '暂无信息' }}</div>
             </div>
           </details>
         </div>
-
-        <div class="actions">
-          <button class="btn btn-secondary" @click="goBack">返回</button>
-          <button class="btn danger" @click="logout">退出登录</button>
-        </div>
       </template>
+
+      <footer class="actions">
+        <button type="button" class="cc-btn" @click="goBack">
+          <ArrowLeft :size="15" />
+          <span>返回</span>
+        </button>
+        <button v-if="backendReady" type="button" class="cc-btn logout-btn" @click="logout">
+          <LogOut :size="15" />
+          <span>退出登录</span>
+        </button>
+      </footer>
     </div>
   </div>
 </template>
@@ -50,6 +68,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import VideoBackground from '@/components/common/VideoBackground.vue';
+import { ArrowLeft, ChevronRight, Loader2, Lock, LogOut } from 'lucide-vue-next';
 import { request } from '@/services/request';
 import { isBackendConfigured } from '@/services/backendConfig';
 import { toast } from '@/utils/toast';
@@ -124,189 +143,245 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 账号中心 —— 令牌见 styles/xian-tokens.css */
 .account-container {
-  width: 100%;
-  height: 100vh;
-  min-height: 100%;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  min-height: 100%;
   padding: 1.5rem;
   box-sizing: border-box;
-  overflow: auto;
+  color: var(--cc-text);
 }
 
 .account-panel {
-  width: 100%;
-  max-width: 900px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 2.5rem;
-  color: var(--color-text);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  width: min(620px, 100%);
+  max-height: 88vh;
+  padding: 1.75rem 1.75rem 1.4rem;
+  box-sizing: border-box;
+  background: var(--cc-shell-bg);
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 6px;
+  box-shadow: var(--cc-shell-shadow);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
 }
 
+.account-panel::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.16);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.frame-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 0 solid var(--cc-gold);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.frame-corner.tl { top: 5px; left: 5px; border-top-width: 2px; border-left-width: 2px; }
+.frame-corner.tr { top: 5px; right: 5px; border-top-width: 2px; border-right-width: 2px; }
+.frame-corner.bl { bottom: 5px; left: 5px; border-bottom-width: 2px; border-left-width: 2px; }
+.frame-corner.br { bottom: 5px; right: 5px; border-bottom-width: 2px; border-right-width: 2px; }
+
 .header {
-  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--cc-divider);
+}
+
+.emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.25) 0%, rgba(var(--cc-accent-rgb), 0.05) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.5);
+  font-family: var(--cc-calligraphy);
+  font-size: 1.6rem;
+  color: var(--cc-accent);
+}
+
+.emblem::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.4);
 }
 
 .title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.6rem;
 }
 
 .title {
   margin: 0;
-  font-family: var(--font-family-serif);
-  font-size: 2rem;
-  color: var(--color-primary);
+  font-family: var(--cc-calligraphy);
+  font-size: 1.8rem;
+  font-weight: 400;
+  letter-spacing: 0.15em;
 }
 
 .status {
-  padding: 0.35rem 0.9rem;
+  padding: 0.05rem 0.5rem;
   border-radius: 999px;
-  border: 1px solid var(--color-border);
-  font-size: 0.85rem;
+  font-size: 0.72rem;
 }
 
 .status.ok {
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #22c55e;
+  background: rgba(110, 231, 183, 0.14);
+  color: var(--cc-success);
 }
 
 .status.warn {
-  border-color: rgba(251, 191, 36, 0.4);
-  color: #fbbf24;
+  background: rgba(var(--cc-warning-rgb), 0.15);
+  color: var(--cc-warning);
 }
 
 .subtitle {
-  margin: 0.6rem 0 0;
-  color: var(--color-text-secondary);
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-text-3);
+}
+
+.cc-state {
+  gap: 0.6rem;
+  min-height: 160px;
+}
+
+.cc-state.locked {
+  color: var(--cc-warning);
 }
 
 .sections {
-  display: grid;
-  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
 .section {
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface-light);
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface);
   overflow: hidden;
 }
 
 .section-title {
-  list-style: none;
-  padding: 0.85rem 1rem;
-  font-weight: 700;
-  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
   cursor: pointer;
+  list-style: none;
 }
 
 .section-title::-webkit-details-marker {
   display: none;
 }
 
+.section-title:hover {
+  background: var(--cc-surface-hover);
+}
+
+.chevron {
+  color: var(--cc-gold);
+  transition: transform 0.2s ease;
+}
+
+.section[open] .chevron {
+  transform: rotate(90deg);
+}
+
 .section-body {
-  padding: 0 1rem 1rem;
+  padding: 0.25rem 0.9rem 0.8rem;
+  border-top: 1px solid var(--cc-divider);
 }
 
 .info-list {
-  display: grid;
-  gap: 0.6rem;
+  margin: 0;
 }
 
 .info-row {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px solid var(--color-border);
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed var(--cc-divider);
+  font-size: 0.85rem;
 }
 
-.info-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.info-row dt {
+  color: var(--cc-text-3);
+  letter-spacing: 0.08em;
 }
 
-.info-label {
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-}
-
-.info-value {
-  font-weight: 600;
-  color: var(--color-text);
+.info-row dd {
+  margin: 0;
+  text-align: right;
+  word-break: break-all;
+  color: var(--cc-text);
 }
 
 .info-empty {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  padding: 0.3rem 0;
+  padding: 0.6rem 0;
+  font-size: 0.82rem;
+  color: var(--cc-text-3);
 }
 
 .actions {
-  margin-top: 2rem;
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.6rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--cc-divider);
 }
 
-.btn {
-  flex: 1;
-  padding: 0.9rem 1rem;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s ease;
+.logout-btn:hover {
+  color: var(--cc-danger);
+  border-color: rgba(var(--cc-danger-rgb), 0.55) !important;
 }
 
-.btn:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
-}
-
-.btn-secondary {
-  background: var(--color-surface);
-}
-
-.btn.danger {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-}
-
-.btn.danger:hover {
-  background: rgba(239, 68, 68, 0.18);
-}
-
-.loading {
-  color: var(--color-text-secondary);
-}
-
-.backend-locked {
-  padding: 1rem 1.25rem;
-  border-radius: 12px;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
-}
-
-@media (max-width: 768px) {
-  .account-panel {
-    padding: 2rem 1.5rem;
+@media (max-width: 480px) {
+  .account-container {
+    padding: 0;
   }
 
-  .title-row {
-    flex-direction: column;
-    align-items: flex-start;
+  .account-panel {
+    max-height: none;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
+  .frame-corner {
+    display: none;
   }
 }
 </style>

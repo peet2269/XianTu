@@ -1,86 +1,68 @@
 <template>
   <div class="formatted-text">
     <template v-for="(part, index) in parsedText" :key="index">
-      <span v-if="part.type !== 'judgement-card'" :class="getPartClass(part.type)">
-        {{ part.content }}
-      </span>
-      <div v-else-if="isJudgementData(part.content)" class="judgement-card" :class="{
-        'is-success': isSuccessResult(part.content.result),
-        'is-failure': isFailureResult(part.content.result),
-        'is-great-success': part.content.result?.includes('大成功'),
-        'is-great-failure': part.content.result?.includes('大失败')
-      }">
-        <div class="card-icon">
-          <svg v-if="isSuccessResult(part.content.result)" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-          </svg>
-          <svg v-else-if="isFailureResult(part.content.result)" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="15" y1="9" x2="9" y2="15"></line>
-            <line x1="9" y1="9" x2="15" y2="15"></line>
-          </svg>
-          <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-            <line x1="12" y1="9" x2="12" y2="13"></line>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
+      <span v-if="part.type !== 'judgement-card'" :class="getPartClass(part.type)">{{ part.content }}</span>
+      <div
+        v-else-if="isJudgementData(part.content)"
+        class="judgement-card"
+        :class="[{
+          'is-success': isSuccessResult(part.content.result),
+          'is-failure': isFailureResult(part.content.result),
+          'is-great-success': part.content.result?.includes('大成功'),
+          'is-great-failure': part.content.result?.includes('大失败'),
+          'is-perfect': part.content.result?.includes('完美')
+        }]"
+      >
+        <div class="jc-seal" aria-hidden="true">
+          <CheckCircle2 v-if="isSuccessResult(part.content.result)" :size="22" />
+          <XCircle v-else-if="isFailureResult(part.content.result)" :size="22" />
+          <Info v-else :size="22" />
         </div>
-        <div class="card-content">
-          <div class="card-header">
+        <div class="jc-content">
+          <div class="jc-head">
             <span class="judgement-title" :class="getTitleClass(part.content.result)">{{ part.content.title }}</span>
-            <div class="header-right">
+            <div class="jc-head-right">
               <span class="judgement-badge">{{ part.content.result }}</span>
-              <button class="help-btn" @click.stop="showJudgementHelp" title="查看判定规则">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>
+              <button type="button" class="jc-help" title="查看判定规则" aria-label="查看判定规则" @click.stop="showJudgementHelp">
+                <HelpCircle :size="15" />
               </button>
             </div>
           </div>
-          <div class="card-body">
-            <div class="stat-item lucky-item" v-if="part.content.lucky" :class="{ 'lucky-positive': parseInt(part.content.lucky) >= 0, 'lucky-negative': parseInt(part.content.lucky) < 0 }">
-              <span class="stat-icon">🍀</span>
-              <div class="stat-info">
-                <span class="stat-label">幸运</span>
-                <span class="stat-value lucky-value">{{ part.content.lucky }}</span>
-              </div>
+          <div class="jc-body">
+            <div
+              v-if="part.content.lucky"
+              class="jc-stat jc-lucky"
+              :class="{ 'lucky-positive': parseInt(part.content.lucky) >= 0, 'lucky-negative': parseInt(part.content.lucky) < 0 }"
+            >
+              <Clover :size="15" class="jc-icon" />
+              <span class="jc-label">幸运</span>
+              <span class="jc-value lucky-value">{{ part.content.lucky }}</span>
             </div>
-            <div class="stat-item" v-if="part.content.finalValue">
-              <span class="stat-icon">✨</span>
-              <div class="stat-info">
-                <span class="stat-label">判定值</span>
-                <span class="stat-value">{{ part.content.finalValue }}</span>
-              </div>
+            <div v-if="part.content.finalValue" class="jc-stat">
+              <Sparkles :size="15" class="jc-icon" />
+              <span class="jc-label">判定值</span>
+              <span class="jc-value">{{ part.content.finalValue }}</span>
             </div>
-            <div class="stat-item difficulty-item" v-if="part.content.difficulty">
-              <span class="stat-icon">🎯</span>
-              <div class="stat-info">
-                <span class="stat-label">难度</span>
-                <span class="stat-value">{{ part.content.difficulty }}</span>
-              </div>
+            <div v-if="part.content.difficulty" class="jc-stat jc-difficulty">
+              <Target :size="15" class="jc-icon" />
+              <span class="jc-label">难度</span>
+              <span class="jc-value">{{ part.content.difficulty }}</span>
             </div>
-            <div class="stat-item" v-if="part.content.damage">
-              <span class="stat-icon">⚔️</span>
-              <div class="stat-info">
-                <span class="stat-label">伤害</span>
-                <span class="stat-value">{{ part.content.damage }}</span>
-              </div>
+            <div v-if="part.content.damage" class="jc-stat">
+              <Swords :size="15" class="jc-icon" />
+              <span class="jc-label">伤害</span>
+              <span class="jc-value">{{ part.content.damage }}</span>
             </div>
-            <div class="stat-item" v-if="part.content.remainingHp">
-              <span class="stat-icon">❤️</span>
-              <div class="stat-info">
-                <span class="stat-label">剩余气血</span>
-                <span class="stat-value">{{ part.content.remainingHp }}</span>
-              </div>
+            <div v-if="part.content.remainingHp" class="jc-stat">
+              <Heart :size="15" class="jc-icon" />
+              <span class="jc-label">剩余气血</span>
+              <span class="jc-value">{{ part.content.remainingHp }}</span>
             </div>
-            <div class="details-list" v-if="part.content.details && part.content.details.length > 0">
-              <div class="detail-item" v-for="(detail, idx) in part.content.details" :key="idx">
-                <span class="detail-label">{{ parseDetailLabel(detail) }}</span>
-                <span class="detail-value">{{ parseDetailValue(detail) }}</span>
-                <span class="detail-source" v-if="parseDetailSource(detail)">{{ parseDetailSource(detail) }}</span>
+            <div v-if="part.content.details && part.content.details.length > 0" class="jc-details">
+              <div v-for="(detail, idx) in part.content.details" :key="idx" class="jc-detail">
+                <span class="jc-detail-label">{{ parseDetailLabel(detail) }}</span>
+                <span class="jc-detail-value">{{ parseDetailValue(detail) }}</span>
+                <span v-if="parseDetailSource(detail)" class="jc-detail-source">{{ parseDetailSource(detail) }}</span>
               </div>
             </div>
           </div>
@@ -91,36 +73,33 @@
 
   <!-- 判定规则帮助弹窗 -->
   <Teleport to="body">
-    <div v-if="showHelpModal" class="help-modal-overlay" @click="closeHelpModal">
-      <div class="help-modal" @click.stop>
-        <div class="help-modal-header">
-          <h3>🍀 {{ $t('判定规则说明') }}</h3>
-          <button class="close-btn" @click="closeHelpModal">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+    <div v-if="showHelpModal" class="cc-modal-overlay" @click.self="closeHelpModal">
+      <div class="cc-modal wide help-modal" role="dialog" aria-modal="true" :aria-label="$t('判定规则说明')">
+        <div class="cc-modal-head">
+          <h2 class="cc-modal-title">{{ $t('判定规则说明') }}</h2>
+          <button type="button" class="cc-modal-close" :aria-label="$t('关闭')" @click="closeHelpModal">
+            <X :size="18" />
           </button>
         </div>
-        <div class="help-modal-content">
-          <div class="help-section">
-            <h4>📊 {{ $t('判定计算公式') }} (v7.0)</h4>
+        <div class="cc-modal-body">
+          <section class="help-section">
+            <h3 class="cc-section-title">{{ $t('判定计算公式') }} (v7.0)</h3>
             <div class="formula-box">
               <strong>{{ $t('最终判定值') }}</strong> = {{ $t('基础值') }} + {{ $t('幸运点') }} + {{ $t('环境修正') }} + {{ $t('状态修正') }}
             </div>
-            <ol>
+            <ol class="help-list">
               <li><strong>{{ $t('基础值') }}</strong>：{{ $t('先天属性加权 + 境界加成 + 技艺加成') }}</li>
               <li><strong>{{ $t('幸运点') }}</strong>：{{ $t('基于气运的随机波动（约-10到+15）') }} <span class="note">({{ $t('气运越高，期望值和上限越高') }})</span></li>
               <li><strong>{{ $t('环境修正') }}</strong>：{{ $t('灵气浓度影响（修炼/炼丹/战斗），探索社交不受影响') }}</li>
               <li><strong>{{ $t('状态修正') }}</strong>：{{ $t('生命状态（重伤/虚弱）及 Buff/Debuff 影响') }}</li>
             </ol>
-          </div>
+          </section>
 
-          <div class="help-section">
-            <h4>🎯 {{ $t('判定结果') }}</h4>
-            <div class="formula-note">
-              <strong>{{ $t('判定规则') }}</strong>: {{ $t('判定值与难度对比，完全基于属性、境界和加成') }}
-            </div>
+          <section class="help-section">
+            <h3 class="cc-section-title">{{ $t('判定结果') }}</h3>
+            <p class="formula-note">
+              <strong>{{ $t('判定规则') }}</strong>：{{ $t('判定值与难度对比，完全基于属性、境界和加成') }}
+            </p>
             <div class="result-list">
               <div class="result-item perfect">
                 <span class="result-label">{{ $t('完美') }}</span>
@@ -143,85 +122,35 @@
                 <span class="result-desc">{{ $t('判定值远低于难度（难度-15以下）') }}</span>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div class="help-section">
-            <h4>⚔️ {{ $t('判定类型与属性配比') }}</h4>
-            <div class="judgement-types">
-              <div class="type-item">
-                <span class="type-name">{{ $t('战斗判定') }}</span>
-                <span class="type-attrs">{{ $t('根骨50% + 灵性30% + 气运20%') }}</span>
-              </div>
-              <div class="type-item">
-                <span class="type-name">{{ $t('修炼判定') }}</span>
-                <span class="type-attrs">{{ $t('悟性50% + 灵性30% + 心性20%') }}</span>
-              </div>
-              <div class="type-item">
-                <span class="type-name">{{ $t('技艺判定') }}</span>
-                <span class="type-attrs">{{ $t('悟性50% + 根骨30% + 灵性20%') }}</span>
-              </div>
-              <div class="type-item">
-                <span class="type-name">{{ $t('社交判定') }}</span>
-                <span class="type-attrs">{{ $t('魅力50% + 悟性30% + 心性20%') }}</span>
-              </div>
-              <div class="type-item">
-                <span class="type-name">{{ $t('探索判定') }}</span>
-                <span class="type-attrs">{{ $t('气运50% + 灵性30% + 悟性20%') }}</span>
-              </div>
-            </div>
-          </div>
+          <section class="help-section">
+            <h3 class="cc-section-title">{{ $t('判定类型与属性配比') }}</h3>
+            <dl class="judgement-types">
+              <div class="type-item"><dt>{{ $t('战斗判定') }}</dt><dd>{{ $t('根骨50% + 灵性30% + 气运20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('修炼判定') }}</dt><dd>{{ $t('悟性50% + 灵性30% + 心性20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('技艺判定') }}</dt><dd>{{ $t('悟性50% + 根骨30% + 灵性20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('社交判定') }}</dt><dd>{{ $t('魅力50% + 悟性30% + 心性20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('探索判定') }}</dt><dd>{{ $t('气运50% + 灵性30% + 悟性20%') }}</dd></div>
+            </dl>
+          </section>
 
-          <div class="help-section">
-            <h4>📖 {{ $t('六司属性说明') }}</h4>
+          <section class="help-section">
+            <h3 class="cc-section-title">{{ $t('六司属性说明') }}</h3>
             <div class="attributes-desc">
-              <div class="attr-card">
+              <div v-for="attr in ATTRIBUTE_HELP" :key="attr.name" class="attr-card">
                 <div class="attr-header">
-                  <span class="attr-icon">💪</span>
-                  <span class="attr-name">{{ $t('根骨') }}</span>
+                  <span class="attr-glyph" aria-hidden="true">{{ attr.name.charAt(0) }}</span>
+                  <span class="attr-name">{{ $t(attr.name) }}</span>
                 </div>
-                <p>{{ $t('决定气血上限、恢复速度、寿命上限。影响炼体修行、抗打击能力。') }}</p>
-              </div>
-              <div class="attr-card">
-                <div class="attr-header">
-                  <span class="attr-icon">✨</span>
-                  <span class="attr-name">{{ $t('灵性') }}</span>
-                </div>
-                <p>{{ $t('决定灵气上限、吸收效率。影响修炼速度、法术威力。') }}</p>
-              </div>
-              <div class="attr-card">
-                <div class="attr-header">
-                  <span class="attr-icon">🧠</span>
-                  <span class="attr-name">{{ $t('悟性') }}</span>
-                </div>
-                <p>{{ $t('决定神识上限、学习效率。影响功法领悟、技能掌握速度。') }}</p>
-              </div>
-              <div class="attr-card">
-                <div class="attr-header">
-                  <span class="attr-icon">🍀</span>
-                  <span class="attr-name">{{ $t('气运') }}</span>
-                </div>
-                <p>{{ $t('决定各种概率、物品掉落品质。影响天材地宝获取、贵人相助。') }}</p>
-              </div>
-              <div class="attr-card">
-                <div class="attr-header">
-                  <span class="attr-icon">🌺</span>
-                  <span class="attr-name">{{ $t('魅力') }}</span>
-                </div>
-                <p>{{ $t('决定初始好感度、社交加成。影响NPC互动、门派声望获取。') }}</p>
-              </div>
-              <div class="attr-card">
-                <div class="attr-header">
-                  <span class="attr-icon">💎</span>
-                  <span class="attr-name">{{ $t('心性') }}</span>
-                </div>
-                <p>{{ $t('决定心魔抗性、意志力。影响走火入魔抵抗、关键抉择。') }}</p>
+                <p>{{ $t(attr.desc) }}</p>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div class="help-section">
-            <h4>💡 {{ $t('提升判定成功率') }}</h4>
-            <ul class="tips-list">
+          <section class="help-section">
+            <h3 class="cc-section-title">{{ $t('提升判定成功率') }}</h3>
+            <ul class="help-list">
               <li>{{ $t('先天六司：天赋决定上限，无法改变但影响最大') }}</li>
               <li>{{ $t('提升境界：境界越高，判定基础加成越大（练气+5，筑基+12...）') }}</li>
               <li>{{ $t('修炼后天：后天六司可提升，但权重仅20%') }}</li>
@@ -230,7 +159,7 @@
               <li>{{ $t('状态效果：buff增强判定，注意避免debuff') }}</li>
               <li>{{ $t('境界压制：高境界对低境界有明显优势，但不是绝对') }}</li>
             </ul>
-          </div>
+          </section>
         </div>
       </div>
     </div>
@@ -239,6 +168,16 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { CheckCircle2, XCircle, Info, HelpCircle, Clover, Sparkles, Target, Swords, Heart, X } from 'lucide-vue-next'
+
+const ATTRIBUTE_HELP = [
+  { name: '根骨', desc: '决定气血上限、恢复速度、寿命上限。影响炼体修行、抗打击能力。' },
+  { name: '灵性', desc: '决定灵气上限、吸收效率。影响修炼速度、法术威力。' },
+  { name: '悟性', desc: '决定神识上限、学习效率。影响功法领悟、技能掌握速度。' },
+  { name: '气运', desc: '决定各种概率、物品掉落品质。影响天材地宝获取、贵人相助。' },
+  { name: '魅力', desc: '决定初始好感度、社交加成。影响NPC互动、门派声望获取。' },
+  { name: '心性', desc: '决定心魔抗性、意志力。影响走火入魔抵抗、关键抉择。' },
+]
 
 const showHelpModal = ref(false)
 
@@ -781,141 +720,105 @@ const parseDetailSource = (detail: string) => {
 
 <style scoped>
 .formatted-text {
+  margin: 0;
+  padding-bottom: 0.5rem;
   white-space: pre-wrap;
   word-wrap: break-word;
   text-align: justify;
   text-indent: 2em;
-  margin: 0;
-  line-height: 1.8;
-  padding-bottom: 1.5rem;
+  line-height: inherit;
 }
 
-/* 环境描写 - 青色 */
-.text-environment {
-  color: #0891b2;
-  font-weight: 500;
-}
-
-/* 心理描写 - 紫色 */
-.text-psychology {
-  color: #7c3aed;
-  font-style: italic;
-  font-weight: 500;
-}
-
-/* 对话 - 橙色加粗 */
-.text-dialogue {
-  color: #d97706;
-  font-weight: 700;
-}
-
-/* 引用/独白 - 橙色斜体加粗 */
-.text-quote {
-  color: rgb(254 125 0);
-  font-style: italic;
-  font-weight: 700;
-}
-
-/* 普通文本 */
+/* ---------- 叙事文字色（令牌见 game-theme.css） ---------- */
 .text-normal {
-  color: var(--color-text, #1a1a1a);
+  color: inherit;
 }
 
-/* Markdown 粗体 - 低调的强调，使用微妙的颜色和字重 */
+/* 环境描写【】 */
+.text-environment {
+  color: var(--gm-text-env);
+}
+
+/* 心理描写 */
+.text-psychology {
+  color: var(--gm-text-psy);
+  font-style: italic;
+}
+
+/* 对话 */
+.text-dialogue {
+  color: var(--gm-text-dialogue);
+  font-weight: 500;
+}
+
+/* 引用 / 独白 */
+.text-quote {
+  color: var(--gm-text-quote);
+  font-style: italic;
+  font-weight: 500;
+}
+
 .text-bold {
-  font-weight: 600;
-  color: #2c3e50;
-  letter-spacing: 0.01em;
+  font-weight: 700;
+  color: var(--cc-text);
 }
 
-/* Markdown 斜体 - 优雅的倾斜，略微透明 */
 .text-italic {
   font-style: italic;
-  opacity: 0.92;
-  color: #34495e;
+  color: var(--cc-text-2);
 }
 
-/* 判定卡片样式 - 清爽版 */
+/* ============================================================
+   判定签
+   ============================================================ */
 .judgement-card {
-  display: flex;
-  gap: 1rem;
-  margin: 1.25rem 0;
-  padding: 1.25rem;
-  background: var(--color-surface);
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  text-indent: 0;
+  --tone: var(--cc-accent);
+
   position: relative;
-  overflow: hidden;
-  transition: all 0.2s ease;
+  display: flex;
+  gap: 0.9rem;
+  margin: 0.25rem 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--cc-border);
+  border-left: 3px solid var(--tone);
+  border-radius: 4px 6px 6px 4px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--tone) 9%, transparent), transparent 55%),
+    var(--gm-block);
+  text-indent: 0;
+  text-align: left;
+  line-height: 1.5;
+  white-space: normal;
 }
 
-.judgement-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
+.judgement-card.is-success { --tone: var(--cc-success); }
+.judgement-card.is-great-success,
+.judgement-card.is-perfect { --tone: var(--cc-gold); }
+.judgement-card.is-failure { --tone: var(--cc-danger); }
+.judgement-card.is-great-failure { --tone: var(--gm-cultivation, #a891f2); }
 
-/* 成功状态 */
-.judgement-card.is-success {
-  border-left: 4px solid #10b981;
-  background: rgba(16, 185, 129, 0.05); /* 极淡的绿色背景 */
-  --card-color: #10b981;
-}
-
-.judgement-card.is-great-success {
-  border-left: 4px solid #f59e0b;
-  background: rgba(245, 158, 11, 0.05);
-  --card-color: #f59e0b;
-}
-
-/* 失败状态 */
-.judgement-card.is-failure {
-  border-left: 4px solid #ef4444;
-  background: rgba(239, 68, 68, 0.05);
-  --card-color: #ef4444;
-}
-
-.judgement-card.is-great-failure {
-  border-left: 4px solid #a855f7;
-  background: rgba(168, 85, 247, 0.05);
-  --card-color: #a855f7;
-}
-
-@keyframes pulse-success {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0); }
-}
-
-@keyframes pulse-failure {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
-}
-
-/* 图标区域 */
-.card-icon {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+.jc-seal {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
-  border-radius: 12px;
-  border: 2px solid var(--card-color, #6366f1);
-  color: var(--card-color, #6366f1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tone) 22%, transparent), var(--cc-inset) 75%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone) 55%, transparent);
+  color: var(--tone);
 }
 
-/* 内容区域 */
-.card-content {
+.jc-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
-/* 标题行 */
-.card-header {
+.jc-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -923,774 +826,293 @@ const parseDetailSource = (detail: string) => {
 }
 
 .judgement-title {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #1e293b;
-  letter-spacing: -0.01em;
-  opacity: 1;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--cc-text);
 }
 
-/* 标题渐变色 - 根据结果 */
-.judgement-title.title-perfect {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: none;
-}
-
-.judgement-title.title-great-success {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: none;
-}
-
-.judgement-title.title-success {
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: none;
-}
-
-.judgement-title.title-failure {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: none;
-}
-
-.judgement-title.title-great-failure {
-  background: linear-gradient(135deg, #c084fc 0%, #a855f7 50%, #9333ea 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: none;
+.jc-head-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .judgement-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 3px;
+  background: var(--tone);
+  color: var(--cc-solid-bg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+}
+
+.jc-help {
   display: inline-flex;
   align-items: center;
-  padding: 0.375rem 0.875rem;
-  background: var(--card-color, #6366f1);
-  color: white;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  opacity: 1;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--cc-border);
+  border-radius: 50%;
+  background: var(--cc-surface);
+  color: var(--cc-text-3);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
-/* 统计信息行 */
-.card-body {
+.jc-help:hover {
+  color: var(--tone);
+  border-color: var(--tone);
+}
+
+.jc-body {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.45rem;
 }
 
-.stat-item {
-  display: flex;
+.jc-stat {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.875rem;
-  background: white;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  min-width: fit-content;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 4px;
+  background: var(--cc-inset);
+  font-size: 0.8rem;
 }
 
-.difficulty-item {
-  min-width: 120px;
+.jc-icon {
+  color: var(--cc-gold);
 }
 
-/* 幸运点样式 */
-.lucky-item {
-  position: relative;
-  overflow: hidden;
+.jc-label {
+  letter-spacing: 0.1em;
+  color: var(--cc-text-3);
 }
 
-.lucky-item.lucky-positive {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border-color: #86efac;
+.jc-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text);
 }
 
-.lucky-item.lucky-negative {
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  border-color: #fca5a5;
-}
-
-.lucky-value {
-  font-weight: 800;
-}
-
+.lucky-positive .jc-icon,
 .lucky-positive .lucky-value {
-  color: #16a34a;
+  color: var(--cc-success);
 }
 
+.lucky-negative .jc-icon,
 .lucky-negative .lucky-value {
-  color: #dc2626;
+  color: var(--cc-danger);
 }
 
-.details-list {
+.jc-details {
   width: 100%;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #e2e8f0;
+  margin-top: 0.15rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--cc-divider);
 }
 
-.detail-item {
-  font-size: 0.875rem;
-  color: #64748b;
-  padding: 0.25rem 0;
+.jc-detail {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.5rem;
+  padding: 0.15rem 0;
+  font-size: 0.8rem;
+  color: var(--cc-text-2);
 }
 
-.detail-item::before {
-  content: '•';
-  color: #94a3b8;
+.jc-detail::before {
+  content: '';
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  margin-right: 0.1rem;
+  background: rgba(var(--cc-gold-rgb), 0.6);
+  transform: translateY(-2px) rotate(45deg);
 }
 
-.detail-label {
-  font-weight: 600;
-  color: #475569;
+.jc-detail-label {
+  color: var(--cc-text-3);
 }
 
-.detail-value {
-  font-weight: 700;
-  color: #1e293b;
+.jc-detail-value {
   min-width: 2rem;
+  font-weight: 600;
+  color: var(--cc-text);
 }
 
-.detail-source {
-  font-size: 0.75rem;
-  color: #94a3b8;
+.jc-detail-source {
+  font-size: 0.72rem;
   font-style: italic;
+  color: var(--cc-text-3);
 }
 
-
-.stat-icon {
-  font-size: 1.375rem;
-  line-height: 1;
+/* ============================================================
+   判定规则弹窗（结构用 cc-modal，这里只排版正文）
+   ============================================================ */
+.help-section + .help-section {
+  margin-top: 1.25rem;
 }
 
-.stat-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stat-value {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.dice-roll, .attribute-check {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.75rem;
-  background: var(--color-surface-light, #ebe9e6);
-  border-radius: 8px;
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
-  transition: all 0.2s ease;
-  text-align: center;
-}
-
-.dice-roll:hover, .attribute-check:hover {
-  background: var(--color-surface, #f2f1ee);
-  transform: translateY(-1px);
-}
-
-.dice-roll .label, .attribute-check .label {
-  font-size: 0.8em;
-  color: var(--color-text-secondary, #666666);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.25rem;
-  font-weight: 500;
-}
-
-.dice-roll .value, .attribute-check .value {
-  font-size: 1.4em;
-  font-weight: 700;
-  color: var(--color-text, #1a1a1a);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.dice-roll .value {
-  color: #6366f1;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* 深色主题适配 */
-[data-theme="dark"] .text-normal {
-  color: var(--color-text, #f7f7f5);
-}
-
-[data-theme="dark"] .text-environment {
-  color: #22d3ee;
-}
-
-[data-theme="dark"] .text-psychology {
-  color: #a78bfa;
-}
-
-[data-theme="dark"] .text-dialogue {
-  color: #fb923c;
-}
-
-[data-theme="dark"] .text-quote {
-  color: rgb(254 125 0);
-}
-
-[data-theme="dark"] .text-bold {
-  font-weight: 600;
-  color: #e2e8f0;
-  letter-spacing: 0.01em;
-}
-
-[data-theme="dark"] .text-italic {
-  font-style: italic;
-  opacity: 0.88;
-  color: #cbd5e1;
-}
-
-[data-theme="dark"] .judgement-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, var(--color-background, rgb(30, 41, 59)) 100%);
-  border-color: var(--color-border, rgba(173, 216, 230, 0.5));
-}
-
-[data-theme="dark"] .card-header {
-  color: var(--color-text, #f7f7f5);
-}
-
-/* 深色主题标题渐变色 */
-[data-theme="dark"] .judgement-title {
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .judgement-title.title-perfect {
-  background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 50%, #f59e0b 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="dark"] .judgement-title.title-great-success {
-  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 50%, #10b981 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="dark"] .judgement-title.title-success {
-  background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 50%, #3b82f6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="dark"] .judgement-title.title-failure {
-  background: linear-gradient(135deg, #fca5a5 0%, #f87171 50%, #ef4444 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="dark"] .judgement-title.title-great-failure {
-  background: linear-gradient(135deg, #d8b4fe 0%, #c084fc 50%, #a855f7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="dark"] .result-text,
-[data-theme="dark"] .dice-roll,
-[data-theme="dark"] .attribute-check {
-  background: var(--color-surface-light, #414868);
-  border-color: var(--color-border, rgba(173, 216, 230, 0.5));
-}
-
-[data-theme="dark"] .dice-roll .label,
-[data-theme="dark"] .attribute-check .label {
-  color: var(--color-text-secondary, #d0d0d0);
-}
-
-[data-theme="dark"] .dice-roll .value,
-[data-theme="dark"] .attribute-check .value {
-  color: var(--color-text, #f7f7f5);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.help-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #e2e8f0;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #64748b;
-}
-
-.help-btn:hover {
-  background: white;
-  border-color: var(--card-color, #6366f1);
-  color: var(--card-color, #6366f1);
-  transform: scale(1.1);
-}
-
-.help-btn:active {
-  transform: scale(0.95);
-}
-
-/* 帮助弹窗 */
-.help-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.help-modal {
-  background: var(--color-surface);
-  color: var(--color-text);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
-  overflow: hidden;
-  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.help-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-}
-
-.help-modal-header h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #64748b;
-}
-
-.close-btn:hover {
-  background: #fee2e2;
-  border-color: #ef4444;
-  color: #ef4444;
-}
-
-.help-modal-content {
-  padding: 1.5rem;
-  overflow-y: auto;
-  max-height: calc(80vh - 80px);
-}
-
-.help-section {
-  margin-bottom: 1.5rem;
-}
-
-.help-section:last-child {
-  margin-bottom: 0;
-}
-
-.help-section h4 {
-  margin: 0 0 0.75rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.help-section ol {
-  margin: 0;
-  padding-left: 1.5rem;
-  color: var(--color-text-secondary);
-  line-height: 1.8;
-}
-
-.help-section ol li {
-  margin-bottom: 0.5rem;
-}
-
-.help-section ol li strong {
-  color: var(--color-text);
-  font-weight: 600;
+.help-section .cc-section-title {
+  margin-bottom: 0.6rem;
 }
 
 .formula-box {
-  padding: 1rem;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-left: 4px solid #f59e0b;
-  border-radius: 8px;
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.6;
-  color: #78350f;
+  margin-bottom: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border-left: 3px solid var(--cc-gold);
+  border-radius: 0 4px 4px 0;
+  background: rgba(var(--cc-gold-rgb), 0.08);
+  font-size: 0.88rem;
+  color: var(--cc-text);
 }
 
 .formula-box strong {
-  color: #92400e;
-  font-weight: 700;
+  color: var(--cc-gold);
+}
+
+.formula-note {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--cc-text-2);
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 1.3rem;
+  font-size: 0.85rem;
+  line-height: 1.85;
+  color: var(--cc-text-2);
+}
+
+.help-list strong {
+  color: var(--cc-text);
+}
+
+.note {
+  color: var(--cc-text-3);
 }
 
 .result-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.35rem;
 }
 
 .result-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  border: 1px solid;
   gap: 1rem;
-}
-
-.result-item.perfect {
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  border-color: #fbbf24;
-}
-
-.result-item.great-success {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border-color: #86efac;
-}
-
-.result-item.success {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border-color: #93c5fd;
-}
-
-.result-item.failure {
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  border-color: #fca5a5;
-}
-
-.result-item.critical-failure {
-  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
-  border-color: #c084fc;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 4px;
+  background: var(--cc-surface);
 }
 
 .result-label {
+  min-width: 4em;
   font-weight: 700;
-  font-size: 0.875rem;
-  min-width: 60px;
-  opacity: 1;
+  letter-spacing: 0.15em;
 }
 
 .result-desc {
-  font-size: 0.875rem;
   flex: 1;
-  opacity: 1;
+  font-size: 0.85rem;
+  color: var(--cc-text-2);
 }
 
-/* -- 统一文字颜色，仅保留强调色 -- */
-
-.result-item {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-.result-label {
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.result-desc {
-  color: var(--color-text-secondary);
-}
-
-/* 仅在标签上应用颜色 */
-.result-item.perfect .result-label { color: #f59e0b; }
-.result-item.great-success .result-label { color: #10b981; }
-.result-item.success .result-label { color: #10b981; }
-.result-item.failure .result-label { color: #ef4444; }
-.result-item.critical-failure .result-label { color: #a855f7; }
-
-.formula-note {
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border-left: 4px solid #3b82f6;
-  border-radius: 8px;
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.6;
-  color: #1e40af;
-}
-
-.formula-note strong {
-  color: #1e3a8a;
-  font-weight: 700;
-}
-
-.tips-list {
-  margin: 0;
-  padding-left: 1.25rem;
-  color: #475569;
-  line-height: 1.8;
-}
-
-.tips-list li {
-  margin-bottom: 0.5rem;
-}
+.result-item.perfect .result-label,
+.result-item.great-success .result-label { color: var(--cc-gold); }
+.result-item.success .result-label { color: var(--cc-success); }
+.result-item.failure .result-label { color: var(--cc-danger); }
+.result-item.critical-failure .result-label { color: var(--gm-cultivation, #a891f2); }
 
 .judgement-types {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.4rem;
+  margin: 0;
 }
 
 .type-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 4px;
+  background: var(--cc-surface);
 }
 
-.type-name {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #1e293b;
+.type-item dt {
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: var(--cc-text);
 }
 
-.type-attrs {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
+.type-item dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
 }
 
 .attributes-desc {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem;
 }
 
 .attr-card {
-  padding: 0.75rem;
-  background: linear-gradient(135deg, #fefefe 0%, #f8fafc 100%);
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 4px;
+  background: var(--cc-surface);
 }
 
 .attr-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
-.attr-icon {
-  font-size: 1.25rem;
+.attr-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.45);
+  font-family: var(--cc-calligraphy);
+  color: var(--cc-gold);
 }
 
 .attr-name {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #1e293b;
+  font-size: 0.88rem;
+  letter-spacing: 0.15em;
+  color: var(--cc-text);
 }
 
 .attr-card p {
   margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: var(--cc-text-2);
 }
 
-/* 深色主题适配 */
-[data-theme="dark"] .help-modal {
-  background: var(--color-surface, #1e293b);
-  color: var(--color-text, #f7f7f5);
-}
+@media (max-width: 480px) {
+  .judgement-card {
+    gap: 0.6rem;
+    padding: 0.7rem 0.75rem;
+  }
 
-[data-theme="dark"] .help-modal-header {
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom-color: var(--color-border, rgba(255, 255, 255, 0.1));
-}
-
-[data-theme="dark"] .help-modal-header h3,
-[data-theme="dark"] .help-section h4 {
-  color: var(--color-text, #f7f7f5);
-}
-
-[data-theme="dark"] .help-section ol,
-[data-theme="dark"] .tips-list {
-  color: var(--color-text-secondary, #94a3b8);
-}
-
-/* -- 深色主题适配 -- */
-/* 仅调整标签颜色以适应深色背景 */
-[data-theme="dark"] .result-item.perfect .result-label { color: #fcd34d; }
-[data-theme="dark"] .result-item.great-success .result-label { color: #86efac; }
-[data-theme="dark"] .result-item.success .result-label { color: #93c5fd; }
-[data-theme="dark"] .result-item.failure .result-label { color: #fca5a5; }
-[data-theme="dark"] .result-item.critical-failure .result-label { color: #d8b4fe; }
-
-[data-theme="dark"] .close-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--color-border, rgba(255, 255, 255, 0.1));
-  color: var(--color-text-secondary, #94a3b8);
-}
-
-[data-theme="dark"] .close-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: #ef4444;
-}
-
-[data-theme="dark"] .help-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--color-border, rgba(255, 255, 255, 0.1));
-  color: var(--color-text-secondary, #94a3b8);
-}
-
-[data-theme="dark"] .help-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--card-color, #6366f1);
-  color: var(--card-color, #6366f1);
-}
-
-[data-theme="dark"] .type-item {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: var(--color-border, rgba(255, 255, 255, 0.1));
-}
-
-[data-theme="dark"] .type-name {
-  color: var(--color-text, #f7f7f5);
-}
-
-[data-theme="dark"] .type-attrs {
-  color: var(--color-text-secondary, #94a3b8);
-}
-
-[data-theme="dark"] .attr-card {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: var(--color-border, rgba(255, 255, 255, 0.1));
-}
-
-[data-theme="dark"] .attr-name {
-  color: var(--color-text, #f7f7f5);
-}
-
-[data-theme="dark"] .attr-card p {
-  color: var(--color-text-secondary, #94a3b8);
-}
-
-[data-theme="dark"] .formula-box {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
-  border-left-color: #f59e0b;
-  color: #fbbf24;
-}
-
-[data-theme="dark"] .formula-box strong {
-  color: #fcd34d;
-}
-
-/* 深色主题幸运点样式 */
-[data-theme="dark"] .lucky-item.lucky-positive {
-  background: linear-gradient(135deg, rgba(22, 163, 74, 0.15) 0%, rgba(34, 197, 94, 0.1) 100%);
-  border-color: rgba(134, 239, 172, 0.5);
-}
-
-[data-theme="dark"] .lucky-item.lucky-negative {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
-  border-color: rgba(252, 165, 165, 0.5);
-}
-
-[data-theme="dark"] .lucky-positive .lucky-value {
-  color: #4ade80;
-}
-
-[data-theme="dark"] .lucky-negative .lucky-value {
-  color: #f87171;
-}
-
-[data-theme="dark"] .detail-label {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .detail-value {
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .detail-source {
-  color: #64748b;
+  .jc-seal {
+    width: 32px;
+    height: 32px;
+  }
 }
 </style>

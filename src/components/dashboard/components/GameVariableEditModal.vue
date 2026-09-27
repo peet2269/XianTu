@@ -9,6 +9,11 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
+          <label>字段路径</label>
+          <code class="field-path">{{ editingItem.key }}</code>
+          <p class="form-hint-text">保存前请确认目标字段和类型；修改后可在变量面板撤销。</p>
+        </div>
+        <div class="form-group">
           <label>变量名 (Key)</label>
           <input
             v-model="localEditingItem.key"
@@ -47,8 +52,12 @@
           </div>
         </div>
         <div class="preview-section" v-if="previewData">
-          <label>预览</label>
+          <label>新值预览</label>
           <pre class="preview-content">{{ previewData }}</pre>
+        </div>
+        <div class="preview-section">
+          <label>原值</label>
+          <pre class="preview-content">{{ formatValue(editingItem.value) }}</pre>
         </div>
       </div>
       <div class="modal-footer">
@@ -136,9 +145,11 @@ const previewData = computed(() => {
 // 是否可以保存
 const canSave = computed(() => {
   return localEditingItem.value.key.trim() !== '' &&
-         editingValue.value.trim() !== '' &&
+         (selectedType.value === 'string' || editingValue.value.trim() !== '') &&
          !jsonError.value
 })
+
+const formatValue = (value: unknown) => typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '')
 
 // 验证 JSON
 const validateJSON = () => {
@@ -154,12 +165,16 @@ const validateJSON = () => {
 
       if (selectedType.value === 'array' && !Array.isArray(parsed)) {
         jsonError.value = '期望是数组类型，但解析结果不是数组'
-      } else if (selectedType.value === 'object' && (Array.isArray(parsed) || typeof parsed !== 'object')) {
+      } else if (selectedType.value === 'object' && (Array.isArray(parsed) || parsed === null || typeof parsed !== 'object')) {
         jsonError.value = '期望是对象类型，但解析结果不是对象'
       }
     } catch (e) {
       jsonError.value = 'JSON 格式错误: ' + (e instanceof Error ? e.message : '未知错误')
     }
+  } else if (selectedType.value === 'number' && (!editingValue.value.trim() || !Number.isFinite(Number(editingValue.value)))) {
+    jsonError.value = '请输入有效的有限数字'
+  } else if (selectedType.value === 'boolean' && !/^(true|false)$/i.test(editingValue.value.trim())) {
+    jsonError.value = '布尔值只能填写 true 或 false'
   }
 }
 
@@ -233,29 +248,22 @@ const handleSave = () => {
 
   // 更新 localEditingItem 的值为正确的类型
   try {
-    console.log('=== [Modal诊断] 开始保存 ===')
-    console.log('[Modal-1] editingValue.value (原始字符串):', editingValue.value)
-    console.log('[Modal-2] selectedType:', selectedType.value)
-
     let finalValue: any = editingValue.value
 
     switch (selectedType.value) {
       case 'number':
         finalValue = Number(editingValue.value)
-        if (isNaN(finalValue)) {
+        if (!Number.isFinite(finalValue)) {
           jsonError.value = '无效的数字格式'
           return
         }
         break
       case 'boolean':
-        finalValue = editingValue.value.toLowerCase() === 'true'
+        finalValue = editingValue.value.trim().toLowerCase() === 'true'
         break
       case 'object':
       case 'array':
-        console.log('[Modal-3] 解析前的JSON字符串:', editingValue.value)
         finalValue = JSON.parse(editingValue.value)
-        console.log('[Modal-4] 解析后的对象:', finalValue)
-        console.log('[Modal-5] 解析后的JSON:', JSON.stringify(finalValue))
         break
       case 'string':
       default:
@@ -264,8 +272,6 @@ const handleSave = () => {
     }
 
     localEditingItem.value.value = finalValue
-    console.log('[Modal-6] 即将emit的localEditingItem:', localEditingItem.value)
-    console.log('[Modal-7] 即将emit的finalValue:', finalValue, 'JSON:', JSON.stringify(finalValue))
     emit('save', localEditingItem.value)
   } catch (e) {
     jsonError.value = '保存失败: ' + (e instanceof Error ? e.message : '未知错误')

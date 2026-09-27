@@ -24,7 +24,7 @@ const FullscreenCharacterManagement = {
       router.push('/');
     };
 
-    const handleCharacterSelected = (_character: unknown) => {
+    const handleCharacterSelected = () => {
       router.push('/game');
     };
 
@@ -40,16 +40,16 @@ const FullscreenCharacterManagement = {
 // 静态导入所有组件，避免代码分割
 import MainGamePanel from '../components/dashboard/MainGamePanel.vue';
 import MemoryCenterPanel from '../components/dashboard/MemoryCenterPanel.vue';
-import CharacterDetailsPanel from '../components/dashboard/CharacterDetailsPanel.vue';
-import InventoryPanel from '../components/dashboard/InventoryPanel.vue';
-import RelationshipNetworkPanel from '../components/dashboard/RelationshipNetworkPanel.vue';
-import SkillsPanel from '../components/dashboard/SkillsPanel.vue'; // 功法面板
-import ThousandDaoPanel from '../components/dashboard/ThousandDaoPanel.vue'; // 新的三千大道面板
+import CharacterPage from '../views/game/CharacterPage.vue';
+import NpcsPage from '../views/game/NpcsPage.vue';
+import InventoryPage from '../views/game/InventoryPage.vue';
+import TechniquesPage from '../views/game/TechniquesPage.vue';
+import ThousandDaoPage from '../views/game/ThousandDaoPage.vue';
 import SettingsPanel from '../components/dashboard/SettingsPanel.vue';
-import SavePanel from '../components/dashboard/SavePanel.vue';
+import SavePage from '../views/game/SavePage.vue';
 import WorldMapRoute from '../components/dashboard/WorldMapRoute.vue';
-import EventPanel from '../components/dashboard/EventPanel.vue';
-import CraftingPanel from '../components/dashboard/CraftingPanel.vue';
+import EventsPage from '../views/game/EventsPage.vue';
+import CraftingPage from '../views/game/CraftingPage.vue';
 import SectPanel from '../components/dashboard/SectPanel.vue';
 import SectSystemPanel from '../components/dashboard/SectSystemPanel.vue';
 import SectMembersContent from '../components/dashboard/components/SectMembersContent.vue';
@@ -57,10 +57,8 @@ import SectLibraryContent from '../components/dashboard/components/SectLibraryCo
 import SectContributionContent from '../components/dashboard/components/SectContributionContent.vue';
 import SectTasksContent from '../components/dashboard/components/SectTasksContent.vue';
 import SectManagementContent from '../components/dashboard/components/SectManagementContent.vue';
-import SectWarContent from '../components/dashboard/components/SectWarContent.vue';
 import GameVariablePanel from '../components/dashboard/GameVariablePanel.vue';
 import PromptManagementPanel from '../components/dashboard/PromptManagementPanel.vue';
-import OnlineTravelPanel from '../components/dashboard/OnlineTravelPanel.vue';
 import APIManagementPanel from '../components/dashboard/APIManagementPanel.vue';
 
 const routes = [
@@ -113,27 +111,27 @@ const routes = [
       {
         path: 'character-details',
         name: 'CharacterDetails',
-        component: CharacterDetailsPanel,
+        component: CharacterPage,
+      },
+      {
+        path: 'npcs',
+        name: 'Npcs',
+        component: NpcsPage,
       },
       {
         path: 'inventory',
         name: 'Inventory',
-        component: InventoryPanel,
-      },
-      {
-        path: 'relationships',
-        name: 'Relationships',
-        component: RelationshipNetworkPanel,
+        component: InventoryPage,
       },
       {
         path: 'techniques',
         name: 'Techniques',
-        component: SkillsPanel, // 功法面板（合并了原cultivation功能）
+        component: TechniquesPage,
       },
       {
         path: 'thousand-dao',
         name: 'ThousandDao',
-        component: ThousandDaoPanel, // 三千大道面板
+        component: ThousandDaoPage,
       },
       {
         path: 'settings',
@@ -143,7 +141,7 @@ const routes = [
       {
         path: 'save',
         name: 'Save',
-        component: SavePanel,
+        component: SavePage,
       },
       {
         path: 'world-map',
@@ -153,12 +151,12 @@ const routes = [
       {
         path: 'events',
         name: 'Events',
-        component: EventPanel,
+        component: EventsPage,
       },
       {
         path: 'crafting',
         name: 'Crafting',
-        component: CraftingPanel,
+        component: CraftingPage,
       },
       {
         path: 'sect',
@@ -199,11 +197,6 @@ const routes = [
             name: 'SectContribution',
             component: SectContributionContent,
           },
-          {
-            path: 'war',
-            name: 'SectWar',
-            component: SectWarContent,
-          },
         ],
       },
       {
@@ -215,11 +208,6 @@ const routes = [
         path: 'prompts',
         name: 'Prompts',
         component: PromptManagementPanel,
-      },
-      {
-        path: 'travel',
-        name: 'Travel',
-        component: OnlineTravelPanel,
       },
       {
         path: 'api-management',

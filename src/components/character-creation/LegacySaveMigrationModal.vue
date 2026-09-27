@@ -1,87 +1,107 @@
 <template>
-  <div v-if="open" class="legacy-modal-overlay" @click.self="emit('close')">
-    <div class="legacy-modal">
-      <div class="legacy-modal-header">
-        <div class="title">
-          <Wrench :size="18" />
-          <span>旧存档转化</span>
-        </div>
-        <button class="icon-btn" @click="emit('close')" title="关闭">
+  <div v-if="open" class="cc-modal-overlay legacy-overlay" @click.self="emit('close')">
+    <div class="cc-modal wide solid legacy-modal" role="dialog" aria-modal="true" aria-labelledby="legacy-title">
+      <div class="cc-modal-head">
+        <h3 id="legacy-title" class="cc-modal-title">旧存档转化</h3>
+        <button type="button" class="cc-modal-close" title="关闭" aria-label="关闭" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>
 
-      <div class="legacy-modal-body">
-        <p class="hint">
-          选择旧存档/旧导出文件后，会先检测并转换为当前格式，再进行校验。
-          <template v-if="standalone">
-            如果是角色包文件，可以直接创建新角色。
-          </template>
-          <template v-else>
-            你可以下载转换后的文件，或导入到当前选中单机角色。
-          </template>
-        </p>
+      <div class="cc-modal-body">
+        <p class="cc-hint">{{ hintText }}</p>
 
-        <div class="file-row">
-          <button class="btn" @click="pickFile">
-            <Upload :size="16" />
-            选择 JSON 文件
-          </button>
-          <span v-if="fileName" class="file-name">{{ fileName }}</span>
-          <span v-else class="file-name muted">未选择文件</span>
+        <div
+          class="drop-zone"
+          :class="{ picked: !!fileName }"
+          role="button"
+          tabindex="0"
+          @click="pickFile"
+          @keydown.enter.prevent="pickFile"
+          @keydown.space.prevent="pickFile"
+        >
+          <FileJson :size="22" class="drop-icon" />
+          <div class="drop-text">
+            <span class="drop-name">{{ fileName || '选择 JSON 文件' }}</span>
+            <span class="drop-sub">{{ fileName ? '点击重新选择' : '支持存档包、角色包、单个存档或存档数据' }}</span>
+          </div>
+          <Upload :size="16" class="drop-action" />
         </div>
 
-        <div v-if="analysis" class="result">
+        <template v-if="analysis">
           <div class="summary-grid">
-            <div class="kv"><span class="k">识别类型</span><span class="v">{{ analysis.typeLabel }}</span></div>
-            <div class="kv"><span class="k">存档数量</span><span class="v">{{ analysis.totalSaves }}</span></div>
-            <div class="kv"><span class="k">需要转换</span><span class="v">{{ analysis.needsMigration }}</span></div>
-            <div class="kv"><span class="k">校验失败</span><span class="v">{{ analysis.invalidSaves }}</span></div>
+            <div class="cc-stat"><span>识别类型</span><strong>{{ analysis.typeLabel }}</strong></div>
+            <div class="cc-stat"><span>存档数量</span><strong>{{ analysis.totalSaves }}</strong></div>
+            <div class="cc-stat"><span>需要转换</span><strong>{{ analysis.needsMigration }}</strong></div>
+            <div class="cc-stat" :class="{ warn: analysis.invalidSaves > 0 }"><span>校验警告</span><strong>{{ analysis.invalidSaves }}</strong></div>
           </div>
 
-          <details v-if="analysis.legacyKeys.length" class="details">
-            <summary>检测到的旧 key（合并展示）</summary>
+          <div v-if="analysis.hasFatalErrors" class="cc-errors" role="alert">
+            <p v-for="(e, idx) in analysis.errors" :key="idx">{{ e }}</p>
+          </div>
+
+          <details v-else-if="analysis.errors.length" class="fold warn" open>
+            <summary>
+              <ChevronRight :size="14" class="chevron" />
+              <span>兼容性提示（{{ analysis.errors.length }} 条，不影响导入）</span>
+            </summary>
+            <ul class="fold-list">
+              <li v-for="(e, idx) in analysis.errors" :key="idx">{{ e }}</li>
+            </ul>
+          </details>
+
+          <details v-if="analysis.legacyKeys.length" class="fold">
+            <summary>
+              <ChevronRight :size="14" class="chevron" />
+              <span>检测到的旧字段（{{ analysis.legacyKeys.length }}）</span>
+            </summary>
             <div class="chips">
               <span v-for="k in analysis.legacyKeys" :key="k" class="chip">{{ k }}</span>
             </div>
           </details>
 
-          <details v-if="analysis.errors.length" class="details">
-            <summary>转换/校验问题</summary>
-            <ul class="errors">
-              <li v-for="(e, idx) in analysis.errors" :key="idx">{{ e }}</li>
-            </ul>
-          </details>
-
-          <details class="details">
-            <summary>转换后的导出结构</summary>
+          <details v-if="convertedPreview" class="fold">
+            <summary>
+              <ChevronRight :size="14" class="chevron" />
+              <span>转换后的导出结构</span>
+            </summary>
             <pre class="json-preview">{{ JSON.stringify(convertedPreview, null, 2) }}</pre>
           </details>
-        </div>
+        </template>
       </div>
 
-      <div class="legacy-modal-actions">
-        <button class="btn btn-secondary" @click="emit('close')">关闭</button>
-        <button class="btn" :disabled="!convertedBundle || analysis?.hasFatalErrors" @click="downloadConverted">
-          <Download :size="16" />
-          转换并下载
+      <div class="cc-modal-foot">
+        <button type="button" class="cc-btn" @click="emit('close')">关闭</button>
+        <button
+          v-if="analysis && !analysis.hasFatalErrors"
+          type="button"
+          class="cc-btn"
+          :class="{ primary: !canImport && !canCreateCharacter }"
+          :disabled="!convertedBundle"
+          @click="downloadConverted"
+        >
+          <Download :size="15" />
+          下载转换结果
         </button>
         <button
-          class="btn"
           v-if="canImport"
+          type="button"
+          class="cc-btn primary"
           :disabled="!convertedSaves || analysis?.hasFatalErrors"
+          :title="targetCharName ? `导入到「${targetCharName}」` : undefined"
           @click="importToSelectedCharacter"
         >
-          <ArrowDownToLine :size="16" />
+          <ArrowDownToLine :size="15" />
           导入到当前角色
         </button>
         <button
-          class="btn btn-primary"
           v-if="canCreateCharacter"
+          type="button"
+          class="cc-btn primary"
           :disabled="analysis?.hasFatalErrors"
           @click="createNewCharacter"
         >
-          <UserPlus :size="16" />
+          <UserPlus :size="15" />
           创建新角色
         </button>
       </div>
@@ -93,7 +113,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ArrowDownToLine, Download, Upload, UserPlus, Wrench, X } from 'lucide-vue-next'
+import { ArrowDownToLine, ChevronRight, Download, FileJson, Upload, UserPlus, X } from 'lucide-vue-next'
 import { toast } from '@/utils/toast'
 import { createDadBundle, unwrapDadBundle } from '@/utils/dadBundle'
 import { detectLegacySaveData, isSaveDataV3, migrateSaveDataToLatest } from '@/utils/saveMigration'
@@ -145,6 +165,11 @@ const convertedPreview = computed(() => {
   const unwrapped = unwrapDadBundle(convertedBundle.value)
   return unwrapped.isBundle ? { schema: 'dad.bundle', type: unwrapped.type } : convertedBundle.value
 })
+
+const hintText = computed(() =>
+  '选择旧存档或旧导出文件，先检测并转换为当前格式，再做校验；转换结果不会自动写入本地。' +
+  (props.standalone ? '若是角色包文件，可直接据此创建新角色。' : '可下载转换后的文件，或导入到当前选中的单机角色。')
+)
 
 const canImport = computed(() => {
   if (!props.targetCharId) return false
@@ -400,193 +425,199 @@ const createNewCharacter = async () => {
 </script>
 
 <style scoped>
-.legacy-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* 旧存档转化 —— 外壳用 creation-theme.css 的 cc-modal */
+.legacy-overlay {
   z-index: 10050;
-  padding: 1rem;
 }
 
-.legacy-modal {
-  width: 100%;
-  max-width: 860px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
-}
-
-.legacy-modal-header {
+.drop-zone {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 700;
-}
-
-.icon-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  padding: 0.25rem;
+  gap: 0.85rem;
+  padding: 0.95rem 1.1rem;
+  border: 1px dashed var(--cc-border-strong);
   border-radius: 8px;
+  background: var(--cc-inset);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--color-text);
+.drop-zone:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.7);
+  background: var(--cc-surface-hover);
 }
 
-.legacy-modal-body {
-  padding: 1rem;
+.drop-zone:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 
-.hint {
-  margin: 0 0 0.75rem;
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.5;
+.drop-zone.picked {
+  border-style: solid;
+  border-left: 3px solid var(--cc-gold);
 }
 
-.file-row {
+.drop-icon {
+  flex-shrink: 0;
+  color: var(--cc-gold);
+}
+
+.drop-text {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 0.15rem;
 }
 
-.file-name {
-  font-size: 0.9rem;
-  color: var(--color-text);
+.drop-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+  color: var(--cc-text);
 }
 
-.file-name.muted {
-  color: var(--color-text-secondary);
+.drop-sub {
+  font-size: 0.76rem;
+  color: var(--cc-text-3);
 }
 
-.result {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 0.9rem;
-  background: rgba(255, 255, 255, 0.02);
+.drop-action {
+  flex-shrink: 0;
+  color: var(--cc-text-2);
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.6rem;
-  margin-bottom: 0.75rem;
 }
 
-.kv {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 0.6rem 0.7rem;
-  background: rgba(0, 0, 0, 0.12);
+.summary-grid .cc-stat {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
-.k {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
+.summary-grid .cc-stat span {
+  font-size: 0.74rem;
+  color: var(--cc-text-3);
 }
 
-.v {
-  display: block;
-  font-weight: 700;
-  margin-top: 0.15rem;
+.summary-grid .cc-stat strong {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.details {
-  margin-top: 0.6rem;
+.summary-grid .cc-stat.warn {
+  border-color: rgba(var(--cc-warning-rgb), 0.45);
+  background: rgba(var(--cc-warning-rgb), 0.08);
+}
+
+.summary-grid .cc-stat.warn strong {
+  color: var(--cc-warning);
+}
+
+.fold {
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: var(--cc-surface);
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+  color: var(--cc-text-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary:hover {
+  color: var(--cc-text);
+}
+
+.fold > summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--cc-gold);
+  transition: transform 0.2s ease;
+}
+
+.fold[open] .chevron {
+  transform: rotate(90deg);
+}
+
+.fold.warn {
+  border-color: rgba(var(--cc-warning-rgb), 0.4);
+}
+
+.fold.warn > summary {
+  color: var(--cc-warning);
+}
+
+.fold-list {
+  margin: 0;
+  padding: 0.1rem 0.9rem 0.7rem 2rem;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--cc-text-2);
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-top: 0.5rem;
+  padding: 0.1rem 0.8rem 0.75rem;
 }
 
 .chip {
-  border: 1px solid var(--color-border);
-  padding: 0.2rem 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--cc-border);
   border-radius: 999px;
-  font-size: 0.8rem;
-}
-
-.errors {
-  margin: 0.5rem 0 0;
-  padding-left: 1.1rem;
-  color: #ffb4b4;
+  font-size: 0.75rem;
+  color: var(--cc-text-2);
 }
 
 .json-preview {
-  margin: 0.5rem 0 0;
   max-height: 220px;
+  margin: 0 0.8rem 0.8rem;
+  padding: 0.7rem 0.8rem;
   overflow: auto;
-  padding: 0.75rem;
-  background: var(--color-code-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: var(--cc-inset);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  color: var(--cc-text-2);
 }
 
-.legacy-modal-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.9rem 1rem;
-  border-top: 1px solid var(--color-border);
+.cc-modal-foot {
+  flex-wrap: wrap;
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.8rem;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: var(--color-primary);
-  color: #fff;
-  cursor: pointer;
-  font-size: 0.9rem;
+.legacy-modal :is(.cc-btn, .cc-modal-close):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn.btn-secondary {
-  background: transparent;
-  color: var(--color-text);
-}
-
-.btn.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-@media (max-width: 760px) {
+@media (max-width: 640px) {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -1,16 +1,23 @@
 <template>
   <transition name="modal-fade">
-    <div v-if="visible" class="modal-overlay" @click.self="close">
-      <div class="modal-dialog">
-        <h2 class="modal-title">{{ title }}</h2>
+    <div v-if="visible" class="cc-modal-overlay" @click.self="close">
+      <div class="cc-modal wide" role="dialog" aria-modal="true" :aria-label="title">
+        <div class="cc-modal-head">
+          <h2 class="cc-modal-title">{{ title }}</h2>
+          <button type="button" class="cc-modal-close" :aria-label="$t('关闭')" @click="close">
+            <X :size="18" />
+          </button>
+        </div>
 
-        <div class="form-fields">
-          <div v-for="field in visibleFields" :key="field.key" class="form-group">
-            <label :for="field.key">{{ field.label }}</label>
+        <div class="cc-modal-body">
+          <div v-for="field in visibleFields" :key="field.key" class="cc-field">
+            <label v-if="field.type !== 'dynamic-list'" :for="field.key">{{ field.label }}</label>
             <input
               v-if="field.type === 'text' || field.type === 'color' || field.type === 'number'"
               :id="field.key"
               v-model="formData[field.key]"
+              class="cc-input"
+              :class="{ 'color-input': field.type === 'color' }"
               :placeholder="field.placeholder"
               :type="field.type"
             />
@@ -18,6 +25,7 @@
               v-else-if="field.type === 'textarea'"
               :id="field.key"
               v-model="formData[field.key]"
+              class="cc-input"
               :placeholder="field.placeholder"
               rows="5"
             ></textarea>
@@ -25,47 +33,54 @@
               v-else-if="field.type === 'select'"
               :id="field.key"
               v-model="formData[field.key]"
+              class="cc-input"
             >
               <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
               </option>
             </select>
             <!-- 动态列表字段 -->
-            <div v-else-if="field.type === 'dynamic-list'" class="dynamic-list-container">
+            <div v-else-if="field.type === 'dynamic-list'" class="dynamic-list">
               <div class="list-header">
-                <span>{{ field.label }}</span>
-                <button @click="addListItem(field)" class="add-btn" type="button">+ {{ $t('添加') }}</button>
+                <span class="cc-field-label">{{ field.label }}</span>
+                <button type="button" class="cc-btn small" @click="addListItem(field)">
+                  <Plus :size="14" />
+                  <span>{{ $t('添加') }}</span>
+                </button>
               </div>
               <div v-if="Array.isArray(formData[field.key]) && (formData[field.key] as unknown[]).length > 0" class="list-items">
-                <div v-for="(item, index) in (formData[field.key] as Record<string, unknown>[])" :key="index" class="list-item">
-                  <div class="item-inputs">
-                    <select v-if="field.columns[0].type === 'select'" v-model="(item as any)[field.columns[0].key]" class="item-input">
+                <div v-for="(item, index) in (formData[field.key] as Record<string, unknown>[])" :key="index" class="list-row">
+                  <div class="row-inputs">
+                    <select v-if="field.columns[0].type === 'select'" v-model="(item as any)[field.columns[0].key]" class="cc-input">
                       <option v-for="opt in field.columns[0].options" :key="opt.value" :value="opt.value">
                         {{ opt.label }}
                       </option>
                     </select>
-                    <input v-else v-model="(item as any)[field.columns[0].key]" :placeholder="field.columns[0].placeholder" class="item-input" />
-                    
-                    <input v-if="field.columns[1]" v-model="(item as any)[field.columns[1].key]" :placeholder="field.columns[1].placeholder" class="item-input" />
-                    <input v-if="field.columns[2]" v-model="(item as any)[field.columns[2].key]" :placeholder="field.columns[2].placeholder" class="item-input" type="number" step="0.1" />
+                    <input v-else v-model="(item as any)[field.columns[0].key]" :placeholder="field.columns[0].placeholder" class="cc-input" />
+
+                    <input v-if="field.columns[1]" v-model="(item as any)[field.columns[1].key]" :placeholder="field.columns[1].placeholder" class="cc-input" />
+                    <input v-if="field.columns[2]" v-model="(item as any)[field.columns[2].key]" :placeholder="field.columns[2].placeholder" class="cc-input" type="number" step="0.1" />
                   </div>
-                  <button @click="removeListItem(field, index)" class="remove-btn" type="button">×</button>
+                  <button type="button" class="cc-icon-btn danger" :title="$t('删除此项')" @click="removeListItem(field, index)">
+                    <Trash2 :size="13" />
+                  </button>
                 </div>
               </div>
-              <div v-else class="empty-list">
-                <span>{{ $t('暂无数据') }}</span>
-              </div>
+              <div v-else class="empty-rows">{{ $t('暂无数据') }}</div>
             </div>
+          </div>
+
+          <div v-if="errors.length" class="cc-errors">
+            <p v-for="(error, index) in errors" :key="index">{{ error }}</p>
           </div>
         </div>
 
-        <div v-if="errors.length" class="error-messages">
-          <p v-for="(error, index) in errors" :key="index">* {{ error }}</p>
-        </div>
-
-        <div class="modal-actions">
-          <button @click="close" class="btn btn-secondary">{{ $t('关闭') }}</button>
-          <button @click="submit" class="btn">{{ $t('确认') }}</button>
+        <div class="cc-modal-foot">
+          <button type="button" class="cc-btn" @click="close">{{ $t('关闭') }}</button>
+          <button type="button" class="cc-btn primary" @click="submit">
+            <Check :size="15" />
+            <span>{{ $t('确认') }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -74,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
+import { Check, Plus, Trash2, X } from 'lucide-vue-next';
 
 type BaseField = {
   key: string;
@@ -178,166 +194,36 @@ function submit() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+/* 外观见 styles/creation-theme.css 的 cc-modal / cc-field */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.22s ease;
 }
 
-.modal-dialog {
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border-radius: 12px;
-  padding: 2rem;
-  overflow: hidden;
-}
-
-.modal-title {
-  margin-top: 0;
-  color: var(--color-primary);
-  text-align: center;
-  margin-bottom: 1.5rem;
-  flex-shrink: 0;
-}
-
-.form-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-  padding-right: 0.5rem;
-}
-
-.form-fields::-webkit-scrollbar {
-  width: 8px;
-}
-
-.form-fields::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-}
-
-.form-fields::-webkit-scrollbar-thumb {
-  background: rgba(var(--color-primary-rgb), 0.3);
-  border-radius: 4px;
-}
-
-.form-fields::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--color-primary-rgb), 0.5);
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 0.75rem;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  color: var(--color-text);
-  font-size: 1rem;
-  transition: var(--transition-fast);
-}
-
-input[type="color"] {
-  padding: 0.25rem;
-  height: 2.5rem;
-}
-
-input[type="color"] {
-  padding: 0.25rem;
-  height: 2.5rem;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.3);
-}
-
-.error-messages {
-    color: var(--color-danger);
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-    flex-shrink: 0;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 1rem;
-  flex-shrink: 0;
-}
-
-/* Transition styles */
-.modal-fade-enter-active, .modal-fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.modal-fade-enter-from, .modal-fade-leave-to {
+.modal-fade-enter-from,
+.modal-fade-leave-to {
   opacity: 0;
 }
-.modal-fade-enter-active .modal-content,
-.modal-fade-leave-active .modal-content {
-  transition: transform 0.3s ease;
-}
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-  transform: scale(0.9);
+
+.color-input {
+  height: 40px;
+  padding: 0.25rem;
+  cursor: pointer;
 }
 
-/* 动态列表样式 */
-.dynamic-list-container {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface-light);
-  padding: 1rem;
+/* 动态列表 */
+.dynamic-list {
+  padding: 0.85rem;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.4);
+  border-radius: 8px;
+  background: rgba(var(--cc-gold-rgb), 0.04);
 }
 
 .list-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.add-btn {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
-}
-
-.add-btn:hover {
-  background: var(--color-primary-dark);
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
 }
 
 .list-items {
@@ -346,81 +232,29 @@ input[type="color"] {
   gap: 0.5rem;
 }
 
-.list-item {
+.list-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
 }
 
-.item-inputs {
+.row-inputs {
   display: flex;
+  flex: 1;
   gap: 0.5rem;
-  flex: 1;
+  min-width: 0;
 }
 
-.item-input {
-  flex: 1;
-  padding: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-background);
-  color: var(--color-text);
-  font-size: 0.9rem;
-}
-
-.item-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 5px rgba(var(--color-primary-rgb), 0.3);
-}
-
-.remove-btn {
-  background: var(--color-danger);
-  color: white;
-  border: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.remove-btn:hover {
-  background: #dc2626;
-  transform: scale(1.1);
-}
-
-.empty-list {
+.empty-rows {
+  padding: 1rem;
   text-align: center;
-  color: var(--color-text-secondary);
-  font-style: italic;
-  padding: 2rem;
+  font-size: 0.82rem;
+  color: var(--cc-text-3);
 }
 
 @media (max-width: 600px) {
-  .modal-dialog {
-    padding: 1.5rem;
-    width: 95%;
-    max-height: 90vh;
-  }
-  .item-inputs {
+  .row-inputs {
     flex-direction: column;
-  }
-  .modal-actions {
-    flex-direction: column-reverse;
-    gap: 0.5rem;
-  }
-  .modal-actions .btn {
-    width: 100%;
   }
 }
 </style>

@@ -75,7 +75,7 @@
 
       <div class="tip">
         <Info :size="14" />
-        <span>该面板为轻度经营：一键结算即可，不推进游戏时间；宗门大战会读取这里的府库/训练度做修正。</span>
+        <span>该面板为轻度经营：一键结算即可，不推进游戏时间。</span>
       </div>
     </div>
   </div>
@@ -234,7 +234,7 @@ async function initManagement() {
     const nowIso = new Date().toISOString();
     const prompt = `
 # 任务：初始化【宗门经营】数据（单次功能请求）
-为宗门「${sectName}」写入轻度经营数据，用于宗主面板与宗门大战结算。
+为宗门「${sectName}」写入轻度经营数据，用于宗主面板和后续宗门经营演变。
 
 ## 输出格式（必须）
 只输出 1 个 JSON 对象：

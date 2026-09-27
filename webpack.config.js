@@ -97,6 +97,13 @@ export default (env, argv) => {
           test: /\.css$/,
           use: ['style-loader', 'css-loader'],
         },
+        {
+          test: /\.png$/i,
+          type: 'asset/resource',
+          generator: {
+            filename: 'assets/[name][ext]',
+          },
+        },
       ],
     },
     plugins: [
@@ -114,6 +121,14 @@ export default (env, argv) => {
       new HtmlWebpackPlugin({
         template: './index.html',
         inject: 'body',
+        templateParameters: {
+          vueScript: isProduction
+            ? 'https://unpkg.com/vue@3/dist/vue.global.prod.js'
+            : 'https://unpkg.com/vue@3/dist/vue.global.js',
+          vueRouterScript: isProduction
+            ? 'https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js'
+            : 'https://unpkg.com/vue-router@4/dist/vue-router.global.js',
+        },
         minify: isProduction ? {
           removeComments: true,
           collapseWhitespace: true,

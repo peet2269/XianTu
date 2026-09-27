@@ -161,5 +161,12 @@ const onError = () => {}
   height: 100%;
   background-color: rgba(10, 15, 24, 0);
   z-index: -1;
+  transition: background 0.4s ease;
+}
+
+/* 亮色：覆一层宣纸薄雾，让浅色面板与夜色山景过渡更自然 */
+/* 亮色：极淡的暖色纸调，不再提亮 */
+[data-theme='light'] .video-overlay {
+  background: linear-gradient(180deg, rgba(214, 196, 160, 0.12) 0%, rgba(190, 170, 130, 0.1) 100%);
 }
 </style>

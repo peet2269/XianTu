@@ -1,207 +1,143 @@
-﻿
 <template>
-  <div class="right-sidebar">
-    <div class="sidebar-header">
-      <h3 class="sidebar-title">
-        <User :size="18" class="title-icon" />
-        <span>{{ t('角色状态') }}</span>
-      </h3>
-    </div>
+  <div class="status">
+    <div v-if="isDataLoaded && characterInfo" class="status-scroll">
+      <!-- 名牒 -->
+      <header class="id-card">
+        <span class="gm-disc lg">{{ (characterInfo.名字 || '?').charAt(0) }}</span>
+        <div class="id-main">
+          <h2 class="id-name">{{ characterInfo.名字 }}</h2>
+          <p v-if="identityLine" class="id-sub">{{ identityLine }}</p>
+        </div>
+      </header>
 
-    <div v-if="isDataLoaded && characterInfo" class="sidebar-content">
-      <!-- 核心数值 -->
-      <div class="vitals-section">
-        <h3 class="section-title">
-          <Heart :size="14" class="section-icon" />
-          <span>{{ t('核心数值') }}</span>
-        </h3>
-        <div class="vitals-list">
-          <div class="vital-item">
-            <div class="vital-info">
-              <span class="vital-name">
-                <Droplet :size="12" class="vital-icon blood" />
-                <span>{{ t('气血') }}</span>
-              </span>
-              <span class="vital-text">{{ playerStatus?.气血?.当前 }} / {{ playerStatus?.气血?.上限 }}</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill health" :style="{ width: getVitalPercent('气血') + '%' }"></div>
-            </div>
-          </div>
+      <!-- 境界 -->
+      <section class="realm" :title="playerStatus?.境界?.突破描述 || undefined">
+        <svg v-if="isRealmProgressAvailable" class="realm-ring" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="27" class="ring-track" />
+          <circle
+            cx="32"
+            cy="32"
+            r="27"
+            class="ring-fill"
+            :class="getRealmProgressClass()"
+            :stroke-dasharray="`${(realmProgressPercent / 100) * 169.6} 169.6`"
+          />
+          <text x="32" y="36" text-anchor="middle" class="ring-text">{{ realmProgressPercent }}%</text>
+        </svg>
+        <div class="realm-main">
+          <span class="realm-label">{{ t('境界') }}</span>
+          <strong class="realm-name">{{ formatRealmDisplay(playerStatus?.境界) }}</strong>
+          <span v-if="isRealmProgressAvailable && realmProgressPercent >= 100" class="realm-flag hot">{{ t('可突破') }}</span>
+          <span v-else-if="isRealmProgressAvailable && realmProgressPercent >= 90" class="realm-flag warm">{{ t('可冲刺') }}</span>
+          <span v-else-if="!isRealmProgressAvailable" class="realm-wait">{{ t('等待仙缘') }}</span>
+        </div>
+      </section>
 
-          <div class="vital-item">
-            <div class="vital-info">
-              <span class="vital-name">
-                <Sparkles :size="12" class="vital-icon mana" />
-                <span>{{ t('灵气') }}</span>
+      <!-- 四维 + 声望 -->
+      <section class="block">
+        <div class="vitals">
+          <div v-for="v in vitalRows" :key="v.key" class="gm-meter" :style="{ '--meter': v.tone }">
+            <div class="gm-meter-row">
+              <span>
+                <img class="status-icon-image" :src="v.icon" alt="" aria-hidden="true" draggable="false" />
+                {{ t(v.key) }}
               </span>
-              <span class="vital-text">{{ playerStatus?.灵气?.当前 }} / {{ playerStatus?.灵气?.上限 }}</span>
+              <b :class="{ low: v.low }">{{ v.cur }}<i v-if="v.max"> / {{ v.max }}</i></b>
             </div>
-            <div class="progress-bar">
-              <div class="progress-fill mana" :style="{ width: getVitalPercent('灵气') + '%' }"></div>
-            </div>
-          </div>
-
-          <div class="vital-item">
-            <div class="vital-info">
-              <span class="vital-name">
-                <Brain :size="12" class="vital-icon spirit" />
-                <span>{{ t('神识') }}</span>
-              </span>
-              <span class="vital-text">{{ playerStatus?.神识?.当前 }} / {{ playerStatus?.神识?.上限 }}</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill spirit" :style="{ width: getVitalPercent('神识') + '%' }"></div>
-            </div>
-          </div>
-
-          <div class="vital-item">
-            <div class="vital-info">
-              <span class="vital-name">
-                <Clock :size="12" class="vital-icon lifespan" />
-                <span>{{ t('寿元') }}</span>
-              </span>
-              <span class="vital-text">{{ currentAge }} / {{ playerStatus?.寿命?.上限 }}</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill lifespan" :style="{ width: getLifespanPercent() + '%' }"></div>
-            </div>
+            <div v-if="v.showBar" class="gm-meter-track"><span :style="{ width: v.percent + '%' }"></span></div>
           </div>
         </div>
-      </div>
-
-      <!-- 境界状态 -->
-      <div class="cultivation-section">
-        <h3 class="section-title">
-          <Star :size="14" class="section-icon" />
-          <span>{{ t('境界状态') }}</span>
-        </h3>
-        <div class="realm-display">
-          <div class="realm-info">
-            <span class="realm-name">{{ formatRealmDisplay(playerStatus?.境界) }}</span>
-            <span v-if="playerStatus?.境界?.突破描述" class="realm-breakthrough">{{ playerStatus?.境界?.突破描述 }}</span>
-          </div>
-          <!-- 有进度数据：显示进度条（包含凡人 -> 引气入体） -->
-          <div v-if="isRealmProgressAvailable" class="realm-progress">
-            <div class="progress-bar">
-              <div
-                class="progress-fill cultivation"
-                :class="getRealmProgressClass()"
-                :style="{ width: realmProgressPercent + '%' }"
-              ></div>
-            </div>
-            <span class="progress-text" :class="getRealmProgressClass()">
-              {{ realmProgressPercent }}%
-              <span v-if="realmProgressPercent >= 100" class="breakthrough-hint">可突破!</span>
-              <span v-else-if="realmProgressPercent >= 90" class="sprint-hint">可冲刺</span>
-            </span>
-          </div>
-          <!-- 无进度数据：显示等待提示 -->
-          <div v-else class="realm-mortal">
-            <span class="mortal-text">{{ realmWaitingText }}</span>
-          </div>
+        <div class="reputation">
+          <span class="reputation-label">
+            <img class="status-icon-image reputation-icon" :src="reputationIcon" alt="" aria-hidden="true" draggable="false" />
+            {{ t('声望') }}
+          </span>
+          <strong :class="getReputationClass()">{{ reputationTitle }}</strong>
+          <i v-if="reputationValue !== null">{{ reputationValue }}</i>
         </div>
-
-        <!-- 声望显示 -->
-        <div class="reputation-display">
-          <div class="reputation-item">
-            <div class="reputation-info">
-              <span class="reputation-label">
-                <Star :size="12" class="vital-icon reputation" />
-                <span>{{ t('声望') }}</span>
-              </span>
-              <span class="reputation-value" :class="getReputationClass()">
-                {{ getReputationDisplay() }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      </section>
 
       <!-- 天赋神通 -->
-      <div class="collapsible-section talents-section">
-        <div class="section-header" @click="talentsCollapsed = !talentsCollapsed">
-          <h3 class="section-title">
-            <Star :size="14" class="section-icon gold" />
-            <span>{{ t('天赋神通') }}</span>
-          </h3>
-          <button class="collapse-toggle" :class="{ 'collapsed': talentsCollapsed }">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 10l4-4H4l4 4z"/>
-            </svg>
+      <section class="block trait">
+        <button
+          type="button"
+          class="trait-head"
+          :disabled="talentNames.length === 0"
+          :aria-expanded="talentNames.length > 0 ? !talentsCollapsed : undefined"
+          @click="talentsCollapsed = !talentsCollapsed"
+        >
+          <span class="trait-seal">{{ t('赋') }}</span>
+          <h3 class="trait-title">{{ t('天赋神通') }}</h3>
+          <span v-if="talentNames.length" class="trait-count">{{ talentNames.length }}</span>
+          <span v-else class="trait-empty">{{ t('暂无') }}</span>
+          <ChevronDown v-if="talentNames.length" :size="14" class="fold-caret" :class="{ shut: talentsCollapsed }" />
+        </button>
+        <div v-if="talentNames.length" v-show="!talentsCollapsed" class="talents">
+          <button
+            v-for="name in talentNames"
+            :key="name"
+            type="button"
+            class="talent"
+            :title="name"
+            @click="showTalentDetail(name)"
+          >
+            {{ name }}
           </button>
         </div>
-        <div v-show="!talentsCollapsed" class="talents-list">
-          <div
-            v-for="talent in characterInfo.天赋"
-            :key="typeof talent === 'string' ? talent : talent.name"
-            class="talent-card clickable"
-            @click="showTalentDetail(typeof talent === 'string' ? talent : talent.name)"
-          >
-            <div class="talent-header">
-              <span class="talent-name">{{ typeof talent === 'string' ? talent : talent.name }}</span>
-            </div>
-          </div>
-
-          <!-- 空状态显示 -->
-          <div v-if="!characterInfo.天赋 || characterInfo.天赋.length === 0" class="empty-talents">
-            <div class="empty-text">{{ t('暂无天赋神通') }}</div>
-          </div>
-        </div>
-      </div>
+      </section>
 
       <!-- 状态效果 -->
-      <div class="collapsible-section status-section">
-        <div class="section-header" @click="statusCollapsed = !statusCollapsed">
-          <h3 class="section-title">
-            <Zap :size="14" class="section-icon" />
-            <span>{{ t('状态效果') }}</span>
-          </h3>
-          <button class="collapse-toggle" :class="{ 'collapsed': statusCollapsed }">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 10l4-4H4l4 4z"/>
-            </svg>
+      <section class="block trait">
+        <button
+          type="button"
+          class="trait-head"
+          :disabled="statusEffects.length === 0"
+          :aria-expanded="statusEffects.length > 0 ? !statusCollapsed : undefined"
+          @click="statusCollapsed = !statusCollapsed"
+        >
+          <span class="trait-seal">{{ t('状') }}</span>
+          <h3 class="trait-title">{{ t('状态效果') }}</h3>
+          <template v-if="statusEffects.length">
+            <span v-if="buffCount" class="trait-count buff">{{ t('增') }} {{ buffCount }}</span>
+            <span v-if="statusEffects.length - buffCount" class="trait-count debuff">{{ t('减') }} {{ statusEffects.length - buffCount }}</span>
+          </template>
+          <span v-else class="trait-empty">{{ t('清净无为') }}</span>
+          <ChevronDown v-if="statusEffects.length" :size="14" class="fold-caret" :class="{ shut: statusCollapsed }" />
+        </button>
+        <div v-if="statusEffects.length" v-show="!statusCollapsed" class="effects">
+          <button
+            v-for="(effect, index) in statusEffects"
+            :key="effect.状态名称 || `effect-${index}`"
+            type="button"
+            class="effect"
+            :class="isBuff(effect) ? 'buff' : 'debuff'"
+            :title="effect.状态描述 || ''"
+            @click="showStatusDetail(effect)"
+          >
+            <span class="effect-mark">{{ isBuff(effect) ? t('增') : t('减') }}</span>
+            <span class="effect-name">{{ effect.状态名称 || '未知状态' }}</span>
+            <span v-if="formatTimeDisplay(effect.时间)" class="effect-time">{{ formatTimeDisplay(effect.时间) }}</span>
           </button>
         </div>
-        <div v-show="!statusCollapsed" class="status-effects">
-          <div v-if="statusEffects.length === 0" class="empty-status">
-            <span class="empty-text">{{ t('清净无为') }}</span>
-          </div>
-          <div v-else class="status-tags-container">
-            <div
-              v-for="(effect, index) in statusEffects"
-              :key="effect.状态名称 || `effect-${index}`"
-              class="status-tag clickable"
-              :class="[(String(effect.类型 || '').toLowerCase() === 'buff') ? 'buff' : 'debuff']"
-              @click="showStatusDetail(effect)"
-              :title="`${effect.状态名称 || '未知状态'}${effect.状态描述 ? `\n${effect.状态描述}` : ''}${effect.强度 ? `\n强度: ${effect.强度}` : ''}${formatTimeDisplay(effect.时间) ? `\n${formatTimeDisplay(effect.时间)}` : ''}`"
-            >
-              <span class="tag-icon">{{ String(effect.类型 || '').toLowerCase() === 'buff' ? t('增') : t('减') }}</span>
-              <span class="tag-name">{{ effect.状态名称 || '未知状态' }}</span>
-              <span v-if="effect.强度" class="tag-intensity">{{ effect.强度 }}</span>
-              <span v-if="formatTimeDisplay(effect.时间)" class="tag-time">{{ formatTimeDisplay(effect.时间) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
 
-    <!-- 无角色数据 -->
-    <div v-else class="no-character">
-      <div class="no-char-text">{{ t('请选择角色开启修仙之旅') }}</div>
+    <div v-else class="gm-empty" data-glyph="缘">
+      <p>{{ t('请选择角色开启修仙之旅') }}</p>
     </div>
 
-    <!-- 详情模态框 -->
-    <DetailModal />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { User, Sparkles, Heart, Droplet, Brain, Clock, Star, Zap } from 'lucide-vue-next';
+import { ChevronDown } from 'lucide-vue-next';
+import bloodIcon from '@/assets/status-icons/blood.png';
+import spiritIcon from '@/assets/status-icons/spirit.png';
+import senseIcon from '@/assets/status-icons/sense.png';
+import lifespanIcon from '@/assets/status-icons/lifespan.png';
+import reputationIcon from '@/assets/status-icons/reputation.png';
 import { LOCAL_TALENTS } from '@/data/creationData';
-import DetailModal from '@/components/common/DetailModal.vue';
 import StatusDetailCard from './components/StatusDetailCard.vue';
 import { useGameStateStore } from '@/stores/gameStateStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -241,6 +177,46 @@ const currentAge = computed(() => {
 
   // 兜底：返回寿命当前值
   return gameStateStore.attributes?.寿命?.当前 || 0;
+});
+
+// 名牒副行：灵根 · 天资（兼容字符串 / 对象两种存法）
+const nameOf = (v: unknown): string => {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  const o = v as Record<string, unknown>;
+  return String(o.名称 ?? o.name ?? '');
+};
+
+const identityLine = computed(() => {
+  const info = characterInfo.value as any;
+  if (!info) return '';
+  return [nameOf(info.灵根), nameOf(info.天资)].filter(Boolean).join(' · ');
+});
+
+const isBuff = (effect: StatusEffect) => String(effect.类型 || '').toLowerCase() === 'buff';
+const buffCount = computed(() => statusEffects.value.filter(isBuff).length);
+
+// 天赋名列表：兼容字符串 / { name } / { 名称 } 三种存法
+const talentNames = computed(() => {
+  const list = (characterInfo.value as any)?.天赋;
+  if (!Array.isArray(list)) return [];
+  return list.map(nameOf).filter(Boolean);
+});
+
+// 四维数值行：上限缺失或 ≤1 时只显示数值不画条；低于 30% 标红
+const vitalRows = computed(() => {
+  const s = playerStatus.value as any;
+  const rows = [
+    { key: '气血', icon: bloodIcon, tone: 'var(--gm-hp)', cur: Number(s?.气血?.当前 ?? 0), max: Number(s?.气血?.上限 ?? 0) },
+    { key: '灵气', icon: spiritIcon, tone: 'var(--gm-mp)', cur: Number(s?.灵气?.当前 ?? 0), max: Number(s?.灵气?.上限 ?? 0) },
+    { key: '神识', icon: senseIcon, tone: 'var(--gm-sense)', cur: Number(s?.神识?.当前 ?? 0), max: Number(s?.神识?.上限 ?? 0) },
+    { key: '寿元', icon: lifespanIcon, tone: 'var(--gm-life)', cur: Number(currentAge.value ?? 0), max: Number(s?.寿命?.上限 ?? 0) },
+  ];
+  return rows.map((r) => {
+    const showBar = r.max > 1;
+    const percent = showBar ? Math.max(0, Math.min(100, Math.round((r.cur / r.max) * 100))) : 0;
+    return { ...r, showBar, percent, low: showBar && r.key !== '寿元' && percent < 30 };
+  });
 });
 
 // 收缩状态
@@ -334,14 +310,14 @@ const getTalentData = (talent: string): any => {
 const showTalentDetail = (talent: string) => {
   // 首先尝试从角色的天赋列表中查找(AI生成的自定义天赋)
   const baseInfoValue = characterInfo.value;
-  const customTalent = baseInfoValue?.天赋?.find((t: any) => t.name === talent);
+  const customTalent: any = baseInfoValue?.天赋?.find((t: any) => nameOf(t) === talent);
 
   // 然后从LOCAL_TALENTS中查找天赋信息(前端内嵌天赋)
   const localTalent = LOCAL_TALENTS.find(t => t.name === talent);
 
   // 优先使用自定义天赋数据,其次使用内嵌天赋数据
   const talentInfo = customTalent ? {
-    description: customTalent.description || '自定义天赋'
+    description: customTalent.description || customTalent.描述 || '自定义天赋'
   } : localTalent ? {
     description: localTalent.description || ''
   } : {
@@ -374,34 +350,29 @@ const formatRealmDisplay = (realm?: unknown): string => {
   return formatRealmWithStage(realm);
 };
 
-// 获取声望显示文本
-const getReputationDisplay = (): string => {
+const reputationValue = computed(() => {
   const reputation = playerStatus.value?.声望;
-  if (reputation === undefined || reputation === null) {
-    return '籍籍无名';
-  }
+  if (reputation === undefined || reputation === null) return null;
+  const value = Number(reputation);
+  return Number.isNaN(value) ? null : value;
+});
 
-  const repValue = Number(reputation);
-
-  // 负数声望（恶名）
-  if (repValue < 0) {
-    if (repValue <= -5000) return `恶名昭彰 (${repValue})`;
-    if (repValue <= -1000) return `臭名远扬 (${repValue})`;
-    if (repValue <= -500) return `声名狼藉 (${repValue})`;
-    if (repValue <= -100) return `恶名在外 (${repValue})`;
-    return `小有恶名 (${repValue})`;
-  }
-
-  // 正数声望
-  if (repValue >= 10000) return `传说人物 (${repValue})`;
-  if (repValue >= 5000) return `名满天下 (${repValue})`;
-  if (repValue >= 3000) return `威震四方 (${repValue})`;
-  if (repValue >= 1000) return `名动一方 (${repValue})`;
-  if (repValue >= 500) return `声名远播 (${repValue})`;
-  if (repValue >= 100) return `小有名气 (${repValue})`;
-
+const reputationTitle = computed(() => {
+  const repValue = reputationValue.value;
+  if (repValue === null) return '籍籍无名';
+  if (repValue <= -5000) return '恶名昭彰';
+  if (repValue <= -1000) return '臭名远扬';
+  if (repValue <= -500) return '声名狼藉';
+  if (repValue <= -100) return '恶名在外';
+  if (repValue < 0) return '小有恶名';
+  if (repValue >= 10000) return '传说人物';
+  if (repValue >= 5000) return '名满天下';
+  if (repValue >= 3000) return '威震四方';
+  if (repValue >= 1000) return '名动一方';
+  if (repValue >= 500) return '声名远播';
+  if (repValue >= 100) return '小有名气';
   return '籍籍无名';
-};
+});
 
 // 获取声望CSS类名
 const getReputationClass = (): string => {
@@ -432,1249 +403,418 @@ const getReputationClass = (): string => {
 </script>
 
 <style scoped>
-.right-sidebar {
-  width: 100%;
-  height: 100%;
-  padding: 10px 6px;
-  box-sizing: border-box;
-  font-family: var(--font-family-sans-serif);
+.status {
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
-  border-radius: 0;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
-.right-sidebar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 50% at 90% 0%, rgba(var(--color-primary-rgb), 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 5% 5%, rgba(var(--color-accent-rgb), 0.06), transparent);
-  pointer-events: none;
-  z-index: 0;
+.status-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.1rem 1rem 1.25rem 1.15rem;
 }
 
-.sidebar-header,
-.sidebar-content,
-.no-character {
-  position: relative;
-  z-index: 1;
-}
-
-.sidebar-header {
-  margin: 0 0 10px 0;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(var(--color-border-rgb), 0.3);
-  background: transparent;
-}
-
-.sidebar-title {
-  margin: 0;
+/* ---------- 名牒 ---------- */
+.id-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-  text-align: center;
+  gap: 1rem;
+  padding: 0.35rem 0.25rem 1.1rem 0.45rem;
+  border-bottom: 1px solid var(--gm-rail-line);
 }
 
-.title-icon {
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-.title-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  background: var(--color-primary);
-  color: #fff;
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.2px;
-}
-
-/* 移除深色主题硬编码，使用CSS变量自动适配 */
-
-.sidebar-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  padding-right: 2px;
+.id-main {
   min-width: 0;
 }
 
-.sidebar-content::-webkit-scrollbar {
-  width: 4px;
+.id-name {
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.12em;
+  color: var(--cc-text);
 }
 
-.sidebar-content::-webkit-scrollbar-track {
-  background: transparent;
+.id-sub {
+  margin: 0.3rem 0 0;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: var(--cc-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.sidebar-content::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
-}
-
-[data-theme="dark"] .sidebar-content::-webkit-scrollbar-thumb {
-  background: transparent;
-}
-
-/* 角色基本信息样式 */
-.character-info-section {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: linear-gradient(160deg, rgba(var(--color-surface-rgb), 0.86), rgba(var(--color-surface-rgb), 0.72));
-  border: 1px solid rgba(var(--color-border-rgb), 0.6);
-  border-radius: 4px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-}
-
-.character-basic {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.character-basic .detail-item {
-  background: var(--color-surface-hover);
-  border-radius: 6px;
-  padding: 8px;
-  font-size: 0.75rem;
-}
-
-.character-basic .detail-label {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.character-basic .detail-value {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-/* 角色状态区域样式 */
-.character-state-section {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: linear-gradient(160deg, rgba(var(--color-surface-rgb), 0.86), rgba(var(--color-surface-rgb), 0.72));
-  border: 1px solid rgba(var(--color-border-rgb), 0.6);
-  border-radius: 4px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-}
-
-.character-states {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.state-item {
-  background: var(--color-surface-hover);
-  border-radius: 6px;
-  padding: 8px;
-}
-
-.state-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-  margin-bottom: 4px;
-  display: block;
-}
-
-.state-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.state-text {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-.progress-fill.cultivation {
-  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
-}
-
-/* 境界进度条 - 冲刺状态（90-99%）黄色 */
-.progress-fill.cultivation.realm-sprint {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
-}
-
-/* 境界进度条 - 突破状态（100%）红色 */
-.progress-fill.cultivation.realm-breakthrough {
-  background: linear-gradient(90deg, #ef4444, #f87171);
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
-  animation: breakthrough-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes breakthrough-pulse {
-  0%, 100% {
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 16px rgba(239, 68, 68, 0.7);
-  }
-}
-
-/* 进度文本颜色变化 */
-.progress-text.realm-sprint {
-  color: #f59e0b;
-  font-weight: 600;
-}
-
-.progress-text.realm-breakthrough {
-  color: #ef4444;
-  font-weight: 700;
-}
-
-/* 突破和冲刺提示 */
-.breakthrough-hint {
-  font-size: 0.6rem;
-  color: #ef4444;
-  font-weight: 700;
-  margin-left: 4px;
-  animation: hint-blink 1s ease-in-out infinite;
-}
-
-.sprint-hint {
-  font-size: 0.6rem;
-  color: #f59e0b;
-  font-weight: 600;
-  margin-left: 4px;
-}
-
-@keyframes hint-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* 收缩区域通用样式 */
-.collapsible-section {
-  margin-bottom: 10px;
-  padding: 0;
-  background: rgba(var(--color-surface-rgb), 0.5);
-  border: 1px solid rgba(var(--color-border-rgb), 0.4);
-  border-radius: 10px;
-  backdrop-filter: blur(4px);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  border-radius: 10px 10px 0 0;
-}
-
-.section-header:hover {
-  background: rgba(var(--color-surface-rgb), 0.4);
-}
-
-.collapse-toggle {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+/* ---------- 境界 ---------- */
+.realm {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.9rem;
+  padding: 1rem 0.25rem 0.5rem;
 }
 
-.collapse-toggle:hover {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-
-.collapse-toggle svg {
-  transform: rotate(0deg);
-  transition: transform 0.2s ease;
-}
-
-.collapse-toggle.collapsed svg {
+.realm-ring {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
   transform: rotate(-90deg);
 }
 
-.status-details {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
+.ring-track {
+  fill: none;
+  stroke: var(--cc-inset);
+  stroke-width: 5;
 }
 
-.current-status {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-border);
+.ring-fill {
+  fill: none;
+  stroke: var(--gm-cultivation);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
 }
 
-.current-status .status-details {
+.ring-fill.realm-sprint {
+  stroke: var(--cc-warning);
+}
+
+.ring-fill.realm-breakthrough {
+  stroke: var(--cc-seal);
+}
+
+.ring-text {
+  fill: var(--cc-text);
+  font-size: 13px;
+  transform: rotate(90deg);
+  transform-origin: 32px 32px;
+}
+
+.realm-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 0;
-}
-
-.detail-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 6px 8px;
-  background: var(--color-surface-hover);
-  border-radius: 4px;
-  font-size: 0.75rem;
-}
-
-.detail-label {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.detail-value {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-/* 六维灵根区域样式 */
-.attributes-section {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: linear-gradient(160deg, rgba(var(--color-surface-rgb), 0.86), rgba(var(--color-surface-rgb), 0.72));
-  border: 1px solid rgba(var(--color-border-rgb), 0.6);
-  border-radius: 4px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-}
-
-.attributes-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.attribute-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.attribute-item:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
-}
-
-.attr-info {
-  flex: 1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.attr-name {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.attr-value {
-  font-size: 0.85rem;
-  color: var(--color-text);
-  font-weight: 700;
-}
-
-.attr-quality {
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid;
-}
-
-/* 属性品质颜色 */
-.quality-purple .attr-quality {
-  background: #8b5cf6;
-  color: white;
-  border-color: #8b5cf6;
-}
-
-.quality-orange .attr-quality {
-  background: #f59e0b;
-  color: white;
-  border-color: #f59e0b;
-}
-
-.quality-blue .attr-quality {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-}
-
-.quality-green .attr-quality {
-  background: #10b981;
-  color: white;
-  border-color: #10b981;
-}
-
-.quality-gray .attr-quality {
-  background: #6b7280;
-  color: white;
-  border-color: #6b7280;
-}
-
-/* 灵根和声望信息 */
-.spiritual-info {
-  border-top: 1px solid var(--color-border);
-  padding-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.info-row {
-  display: flex;
-}
-
-.info-item {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  background: var(--color-surface);
-  border-radius: 4px;
-  font-size: 0.75rem;
-}
-
-.info-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.info-icon {
-  flex-shrink: 0;
-}
-
-.info-icon.spiritual {
-  color: var(--color-accent);
-}
-
-.info-icon.reputation {
-  color: var(--color-warning);
-}
-
-.info-value {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-/* 图标颜色 */
-.section-icon.attributes {
-  color: var(--color-accent);
-}
-
-/* 通用区块样式 */
-.ai-chat-section,
-.info-section,
-.cultivation-section,
-.vitals-section,
-.attributes-section,
-.location-section,
-.wealth-section {
-  margin-bottom: 10px;
-  padding: 10px;
-  background: rgba(var(--color-surface-rgb), 0.5);
-  border: 1px solid rgba(var(--color-border-rgb), 0.4);
-  border-radius: 10px;
-  backdrop-filter: blur(4px);
-}
-
-/* 天赋神通特定样式 */
-.talents-list {
-  padding: 0 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 空状态样式 */
-.empty-talents,
-.empty-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  text-align: center;
-  gap: 0.5rem;
-}
-
-.empty-text {
-  color: var(--color-text-secondary);
-  font-size: 0.95rem;
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-}
-
-
-/* 新的标签式状态效果样式 */
-.status-tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 12px;
-}
-
-.status-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 8px;
-  border-radius: 16px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid;
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.status-tag.buff {
-  background: linear-gradient(135deg, rgba(var(--color-success-rgb), 0.2), rgba(var(--color-success-rgb), 0.1));
-  border-color: rgba(var(--color-success-rgb), 0.4);
-  color: var(--color-success);
-}
-
-.status-tag.debuff {
-  background: linear-gradient(135deg, rgba(var(--color-error-rgb), 0.2), rgba(var(--color-error-rgb), 0.1));
-  border-color: rgba(var(--color-error-rgb), 0.4);
-  color: var(--color-danger);
-}
-
-.status-tag:hover {
-  transform: translateY(-1px);
-}
-
-.status-tag.buff:hover {
-  background: linear-gradient(135deg, rgba(var(--color-success-rgb), 0.25), rgba(var(--color-success-rgb), 0.15));
-  border-color: rgba(var(--color-success-rgb), 0.5);
-}
-
-.status-tag.debuff:hover {
-  background: linear-gradient(135deg, rgba(var(--color-error-rgb), 0.25), rgba(var(--color-error-rgb), 0.15));
-  border-color: rgba(var(--color-error-rgb), 0.5);
-}
-
-.tag-icon {
-  font-size: 0.8rem;
-  flex-shrink: 0;
-}
-
-.tag-name {
-  font-weight: 600;
-  flex-shrink: 0;
-  min-width: 0;
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tag-intensity {
-  font-size: 0.65rem;
-  background: rgba(var(--color-warning-rgb), 0.8);
-  color: var(--color-text);
-  padding: 1px 4px;
-  border-radius: 8px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.tag-time {
-  font-size: 0.65rem;
-  opacity: 0.8;
-  font-weight: 400;
-  flex-shrink: 0;
-}
-/* 标题样式 - 图标和文字在一行 */
-.section-title {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
-  padding-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-title span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.section-icon {
-  color: var(--color-primary);
-  opacity: 0.8;
-  flex-shrink: 0;
-}
-
-.section-icon.gold {
-  color: var(--color-warning);
-}
-
-.vital-icon {
-  flex-shrink: 0;
-}
-
-.vital-icon.blood { color: var(--vital-health); }
-.vital-icon.mana { color: var(--vital-lingqi); }
-.vital-icon.spirit { color: var(--vital-spirit); }
-.vital-icon.lifespan { color: var(--vital-lifespan); }
-.vital-icon.reputation { color: var(--color-warning); }
-
-/* 声望显示样式 */
-.reputation-display {
-  margin-top: 8px;
-  border-top: 1px solid rgba(var(--color-border-rgb), 0.3);
-  padding-top: 8px;
-}
-
-.reputation-item {
-  background: rgba(var(--color-surface-rgb), 0.6);
-  border-radius: 8px;
-  padding: 8px;
-  border: 1px solid rgba(var(--color-border-rgb), 0.3);
-  transition: all 0.2s ease;
-}
-
-.reputation-item:hover {
-  background: rgba(var(--color-surface-rgb), 0.8);
-}
-
-.reputation-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.reputation-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.reputation-value {
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.3s ease;
-}
-
-/* 声望等级配色 */
-.reputation-neutral {
-  color: var(--color-text-secondary);
-  background: rgba(128, 128, 128, 0.1);
-  border: 1px solid rgba(128, 128, 128, 0.3);
-}
-
-/* 正面声望 */
-.reputation-minor {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.reputation-known {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.reputation-notable {
-  color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-}
-
-.reputation-renowned {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.reputation-famous {
-  color: #f97316;
-  background: rgba(249, 115, 22, 0.1);
-  border: 1px solid rgba(249, 115, 22, 0.3);
-}
-
-.reputation-legendary {
-  color: #dc2626;
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(239, 68, 68, 0.1));
-  border: 1px solid rgba(220, 38, 38, 0.4);
-  box-shadow: 0 0 8px rgba(220, 38, 38, 0.3);
-}
-
-/* 负面声望（恶名） */
-.reputation-evil-minor {
-  color: #6b7280;
-  background: rgba(107, 114, 128, 0.1);
-  border: 1px solid rgba(107, 114, 128, 0.3);
-}
-
-.reputation-evil-low {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.reputation-evil-medium {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-}
-
-.reputation-evil-high {
-  color: #991b1b;
-  background: rgba(153, 27, 27, 0.1);
-  border: 1px solid rgba(153, 27, 27, 0.3);
-}
-
-.reputation-evil-legendary {
-  color: #7f1d1d;
-  background: linear-gradient(135deg, rgba(127, 29, 29, 0.2), rgba(153, 27, 27, 0.1));
-  border: 1px solid rgba(127, 29, 29, 0.4);
-  box-shadow: 0 0 8px rgba(127, 29, 29, 0.4);
-}
-
-.reputation-number {
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  opacity: 0.8;
-}
-
-/* 点击提示样式 */
-.clickable {
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.clickable:hover {
-  transform: translateY(-1px);
-}
-
-/* 天赋卡片样式 */
-.talent-card {
-  background: rgba(var(--color-accent-rgb), 0.08);
-  border: 1px solid rgba(var(--color-accent-rgb), 0.2);
-  border-left: 3px solid var(--color-accent);
-  border-radius: 8px;
-  padding: 12px;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.talent-card:hover {
-  background: rgba(var(--color-accent-rgb), 0.12);
-  border-color: rgba(var(--color-accent-rgb), 0.3);
-  transform: translateX(3px);
-}
-
-.talent-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  position: relative;
-  z-index: 1;
-}
-
-.talent-name {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--color-accent);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.talent-level {
-  font-size: 0.75rem;
-  color: var(--color-warning);
-  font-weight: 600;
-  background: linear-gradient(135deg, rgba(var(--color-warning-rgb), 0.2), rgba(var(--color-warning-rgb), 0.1));
-  padding: 4px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(var(--color-warning-rgb), 0.3);
-  backdrop-filter: blur(4px);
-}
-
-.talent-progress {
-  margin-top: 10px;
-  position: relative;
-  z-index: 1;
-}
-
-.progress-fill.talent {
-  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-hover), rgba(var(--color-accent-rgb), 0.9));
-  box-shadow: 0 2px 8px rgba(var(--color-accent-rgb), 0.3);
-}
-
-/* 生命体征样式 */
-.vitals-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.vital-item {
-  background: rgba(var(--color-surface-rgb), 0.6);
-  border-radius: 8px;
-  padding: 10px;
-  border: 1px solid rgba(var(--color-border-rgb), 0.3);
-  transition: all 0.2s ease;
-}
-
-.vital-item:hover {
-  background: rgba(var(--color-surface-rgb), 0.8);
-}
-
-.vital-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.vital-name {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.vital-text {
-  font-size: 0.75rem;
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-.progress-bar {
-  height: 6px;
-  background: var(--color-surface-light);
-  border-radius: 3px;
-  overflow: hidden;
-  position: relative;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-
-.progress-fill.health { background: var(--vital-health); }
-.progress-fill.mana { background: var(--vital-lingqi); }
-.progress-fill.spirit { background: var(--vital-spirit); }
-/* 寿元进度条统一紫色 */
-.progress-fill.lifespan { background: var(--vital-lifespan); }
-
-/* 修为状态样式 */
-.realm-display {
-  background: rgba(var(--color-surface-rgb), 0.6);
-  border: 1px solid rgba(var(--color-border-rgb), 0.3);
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 8px;
-}
-
-.realm-info {
-  display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
-  flex-direction: column;
-  gap: 4px;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.realm-label {
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: var(--cc-text-3);
 }
 
 .realm-name {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-accent);
+  font-family: var(--cc-calligraphy);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0.1em;
+  color: var(--cc-gold);
 }
 
-.realm-breakthrough {
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-  opacity: 0.8;
+.realm-flag {
+  padding: 0.05rem 0.5rem;
+  border-radius: 3px;
+  font-size: 12px;
+  letter-spacing: 0.15em;
 }
 
-.realm-level {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
+.realm-flag.hot {
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
 }
 
-/* 凡人境界特殊样式 */
-.realm-mortal {
-  padding: 8px;
-  background: rgba(var(--color-primary-rgb), 0.05);
-  border-radius: 4px;
-  text-align: center;
-  border: 1px dashed rgba(var(--color-primary-rgb), 0.3);
+.realm-flag.warm {
+  border: 1px solid rgba(var(--cc-warning-rgb), 0.5);
+  color: var(--cc-warning);
 }
 
-.mortal-text {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  font-style: italic;
-  opacity: 0.8;
+.realm-wait {
+  font-size: 13px;
+  color: var(--cc-text-2);
 }
 
-.realm-progress {
+/* ---------- 分块 ---------- */
+.block {
+  padding: 1rem 0.25rem 0;
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--gm-rail-line);
+}
+
+.block > .gm-label {
+  margin-bottom: 0.75rem;
+}
+
+.vitals {
+  --icon-slot: calc(28px + 0.45rem);
+
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.72rem;
 }
 
-.progress-text {
-  font-size: 0.65rem;
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-/* 状态效果样式 */
-.status-effects {
-  padding: 0 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.status-effect {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
+.vitals .gm-meter-row {
   align-items: center;
-  gap: 2px;
+  margin-bottom: 0.28rem;
 }
 
-.status-effect.buff {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+.vitals .gm-meter-row > span {
+  gap: 0.45rem;
 }
 
-.status-effect.debuff {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+.vitals .gm-meter-track {
+  height: 4px;
+  margin-left: var(--icon-slot);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--cc-text) 14%, transparent);
 }
 
-.status-effect:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+.reputation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  margin-top: 0.85rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--gm-rail-line);
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-2);
+}
+
+.reputation-label {
+  gap: 0.45rem;
+}
+
+.reputation strong {
+  justify-self: end;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cc-text);
+}
+
+.reputation i {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--cc-text-3);
+}
+
+.reputation-neutral { color: var(--cc-text-2) !important; }
+.reputation-minor,
+.reputation-known { color: var(--gm-life) !important; }
+.reputation-notable,
+.reputation-renowned { color: var(--gm-mp) !important; }
+.reputation-famous,
+.reputation-legendary { color: var(--cc-gold) !important; }
+.reputation-evil-minor,
+.reputation-evil-low,
+.reputation-evil-medium,
+.reputation-evil-high,
+.reputation-evil-legendary { color: var(--cc-danger) !important; }
+
+/* ---------- 天赋神通 / 状态效果：印签标题行 + 签条 ---------- */
+.trait-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--cc-text-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.trait-head:disabled {
+  cursor: default;
+}
+
+.trait-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  border-radius: 4px;
+  background: rgba(var(--cc-gold-rgb), 0.08);
+  color: var(--cc-gold);
+  font-family: var(--cc-calligraphy);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.trait-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  color: color-mix(in srgb, var(--cc-gold) 78%, var(--cc-text-2));
+  white-space: nowrap;
+}
+
+.trait-head:not(:disabled):hover .trait-title {
+  color: var(--cc-gold);
+}
+
+.trait-count {
+  flex-shrink: 0;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--gm-block);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--cc-text-2);
+}
+
+.trait-count.buff {
+  background: color-mix(in srgb, var(--cc-success) 14%, transparent);
+  color: var(--cc-success);
+}
+
+.trait-count.debuff {
+  background: color-mix(in srgb, var(--cc-danger) 14%, transparent);
+  color: var(--cc-danger);
+}
+
+.trait-empty {
+  flex-shrink: 0;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-3);
+}
+
+.fold-caret {
+  flex-shrink: 0;
+  color: var(--cc-text-3);
+  transition: transform 0.25s ease;
+}
+
+.fold-caret.shut {
+  transform: rotate(-90deg);
+}
+
+/* 天赋：两列签条 */
+.talents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.talent {
+  position: relative;
+  height: 30px;
+  padding: 0 0.5rem 0 0.75rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.22);
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.1), rgba(var(--cc-gold-rgb), 0.02));
+  color: color-mix(in srgb, var(--cc-gold) 70%, var(--cc-text));
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.talent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--cc-gold);
+}
+
+.talent:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.55);
+  color: var(--cc-text);
+}
+
+/* 状态：单列签条，左方印标增减，右侧剩余时间 */
+.effects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.effect {
+  --tone: var(--cc-success);
+
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  height: 32px;
+  padding: 0 0.55rem 0 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--tone) 20%, transparent);
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 10%, transparent), transparent);
+  color: var(--cc-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.effect.debuff {
+  --tone: var(--cc-danger);
+}
+
+.effect:hover {
+  border-color: color-mix(in srgb, var(--tone) 50%, transparent);
+}
+
+.effect-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--tone) 22%, transparent);
+  color: var(--tone);
+  font-family: var(--cc-calligraphy);
+  font-size: 14px;
+  line-height: 1;
 }
 
 .effect-name {
-  font-size: 0.65rem;
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .effect-time {
-  font-size: 0.6rem;
-  opacity: 0.8;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text-3);
 }
-
-/* 无角色数据样式 */
-.no-character {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 10px;
-}
-
-.no-char-text {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
-/* 响应式设计 */
-@media (max-width: 640px) {
-  .right-sidebar {
-    padding: 12px;
-  }
-
-  .sidebar-title {
-    font-size: 0.9rem;
-  }
-
-  .section-title {
-    font-size: 0.8rem;
-  }
-
-  .vitals-list {
-    gap: 8px;
-  }
-
-  .vital-item {
-    padding: 6px;
-  }
-
-  .vital-name {
-    font-size: 0.7rem;
-  }
-
-  .vital-text {
-    font-size: 0.65rem;
-  }
-
-  .talent-card {
-    padding: 10px;
-  }
-
-  .talent-name {
-    font-size: 0.8rem;
-  }
-
-  .status-effect-card {
-    padding: 8px 10px;
-  }
-
-  .effect-name {
-    font-size: 0.75rem;
-  }
-
-  .status-tags-container {
-    gap: 6px;
-    padding: 8px;
-  }
-
-  .status-tag {
-    font-size: 0.7rem;
-    padding: 4px 8px;
-    gap: 4px;
-  }
-
-  .tag-intensity {
-    font-size: 0.6rem;
-    padding: 1px 3px;
-  }
-
-  .tag-time {
-    font-size: 0.6rem;
-  }
-
-  .detail-item {
-    padding: 5px 6px;
-    font-size: 0.7rem;
-  }
-
-  .attributes-grid {
-    gap: 6px;
-  }
-
-  .attribute-item {
-    padding: 6px;
-  }
-
-  .attr-name {
-    font-size: 0.7rem;
-  }
-
-  .attr-value {
-    font-size: 0.8rem;
-  }
-
-  .attr-quality {
-    font-size: 0.6rem;
-    padding: 1px 4px;
-  }
-
-  .info-item {
-    padding: 5px 6px;
-    font-size: 0.7rem;
-  }
-
-  .realm-name {
-    font-size: 0.8rem;
-  }
-
-  .progress-bar {
-    height: 5px;
-  }
-}
-
-@media (max-width: 480px) {
-  .right-sidebar {
-    padding: 8px;
-  }
-
-  .sidebar-header {
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-  }
-
-  .vitals-section,
-  .cultivation-section,
-  .collapsible-section {
-    margin-bottom: 12px;
-    padding: 10px;
-  }
-
-  .attributes-section {
-    margin-bottom: 12px;
-    padding: 10px;
-  }
-
-  .attributes-grid {
-    gap: 4px;
-  }
-
-  .attribute-item {
-    padding: 5px;
-  }
-
-  .attr-name {
-    font-size: 0.65rem;
-  }
-
-  .attr-value {
-    font-size: 0.75rem;
-  }
-
-  .attr-quality {
-    font-size: 0.55rem;
-    padding: 1px 3px;
-  }
-
-  .status-details {
-    grid-template-columns: 1fr;
-  }
-
-  .talents-list {
-    padding: 0 12px 12px;
-  }
-
-  .status-effects {
-    padding: 0 12px 12px;
-  }
-
-  .status-tags-container {
-    gap: 4px;
-    padding: 6px;
-  }
-
-  .status-tag {
-    font-size: 0.65rem;
-    padding: 3px 6px;
-    gap: 3px;
-  }
-
-  .tag-intensity {
-    font-size: 0.55rem;
-    padding: 1px 2px;
-  }
-
-  .tag-time {
-    font-size: 0.55rem;
-  }
-}
-
-/* 平板设备优化 */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .right-sidebar {
-    padding: 14px;
-  }
-
-  .vital-item {
-    padding: 7px;
-  }
-
-  .talent-card {
-    padding: 11px;
-  }
-}
-
-/* 大屏幕优化 */
-@media (min-width: 1440px) {
-  .right-sidebar {
-    padding: 20px;
-  }
-
-  .sidebar-title {
-    font-size: 1.1rem;
-  }
-
-  .section-title {
-    font-size: 0.9rem;
-  }
-
-  .vital-name {
-    font-size: 0.8rem;
-  }
-
-  .talent-name {
-    font-size: 0.9rem;
-  }
-
-  .effect-name {
-    font-size: 0.85rem;
-  }
-
-  .status-tags-container {
-    gap: 10px;
-    padding: 16px;
-  }
-
-  .status-tag {
-    font-size: 0.8rem;
-    padding: 8px 12px;
-  }
-}
-
-/* 深色主题：使用CSS变量自动适配，无需额外覆盖 */
 </style>

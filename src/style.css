@@ -492,8 +492,11 @@ html[data-lang='en'] .mastered-desc {
   z-index: -1;
 }
 
+/* 暗色：只压暗四周做暗角，中间山景保持通透 */
 :root[data-theme='dark'] .video-overlay {
-    background-color: rgba(10, 15, 24, 0.4); /* 降低遮罩透明度，让背景更亮 */
+    background:
+      radial-gradient(ellipse 75% 65% at 50% 45%, transparent 35%, rgba(6, 10, 18, 0.38) 100%),
+      rgba(6, 10, 18, 0.06);
 }
 
 .selection-content {
@@ -585,7 +588,7 @@ html[data-lang='en'] .mastered-desc {
   gap: 1rem;
 }
 
-.action-btn {
+.bottom-actions .action-btn {
   width: 48px;
   height: 48px;
   display: flex;
@@ -601,7 +604,7 @@ html[data-lang='en'] .mastered-desc {
   backdrop-filter: blur(5px);
 }
 
-.action-btn:hover {
+.bottom-actions .action-btn:hover {
   background-color: var(--color-surface-light);
   color: var(--color-text);
   border-color: var(--color-border-hover);

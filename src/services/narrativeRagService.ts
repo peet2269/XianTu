@@ -3,23 +3,25 @@
  *
  * 来自“织界”的 RAG 方案适配版：
  * - 只索引系统历史中的 assistant/GM 叙事文本，不索引玩家输入
- * - 每个存档使用独立 IndexedDB
+ * - 存储统一在 LocalMemoryIndex（services/localMemoryIndex.ts）的 narrative 分区，每个存档独立作用域
  * - 必须使用 API 管理里分配给 Embedding 的独立 API；未配置或失败时不建索引、不检索
- * - 发送前检索相关叙事片段，作为轻量上下文注入主提示词
+ * - 发送前检索相关叙事片段，作为轻量上下文注入主提示词；失败时返回空串，不阻塞主流程
  */
-import { openDB, type IDBPDatabase } from 'idb';
 import type { APIProvider } from '@/services/aiService';
 import {
   createEmbeddings,
-  normalizeBaseUrl,
   normalizeToUnitVector,
+  resolveEmbeddingConfig,
   type EmbeddingRequestConfig,
 } from '@/services/embeddingService';
+import { hashContent, localMemoryIndex, type MemoryRecord, type RecallLog } from '@/services/localMemoryIndex';
+import { bindMemoryScope, getBoundMemoryScope, resolveMemoryScope } from '@/services/memoryIndexContext';
 
 export interface NarrativeRagEntry {
   id: string;
   content: string;
-  vector: number[];
+  /** 向量已量化存储在本地索引中，条目不再携带原始向量 */
+  vector?: number[];
   vectorType: 'hash' | 'embedding';
   embeddingModel?: string;
   narrativeIndex: number;
@@ -48,25 +50,24 @@ const DEFAULT_CONFIG: NarrativeRagConfig = {
   autoIndex: true,
 };
 
-function fnv1a32(input: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
+const NARRATIVE_KIND = 'narrative' as const;
+/** 发送前自动补齐最多处理的批次数；其余缺口留给后续轮次或手动同步，避免首轮请求被长时间阻塞 */
+const PRE_SEND_MAX_BATCHES = 2;
 
 function stableNarrativeId(index: number, content: string): string {
-  const normalized = (content || '').trim().replace(/\s+/g, ' ');
-  return `nar_${index}_${fnv1a32(normalized).toString(16).padStart(8, '0')}`;
+  return `nar_${index}_${hashContent(content)}`;
 }
 
-function dot(a: number[], b: number[]): number {
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return 0;
-  let score = 0;
-  for (let i = 0; i < a.length; i++) score += a[i] * b[i];
-  return score;
+function toEntry(record: MemoryRecord): NarrativeRagEntry {
+  return {
+    id: record.id,
+    content: record.content,
+    vectorType: 'embedding',
+    embeddingModel: record.model,
+    narrativeIndex: record.ordinal,
+    timestamp: record.timestamp,
+    time: record.extra?.time,
+  };
 }
 
 function getNarrativeItems(saveData: any): Array<{ index: number; content: string; time?: string }> {
@@ -90,30 +91,18 @@ function getNarrativeItems(saveData: any): Array<{ index: number; content: strin
 }
 
 class NarrativeRagService {
-  private db: IDBPDatabase | null = null;
-  private saveSlot = '';
   private config: NarrativeRagConfig = { ...DEFAULT_CONFIG };
 
   constructor() {
     this.loadConfig();
   }
 
+  /**
+   * 绑定到指定存档的本地索引
+   * @param saveSlot `${角色ID}_${存档槽位}`，见 utils/saveIdentity.ts
+   */
   async init(saveSlot: string): Promise<void> {
-    const normalized = (saveSlot || 'default').replace(/[^\w\u4e00-\u9fff-]/g, '_');
-    if (this.db && this.saveSlot === normalized) return;
-
-    this.saveSlot = normalized;
-    this.db = await openDB(`narrative-rag-${normalized}`, 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('entries')) {
-          const store = db.createObjectStore('entries', { keyPath: 'id' });
-          store.createIndex('narrativeIndex', 'narrativeIndex');
-          store.createIndex('timestamp', 'timestamp');
-          store.createIndex('vectorType', 'vectorType');
-        }
-      },
-    });
-    console.log(`[叙事RAG] 初始化完成: narrative-rag-${normalized}`);
+    await bindMemoryScope(saveSlot || 'default');
   }
 
   private loadConfig(): void {
@@ -149,29 +138,7 @@ class NarrativeRagService {
   }
 
   private getEmbeddingRequestConfig(): EmbeddingRequestConfig | null {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { useAPIManagementStore } = require('@/stores/apiManagementStore');
-      const apiStore = useAPIManagementStore();
-      if (!apiStore.isFunctionEnabled('embedding')) return null;
-
-      const cfg = apiStore.getAPIForType('embedding');
-      if (!cfg || cfg.enabled === false || cfg.id === 'default') return null;
-
-      const baseUrl = normalizeBaseUrl(cfg.url);
-      const apiKey = (cfg.apiKey || '').trim();
-      const model = (cfg.model || '').trim();
-      if (!baseUrl || !apiKey || !model) return null;
-
-      return {
-        provider: cfg.provider as APIProvider,
-        url: baseUrl,
-        apiKey,
-        model,
-      };
-    } catch {
-      return null;
-    }
+    return resolveEmbeddingConfig();
   }
 
   getEmbeddingStatus(): { available: boolean; provider?: APIProvider; model?: string; reason?: string } {
@@ -185,6 +152,7 @@ class NarrativeRagService {
     if (!cfg) return null;
     try {
       const vectors = await createEmbeddings(cfg, texts);
+      if (vectors.length !== texts.length) return null;
       return { vectors: vectors.map(v => normalizeToUnitVector(v)), model: cfg.model };
     } catch (error) {
       console.warn('[叙事检索] Embedding 生成失败，跳过叙事检索:', error);
@@ -192,106 +160,110 @@ class NarrativeRagService {
     }
   }
 
-  private async embedText(text: string): Promise<{ vector: number[]; model: string } | null> {
-    const embedded = await this.embedBatch([text]);
-    if (!embedded || embedded.vectors.length !== 1) return null;
-    return { vector: embedded.vectors[0], model: embedded.model };
-  }
-
+  /**
+   * 删除与当前存档叙事不一致的条目（回退、编辑、删除叙事后），只删除受影响的记录
+   */
   async reconcile(saveData: any): Promise<number> {
-    if (!this.db) return 0;
-    const entries = await this.getAllEntries();
-    if (entries.length === 0) return 0;
-
-    const expected = new Map<string, string>();
-    for (const item of getNarrativeItems(saveData)) {
-      expected.set(stableNarrativeId(item.index, item.content), item.content);
-    }
-
-    let removed = 0;
-    for (const entry of entries) {
-      if (expected.get(entry.id) !== entry.content) {
-        await this.db.delete('entries', entry.id);
-        removed++;
-      }
-    }
+    const scope = await resolveMemoryScope();
+    if (!scope) return 0;
+    const expected = new Set(getNarrativeItems(saveData).map(item => stableNarrativeId(item.index, item.content)));
+    const stale = localMemoryIndex.list(scope, NARRATIVE_KIND).filter(r => !expected.has(r.id)).map(r => r.id);
+    const removed = await localMemoryIndex.remove(scope, NARRATIVE_KIND, stale);
     if (removed > 0) console.log(`[叙事RAG] 清理失效条目 ${removed} 条`);
     return removed;
   }
 
-  async ensureIndexed(saveData: any, options?: { batchSize?: number; onProgress?: (done: number, total: number) => void }): Promise<number> {
-    if (!this.db) return 0;
-    if (!this.getEmbeddingRequestConfig()) {
+  private pendingItems(scope: string, saveData: any, model: string) {
+    return getNarrativeItems(saveData).filter(item => {
+      const existing = localMemoryIndex.get(scope, NARRATIVE_KIND, stableNarrativeId(item.index, item.content));
+      return !existing || existing.model !== model;
+    });
+  }
+
+  /**
+   * 增量补齐叙事向量
+   * @param options.maxBatches 最多处理的批次数（不传则全部补齐）
+   */
+  async ensureIndexed(
+    saveData: any,
+    options?: { batchSize?: number; maxBatches?: number; onProgress?: (done: number, total: number) => void },
+  ): Promise<number> {
+    const scope = await resolveMemoryScope();
+    if (!scope) return 0;
+    const cfg = this.getEmbeddingRequestConfig();
+    if (!cfg) {
       throw new Error('未配置独立 Embedding API，无法同步叙事检索索引');
     }
-    const items = getNarrativeItems(saveData);
-    if (items.length === 0) return 0;
 
-    await this.reconcile(saveData);
+    return localMemoryIndex.withLock(scope, NARRATIVE_KIND, async () => {
+      await this.reconcile(saveData);
 
-    const existingIds = new Set((await this.getAllEntries()).map(e => e.id));
-    const pending = items.filter(item => !existingIds.has(stableNarrativeId(item.index, item.content)));
-    if (pending.length === 0) return 0;
+      const pending = this.pendingItems(scope, saveData, cfg.model);
+      if (pending.length === 0) return 0;
 
-    const batchSize = Math.max(1, Math.min(64, options?.batchSize ?? 32));
-    let added = 0;
+      const batchSize = Math.max(1, Math.min(64, options?.batchSize ?? 32));
+      const maxItems = options?.maxBatches ? options.maxBatches * batchSize : pending.length;
+      const work = pending.slice(0, maxItems);
+      let added = 0;
 
-    for (let i = 0; i < pending.length; i += batchSize) {
-      const batch = pending.slice(i, i + batchSize);
-      const texts = batch.map(item => item.content);
-      const embedded = await this.embedBatch(texts);
-      if (!embedded || embedded.vectors.length !== batch.length) {
-        throw new Error('Embedding 生成失败，叙事检索索引未写入');
+      for (let i = 0; i < work.length; i += batchSize) {
+        const batch = work.slice(i, i + batchSize);
+        const embedded = await this.embedBatch(batch.map(item => item.content));
+        if (!embedded) {
+          throw new Error('Embedding 生成失败，叙事检索索引未写入');
+        }
+        added += await localMemoryIndex.put(
+          scope,
+          NARRATIVE_KIND,
+          batch.map((item, j) => ({
+            id: stableNarrativeId(item.index, item.content),
+            content: item.content,
+            ordinal: item.index,
+            model: embedded.model,
+            vector: embedded.vectors[j],
+            extra: { time: item.time },
+          })),
+        );
+        options?.onProgress?.(Math.min(i + batch.length, work.length), work.length);
       }
 
-      for (let j = 0; j < batch.length; j++) {
-        const item = batch[j];
-        const entry: NarrativeRagEntry = {
-          id: stableNarrativeId(item.index, item.content),
-          content: item.content,
-          vector: embedded.vectors[j],
-          vectorType: 'embedding',
-          embeddingModel: embedded.model,
-          narrativeIndex: item.index,
-          timestamp: Date.now(),
-          time: item.time,
-        };
-        await this.db.put('entries', entry);
-        added++;
-      }
-      options?.onProgress?.(Math.min(i + batch.length, pending.length), pending.length);
-    }
-
-    console.log(`[叙事RAG] 已补齐 ${added} 条叙事向量`);
-    return added;
+      console.log(`[叙事RAG] 已补齐 ${added} 条叙事向量${work.length < pending.length ? `（剩余 ${pending.length - work.length} 条稍后补齐）` : ''}`);
+      return added;
+    });
   }
 
   async search(query: string): Promise<NarrativeRagSearchResult[]> {
-    if (!this.db || !this.isEnabled()) return [];
-    const entries = await this.getAllEntries();
-    if (entries.length === 0) return [];
+    if (!this.isEnabled()) return [];
+    const scope = await resolveMemoryScope();
+    if (!scope) return [];
+    if (localMemoryIndex.list(scope, NARRATIVE_KIND).length === 0) return [];
 
-    const embeddedQuery = await this.embedText(query);
+    const embeddedQuery = await this.embedBatch([query]);
     if (!embeddedQuery) return [];
-    const scored: NarrativeRagSearchResult[] = [];
 
-    for (const entry of entries) {
-      if (entry.vectorType !== 'embedding') continue;
-      if (entry.embeddingModel && entry.embeddingModel !== embeddedQuery.model) continue;
-      if (entry.vector.length !== embeddedQuery.vector.length) continue;
-      scored.push({ entry, score: dot(embeddedQuery.vector, entry.vector) });
-    }
+    const hits = localMemoryIndex.search(scope, NARRATIVE_KIND, embeddedQuery.vectors[0], embeddedQuery.model);
+    const filtered = hits.filter(hit => hit.score >= this.config.minSimilarity);
+    const picked = (filtered.length > 0 ? filtered : hits.filter(hit => hit.score > 0)).slice(0, this.config.topK);
+    localMemoryIndex.recordRecall(scope, NARRATIVE_KIND, query, picked);
 
-    scored.sort((a, b) => b.score - a.score);
-    const filtered = scored.filter(item => item.score >= this.config.minSimilarity);
-    const picked = (filtered.length > 0 ? filtered : scored.filter(item => item.score > 0)).slice(0, this.config.topK);
-    return picked.sort((a, b) => a.entry.narrativeIndex - b.entry.narrativeIndex);
+    return picked
+      .map(hit => ({ entry: toEntry(hit.record), score: hit.score }))
+      .sort((a, b) => a.entry.narrativeIndex - b.entry.narrativeIndex);
   }
 
   async buildSectionForPrompt(query: string, saveData: any): Promise<string> {
-    if (!this.isEnabled() || !this.db) return '';
+    if (!this.isEnabled()) return '';
+    const scope = await resolveMemoryScope();
+    if (!scope) return '';
+
+    // 回退或编辑后的旧叙事不能再被召回：无论是否自动索引都先对齐
+    await this.reconcile(saveData);
     if (this.config.autoIndex) {
-      await this.ensureIndexed(saveData);
+      try {
+        await this.ensureIndexed(saveData, { maxBatches: PRE_SEND_MAX_BATCHES });
+      } catch (error) {
+        console.warn('[叙事RAG] 发送前补齐失败，仅使用已有索引:', error);
+      }
     }
 
     const results = await this.search(query);
@@ -319,18 +291,28 @@ class NarrativeRagService {
   }
 
   async getAllEntries(): Promise<NarrativeRagEntry[]> {
-    if (!this.db) return [];
-    const entries = await this.db.getAll('entries') as NarrativeRagEntry[];
-    return entries.filter(entry => entry.vectorType === 'embedding');
+    const scope = await resolveMemoryScope();
+    if (!scope) return [];
+    return localMemoryIndex.list(scope, NARRATIVE_KIND).map(toEntry);
   }
 
-  async getStats(): Promise<{ total: number; byVectorType: Record<string, number>; pending?: number }> {
-    const entries = await this.getAllEntries();
-    const byVectorType: Record<string, number> = {};
-    for (const entry of entries) {
-      byVectorType[entry.vectorType] = (byVectorType[entry.vectorType] || 0) + 1;
-    }
-    return { total: entries.length, byVectorType };
+  async getStats(): Promise<{
+    total: number;
+    byVectorType: Record<string, number>;
+    byEmbeddingModel: Record<string, number>;
+    /** 与当前 Embedding 模型一致、可参与检索的条目数 */
+    usable: number;
+    pending?: number;
+  }> {
+    const scope = await resolveMemoryScope();
+    if (!scope) return { total: 0, byVectorType: {}, byEmbeddingModel: {}, usable: 0 };
+    const stats = localMemoryIndex.stats(scope, NARRATIVE_KIND, this.getEmbeddingRequestConfig()?.model);
+    return {
+      total: stats.total,
+      byVectorType: stats.total ? { embedding: stats.total } : {},
+      byEmbeddingModel: stats.byModel,
+      usable: stats.usable,
+    };
   }
 
   countVectorizableNarratives(saveData: any): number {
@@ -338,15 +320,22 @@ class NarrativeRagService {
   }
 
   async countPending(saveData: any): Promise<number> {
-    if (!this.db) return 0;
-    const existingIds = new Set((await this.getAllEntries()).map(e => e.id));
-    return getNarrativeItems(saveData).filter(item => !existingIds.has(stableNarrativeId(item.index, item.content))).length;
+    const scope = await resolveMemoryScope();
+    const cfg = this.getEmbeddingRequestConfig();
+    if (!scope || !cfg) return 0;
+    return this.pendingItems(scope, saveData, cfg.model).length;
   }
 
   async clear(): Promise<void> {
-    if (!this.db) return;
-    await this.db.clear('entries');
+    const scope = await resolveMemoryScope();
+    if (!scope) return;
+    await localMemoryIndex.clear(scope, NARRATIVE_KIND);
     console.log('[叙事检索] 已清空检索索引');
+  }
+
+  /** 最近一次叙事召回（供记忆中心展示） */
+  getLastRecall(): RecallLog | null {
+    return localMemoryIndex.getLastRecall(NARRATIVE_KIND, getBoundMemoryScope() ?? undefined);
   }
 }
 

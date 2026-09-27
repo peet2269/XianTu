@@ -192,9 +192,3 @@ export const ORIGIN_ITEM_GENERATION_PROMPT = IMPROVED_ORIGIN_PROMPT;
 export const SPIRIT_ROOT_ITEM_GENERATION_PROMPT = IMPROVED_SPIRIT_ROOT_PROMPT;
 export const TALENT_ITEM_GENERATION_PROMPT = IMPROVED_TALENT_PROMPT;
 export const TECHNIQUE_ITEM_GENERATION_PROMPT = IMPROVED_TECHNIQUE_PROMPT;
-
-
-/**
- * @deprecated Placeholder for missing export to resolve build error. Should be removed once the dependency is located and fixed.
- */
-export const MAP_GENERATION_PROMPT = ``;

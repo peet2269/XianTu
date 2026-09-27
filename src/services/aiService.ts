@@ -34,6 +34,29 @@ export interface AIConfig {
   };
 }
 
+/** 一次请求实际使用的 API 配置（显式传参，不再临时改写 this.config.customAPI） */
+type CustomAPIConfig = NonNullable<AIConfig['customAPI']>;
+
+type APIConfigInput = {
+  provider: APIProvider;
+  url: string;
+  apiKey: string;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+  forceJsonOutput?: boolean;
+};
+
+const toCustomAPIConfig = (api: APIConfigInput, defaultMaxTokens = 16000): CustomAPIConfig => ({
+  provider: api.provider,
+  url: api.url,
+  apiKey: api.apiKey,
+  model: api.model,
+  temperature: api.temperature ?? 0.7,
+  maxTokens: api.maxTokens ?? defaultMaxTokens,
+  forceJsonOutput: api.forceJsonOutput,
+});
+
 // API提供商预设配置
 export const API_PROVIDER_PRESETS: Record<APIProvider, {
   url: string;
@@ -247,35 +270,11 @@ class AIService {
   }, testPrompt: string): Promise<string> {
     console.log(`[AI服务] 直接测试API: ${apiConfig.url}, model: ${apiConfig.model}`);
 
-    // 临时保存当前配置
-    const originalConfig = this.config.customAPI ? { ...this.config.customAPI } : null;
-    const originalMode = this.config.mode;
-
-    try {
-      // 强制使用custom模式和指定的API配置
-      this.config.mode = 'custom';
-      this.config.customAPI = {
-        provider: apiConfig.provider,
-        url: apiConfig.url.replace(/\/v1\/?$/, '').replace(/\/+$/, ''),
-        apiKey: apiConfig.apiKey,
-        model: apiConfig.model,
-        temperature: apiConfig.temperature ?? 0.7,
-        maxTokens: apiConfig.maxTokens ?? 1000,
-        forceJsonOutput: apiConfig.forceJsonOutput
-      };
-
-      // 直接调用自定义API（不走环境检测）
-      return await this.generateWithCustomAPI({
-        user_input: testPrompt,
-        should_stream: false
-      });
-    } finally {
-      // 恢复原配置
-      this.config.mode = originalMode;
-      if (originalConfig) {
-        this.config.customAPI = originalConfig;
-      }
-    }
+    // 直接用传入的配置请求（不走环境检测，也不改动全局配置，避免影响同时进行的游戏请求）
+    return await this.generateWithCustomAPI(
+      { user_input: testPrompt, should_stream: false },
+      toCustomAPIConfig({ ...apiConfig, url: apiConfig.url.replace(/\/v1\/?$/, '').replace(/\/+$/, '') }, 1000),
+    );
   }
 
   getConfig(): AIConfig {
@@ -523,228 +522,66 @@ class AIService {
   }
 
   /**
-   * 标准生成（带角色卡、聊天历史）
+   * 标准生成（带角色卡、聊天历史，使用 injects + user_input）
    *
-   * 酒馆端逻辑：
-   * - usageType='main' 或未指定 → 永远走酒馆TavernHelper
-   * - 其他usageType且配置了独立API → 走自定义API
-   *
-   * 网页端逻辑：
-   * - 根据usageType查找对应API配置
-   * - 如果没有配置独立API，使用默认API
+   * 路由规则（generate / generateRaw 相同）：
+   * - 酒馆端：该功能分配了非 default 的独立 API → 直连该 API；否则走酒馆 TavernHelper
+   * - 网页端：使用该功能分配的 API；都没有时使用默认 customAPI
    */
   async generate(options: GenerateOptions): Promise<string> {
-    // 重置取消状态（只在最外层重置一次，重试时不再重置）
-    this.resetAbortState();
-
-    return this.executeWithRetry(async () => {
-      this.syncModeWithEnvironment();
-      const usageType = options.usageType || 'main';
-      console.log(`[AI服务] 调用generate，模式: ${this.config.mode}, usageType: ${usageType}, hasOnStreamChunk=${!!options.onStreamChunk}`);
-
-      // 酒馆模式特殊处理
-      if (this.config.mode === 'tavern') {
-        // 检查是否配置了独立API（必须是非 default；default 在酒馆端表示“使用酒馆配置”）
-        const apiConfig = this.getAPIConfigForUsageType(usageType);
-
-        // 如果配置了独立API，直接请求，不走酒馆代理
-        if (apiConfig && apiConfig.id !== 'default') {
-          console.log(`[AI服务-酒馆] 功能[${usageType}]使用独立API直连: ${apiConfig.name}`);
-          // 如果API配置启用了强制JSON输出，设置responseFormat
-          if (apiConfig.forceJsonOutput && !options.responseFormat) {
-            options = { ...options, responseFormat: 'json_object' };
-          }
-          return this.generateWithAPIConfig(options, {
-            provider: apiConfig.provider,
-            url: apiConfig.url,
-            apiKey: apiConfig.apiKey,
-            model: apiConfig.model,
-            temperature: apiConfig.temperature,
-            maxTokens: apiConfig.maxTokens
-          });
-        }
-
-        // 没有配置独立API（使用default），走酒馆
-        console.log(`[AI服务-酒馆] 功能[${usageType}]使用酒馆TavernHelper`);
-        return this.generateWithTavern(options);
-      }
-
-      // 网页模式：检查是否需要使用特定功能的 API 配置
-      const apiConfig = this.getAPIConfigForUsageType(usageType);
-      if (apiConfig) {
-        console.log(`[AI服务-网页] 使用功能[${usageType}]分配的API: ${apiConfig.name}`);
-        // 如果API配置启用了强制JSON输出，设置responseFormat
-        if (apiConfig.forceJsonOutput && !options.responseFormat) {
-          options = { ...options, responseFormat: 'json_object' };
-        }
-        return this.generateWithAPIConfig(options, {
-          provider: apiConfig.provider,
-          url: apiConfig.url,
-          apiKey: apiConfig.apiKey,
-          model: apiConfig.model,
-          temperature: apiConfig.temperature,
-          maxTokens: apiConfig.maxTokens
-        });
-      }
-
-      // 网页模式默认
-      return this.generateWithCustomAPI(options);
-    }, `generate[${options.usageType || 'main'}]`);
+    return this.routeGeneration('generate', options);
   }
 
   /**
-   * 纯净生成（不带角色卡）
-   *
-   * 酒馆端逻辑：
-   * - usageType='main' 或未指定 → 永远走酒馆TavernHelper
-   * - 其他usageType且配置了独立API → 走自定义API
-   *
-   * 网页端逻辑：
-   * - 根据usageType查找对应API配置
-   * - 如果没有配置独立API，使用默认API
+   * 纯净生成（不带角色卡，使用 ordered_prompts）。路由规则同 generate。
    */
   async generateRaw(options: GenerateOptions): Promise<string> {
-    // 重置取消状态
+    return this.routeGeneration('raw', options);
+  }
+
+  private async routeGeneration(kind: 'generate' | 'raw', options: GenerateOptions): Promise<string> {
+    // 重置取消状态（只在最外层重置一次，重试时不再重置）
     this.resetAbortState();
+    const usageType = options.usageType || 'main';
 
     return this.executeWithRetry(async () => {
       this.syncModeWithEnvironment();
-      const usageType = options.usageType || 'main';
-      console.log(`[AI服务] 调用generateRaw，模式: ${this.config.mode}, usageType: ${usageType}`);
-
-      // 酒馆模式特殊处理
-      if (this.config.mode === 'tavern') {
-        // 检查是否配置了独立API（必须是非 default；default 在酒馆端表示“使用酒馆配置”）
-        const apiConfig = this.getAPIConfigForUsageType(usageType);
-
-        // 如果配置了独立API，直接请求，不走酒馆代理
-        if (apiConfig && apiConfig.id !== 'default') {
-          console.log(`[AI服务-酒馆] 功能[${usageType}]使用独立API直连(Raw): ${apiConfig.name}`);
-          // 如果API配置启用了强制JSON输出，设置responseFormat
-          if (apiConfig.forceJsonOutput && !options.responseFormat) {
-            options = { ...options, responseFormat: 'json_object' };
-          }
-          return this.generateRawWithAPIConfig(options, {
-            provider: apiConfig.provider,
-            url: apiConfig.url,
-            apiKey: apiConfig.apiKey,
-            model: apiConfig.model,
-            temperature: apiConfig.temperature,
-            maxTokens: apiConfig.maxTokens
-          });
-        }
-
-        // 没有配置独立API（使用default），走酒馆
-        console.log(`[AI服务-酒馆] 功能[${usageType}]使用酒馆TavernHelper(Raw)`);
-        return this.generateRawWithTavern(options);
-      }
-
-      // 网页模式：检查是否需要使用特定功能的 API 配置
       const apiConfig = this.getAPIConfigForUsageType(usageType);
-      if (apiConfig) {
-        console.log(`[AI服务-网页] 使用功能[${usageType}]分配的API: ${apiConfig.name}`);
-        // 如果API配置启用了强制JSON输出，设置responseFormat
-        if (apiConfig.forceJsonOutput && !options.responseFormat) {
-          options = { ...options, responseFormat: 'json_object' };
-        }
-        return this.generateRawWithAPIConfig(options, {
-          provider: apiConfig.provider,
-          url: apiConfig.url,
-          apiKey: apiConfig.apiKey,
-          model: apiConfig.model,
-          temperature: apiConfig.temperature,
-          maxTokens: apiConfig.maxTokens
-        });
+
+      // 酒馆端：default 表示「使用酒馆配置」，只有非 default 的独立 API 才直连
+      const useDirectAPI = this.config.mode === 'tavern' ? !!apiConfig && apiConfig.id !== 'default' : !!apiConfig;
+
+      if (useDirectAPI && apiConfig) {
+        console.log(`[AI服务] 功能[${usageType}]使用API直连${kind === 'raw' ? '(Raw)' : ''}: ${apiConfig.name}`);
+        const requestOptions = apiConfig.forceJsonOutput && !options.responseFormat
+          ? { ...options, responseFormat: 'json_object' as const }
+          : options;
+        return kind === 'raw'
+          ? this.generateRawWithCustomAPI(requestOptions, toCustomAPIConfig(apiConfig))
+          : this.generateWithCustomAPI(requestOptions, toCustomAPIConfig(apiConfig));
       }
 
-      // 网页模式默认
-      return this.generateRawWithCustomAPI(options);
-    }, `generateRaw[${options.usageType || 'main'}]`);
+      if (this.config.mode === 'tavern') {
+        return kind === 'raw' ? this.generateRawWithTavern(options) : this.generateWithTavern(options);
+      }
+
+      // 网页端且没有分配任何 API：使用默认 customAPI
+      return kind === 'raw' ? this.generateRawWithCustomAPI(options) : this.generateWithCustomAPI(options);
+    }, `${kind === 'raw' ? 'generateRaw' : 'generate'}[${usageType}]`);
   }
 
   /**
-   * 使用指定的API配置进行生成
-   * 适用于多API配置场景，可以为不同功能使用不同的API
+   * 使用指定的API配置进行生成（显式传参，不改动全局配置，可安全并发）
    */
-  async generateWithAPIConfig(
-    options: GenerateOptions,
-    apiConfig: {
-      provider: APIProvider;
-      url: string;
-      apiKey: string;
-      model: string;
-      temperature?: number;
-      maxTokens?: number;
-    }
-  ): Promise<string> {
-    console.log(`[AI服务] 使用指定API配置生成，provider: ${apiConfig.provider}, model: ${apiConfig.model}`);
-
-    // 临时保存当前配置（深拷贝以避免引用问题）
-    const originalConfig = this.config.customAPI ? { ...this.config.customAPI } : null;
-
-    try {
-      // 使用指定的API配置
-      this.config.customAPI = {
-        provider: apiConfig.provider,
-        url: apiConfig.url,
-        apiKey: apiConfig.apiKey,
-        model: apiConfig.model,
-        temperature: apiConfig.temperature ?? 0.7,
-        maxTokens: apiConfig.maxTokens ?? 16000
-      };
-
-      // 强制使用custom模式
-      const result = await this.generateWithCustomAPI(options);
-
-      return result;
-    } finally {
-      // 恢复原配置
-      if (originalConfig) {
-        this.config.customAPI = originalConfig;
-      }
-    }
+  async generateWithAPIConfig(options: GenerateOptions, apiConfig: APIConfigInput): Promise<string> {
+    return this.generateWithCustomAPI(options, toCustomAPIConfig(apiConfig));
   }
 
   /**
    * 使用指定的API配置进行纯净生成（不带角色卡）
    */
-  async generateRawWithAPIConfig(
-    options: GenerateOptions,
-    apiConfig: {
-      provider: APIProvider;
-      url: string;
-      apiKey: string;
-      model: string;
-      temperature?: number;
-      maxTokens?: number;
-    }
-  ): Promise<string> {
-    console.log(`[AI服务] 使用指定API配置进行纯净生成，provider: ${apiConfig.provider}, model: ${apiConfig.model}`);
-
-    // 临时保存当前配置（深拷贝以避免引用问题）
-    const originalConfig = this.config.customAPI ? { ...this.config.customAPI } : null;
-
-    try {
-      // 使用指定的API配置
-      this.config.customAPI = {
-        provider: apiConfig.provider,
-        url: apiConfig.url,
-        apiKey: apiConfig.apiKey,
-        model: apiConfig.model,
-        temperature: apiConfig.temperature ?? 0.7,
-        maxTokens: apiConfig.maxTokens ?? 16000
-      };
-
-      // 强制使用custom模式
-      const result = await this.generateRawWithCustomAPI(options);
-
-      return result;
-    } finally {
-      // 恢复原配置
-      if (originalConfig) {
-        this.config.customAPI = originalConfig;
-      }
-    }
+  async generateRawWithAPIConfig(options: GenerateOptions, apiConfig: APIConfigInput): Promise<string> {
+    return this.generateRawWithCustomAPI(options, toCustomAPIConfig(apiConfig));
   }
 
   // ============ 酒馆模式实现 ============
@@ -1003,8 +840,8 @@ class AIService {
   }
 
   // ============ 自定义API模式实现 ============
-  private async generateWithCustomAPI(options: GenerateOptions): Promise<string> {
-    if (!this.config.customAPI) {
+  private async generateWithCustomAPI(options: GenerateOptions, api: CustomAPIConfig | undefined = this.config.customAPI): Promise<string> {
+    if (!api) {
       throw new Error('自定义API未配置');
     }
 
@@ -1045,11 +882,11 @@ class AIService {
     const usageType = options.usageType;
     const apiConfig = usageType ? this.getAPIConfigForUsageType(usageType) : null;
     const responseFormat = options.responseFormat || (apiConfig?.forceJsonOutput ? 'json_object' : undefined);
-    return this.callAPI(messages, shouldStream, options.onStreamChunk, responseFormat);
+    return this.callAPI(api, messages, shouldStream, options.onStreamChunk, responseFormat);
   }
 
-  private async generateRawWithCustomAPI(options: GenerateOptions): Promise<string> {
-    if (!this.config.customAPI) {
+  private async generateRawWithCustomAPI(options: GenerateOptions, api: CustomAPIConfig | undefined = this.config.customAPI): Promise<string> {
+    if (!api) {
       throw new Error('自定义API未配置');
     }
 
@@ -1065,16 +902,17 @@ class AIService {
     const apiConfig = usageType ? this.getAPIConfigForUsageType(usageType) : null;
     const responseFormat = options.responseFormat || (apiConfig?.forceJsonOutput ? 'json_object' : undefined);
     console.log(`[AI服务-自定义Raw] shouldStream=${shouldStream}, hasOnStreamChunk=${!!options.onStreamChunk}, options.should_stream=${options.should_stream}, config.streaming=${this.config.streaming}`);
-    return this.callAPI(messages, shouldStream, options.onStreamChunk, responseFormat);
+    return this.callAPI(api, messages, shouldStream, options.onStreamChunk, responseFormat);
   }
 
   private async callAPI(
+    api: CustomAPIConfig,
     messages: AIMessage[],
     streaming: boolean,
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = this.config.customAPI!;
+    const { provider, url, model } = api;
 
     // 🔥 某些模型/API不支持 response_format: json_object
     const isReasonerModel = model.includes('reasoner') || model.includes('r1');
@@ -1108,16 +946,16 @@ class AIService {
     // 根据provider选择不同的调用方式
     switch (provider) {
       case 'claude':
-        return this.callClaudeAPI(finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+        return this.callClaudeAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
       case 'gemini':
-        return this.callGeminiAPI(finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+        return this.callGeminiAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
       case 'openai':
       case 'deepseek':
       case 'zhipu':
       case 'volcengine':
       case 'custom':
       default:
-        return this.callOpenAICompatibleAPI(finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+        return this.callOpenAICompatibleAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
     }
   }
 
@@ -1258,12 +1096,13 @@ class AIService {
   }
 
   private async callOpenAICompatibleAPI(
+    api: CustomAPIConfig,
     messages: AIMessage[],
     streaming: boolean,
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = this.config.customAPI!;
+    const { provider, url, apiKey, model, temperature, maxTokens } = api;
     const safeMaxTokens = this.clampMaxTokensForContext(provider, model, messages, maxTokens || 16000);
 
     // 不同提供商使用不同的API路径
@@ -1366,12 +1205,13 @@ class AIService {
 
   // Claude API格式
   private async callClaudeAPI(
+    api: CustomAPIConfig,
     messages: AIMessage[],
     streaming: boolean,
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = this.config.customAPI!;
+    const { provider, url, apiKey, model, temperature, maxTokens } = api;
 
     // 转换消息格式：提取system消息，其余转为Claude格式
     let systemPrompt = '';
@@ -1491,12 +1331,13 @@ class AIService {
 
   // Gemini API格式
   private async callGeminiAPI(
+    api: CustomAPIConfig,
     messages: AIMessage[],
     streaming: boolean,
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = this.config.customAPI!;
+    const { provider, url, apiKey, model, temperature, maxTokens } = api;
 
     // 验证必需参数
     if (!model || model.trim() === '') {
@@ -1696,20 +1537,10 @@ class AIService {
       const parsed = JSON.parse(data);
       const delta = parsed.choices[0]?.delta;
 
-      // DeepSeek Reasoner / R1: 丢弃 reasoning_content（思维链），只保留正式内容。
-      const hasReasoningContent = delta?.reasoning_content !== undefined && delta?.reasoning_content !== null;
+      // DeepSeek Reasoner / R1 等：丢弃 reasoning_content（思维链），只保留正式内容。
+      // 注意：部分服务商 / 中转会在每块里附带空的 reasoning_content，不能因此丢掉同一块里的正文。
       const hasActualContent = delta?.content !== undefined && delta?.content !== null && delta?.content !== '';
-
-      if (hasReasoningContent) {
-        return '';
-      }
-
-      // 普通 content
-      if (hasActualContent) {
-        return delta.content;
-      }
-
-      return '';
+      return hasActualContent ? delta.content : '';
     }, onStreamChunk);
 
     return result;

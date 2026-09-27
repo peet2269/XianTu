@@ -3,392 +3,406 @@
     <VideoBackground />
 
     <div class="workshop-panel">
-      <!-- 顶部标题区域 - 增加层次感 -->
-      <div class="header-section">
-        <div class="header-bg"></div>
-        <div class="header-content">
+      <span class="frame-corner tl" aria-hidden="true"></span>
+      <span class="frame-corner tr" aria-hidden="true"></span>
+      <span class="frame-corner bl" aria-hidden="true"></span>
+      <span class="frame-corner br" aria-hidden="true"></span>
+
+      <header class="header">
+        <div class="emblem" aria-hidden="true"><span>坊</span></div>
+        <div class="title-block">
           <div class="title-row">
-            <div class="title-group">
-              <div class="title-icon-wrapper">
-                <Store :size="20" />
-              </div>
-              <h2 class="title">创意工坊</h2>
-            </div>
-            <div v-if="backendReady" class="auth-pill" :class="{ ok: authState === 'authed', warn: authState !== 'authed' }">
-              <CheckCircle v-if="authState === 'authed'" :size="14" />
-              <AlertCircle v-else-if="authState === 'unauthed'" :size="14" />
-              <Loader2 v-else :size="14" class="spin" />
-              <span v-if="authState === 'checking'">检测中</span>
-              <span v-else-if="authState === 'authed'">已验证</span>
-              <span v-else>未验证</span>
-              <button v-if="authState !== 'authed'" class="pill-link" @click="goLogin">去验证</button>
-              <button class="pill-link" @click="refreshAuth">
+            <h2 class="title">创意工坊</h2>
+            <div v-if="backendReady" class="auth-pill" :class="authState">
+              <CheckCircle v-if="authState === 'authed'" :size="13" />
+              <AlertCircle v-else-if="authState === 'unauthed'" :size="13" />
+              <Loader2 v-else :size="13" class="cc-spin" />
+              <span>{{ authState === 'checking' ? '检测中' : authState === 'authed' ? '已验证' : '未验证' }}</span>
+              <button v-if="authState === 'unauthed'" type="button" class="pill-link" @click="goLogin">去验证</button>
+              <button type="button" class="pill-icon" title="重新检测登录状态" @click="refreshAuth">
                 <RefreshCw :size="12" />
               </button>
             </div>
-            <div v-else class="auth-pill warn">
-              <AlertCircle :size="14" />
+            <div v-else class="auth-pill unauthed">
+              <AlertCircle :size="13" />
               <span>未配置后端</span>
             </div>
           </div>
-          <p class="subtitle">分享设置、提示词、开局配置、存档</p>
+          <p class="subtitle">道友互通有无：分享设置、提示词、开局配置与存档</p>
           <p class="notice">
             <Info :size="12" />
-            工坊内容仅对<strong>单机本地</strong>生效，联机模式由后端控制
+            <span>工坊内容仅对<strong>单机本地</strong>生效，联机模式由后端控制</span>
           </p>
         </div>
-      </div>
+      </header>
 
-      <div v-if="!backendReady" class="backend-locked">
-        <ServerOff :size="48" class="locked-icon" />
-        <p>未配置后端服务器，创意工坊不可用</p>
-        <div class="actions">
-          <button class="btn btn-secondary" @click="goBack">
-            <ArrowLeft :size="16" />
-            返回
-          </button>
+      <div v-if="!backendReady" class="body">
+        <div class="cc-placeholder locked">
+          <div class="locked-inner">
+            <ServerOff :size="30" />
+            <span>未配置后端服务器，创意工坊不可用</span>
+          </div>
         </div>
       </div>
 
       <template v-else>
-      <div class="tabs">
-        <button class="tab" :class="{ active: activeTab === 'browse' }" @click="switchTab('browse')">
-          <Compass :size="16" />
-          <span>浏览</span>
-        </button>
-        <button class="tab" :class="{ active: activeTab === 'mine' }" @click="switchTab('mine')">
-          <User :size="16" />
-          <span>我的发布</span>
-        </button>
-        <button class="tab" :class="{ active: activeTab === 'upload' }" @click="switchTab('upload')">
-          <Upload :size="16" />
-          <span>上传</span>
-        </button>
-      </div>
-
-      <div v-if="activeTab !== 'upload'" class="browse scroll-content">
-        <div class="filters">
-          <select v-model="filterType" class="input">
-            <option value="">全部类型</option>
-            <option value="settings">设置</option>
-            <option value="prompts">提示词</option>
-            <option value="saves">单机存档</option>
-            <option value="start_config">开局配置</option>
-          </select>
-          <div class="search-input-wrapper">
-            <Search :size="14" class="search-icon" />
-            <input v-model="query" class="input search-input" :placeholder="isMineTab ? '搜索标题 / 说明' : '搜索标题 / 作者 / 说明'" />
-          </div>
-          <select v-model.number="pageSize" class="input page-size-select">
-            <option v-for="size in pageSizeOptions" :key="size" :value="size">
-              每页 {{ size }} 个
-            </option>
-          </select>
-          <button class="btn btn-icon-only" @click="refreshList" :disabled="loadingList" title="刷新">
-            <RefreshCw :size="16" :class="{ spin: loadingList }" />
+        <div class="cc-segmented ws-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'browse'"
+            :class="{ active: activeTab === 'browse' }"
+            @click="switchTab('browse')"
+          >
+            <Compass :size="15" />
+            <span>浏览</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'mine'"
+            :class="{ active: activeTab === 'mine' }"
+            :title="authState !== 'authed' ? '需先登录' : undefined"
+            @click="switchTab('mine')"
+          >
+            <User :size="15" />
+            <span>我的发布</span>
+            <Lock v-if="authState !== 'authed'" :size="12" class="tab-lock" />
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'upload'"
+            :class="{ active: activeTab === 'upload' }"
+            @click="switchTab('upload')"
+          >
+            <Upload :size="15" />
+            <span>上传</span>
           </button>
         </div>
 
-        <div v-if="isMineTab" class="manage-bar">
-          <div class="manage-title">
-            <Folder :size="16" />
-            我的发布管理
-          </div>
-          <div class="manage-meta">仅显示自己发布的内容 · 共 {{ total }} 条</div>
-        </div>
-
-        <div v-if="loadingList" class="loading">
-          <Loader2 :size="24" class="spin" />
-          <span>加载中…</span>
-        </div>
-        <div v-else-if="items.length === 0" class="empty">
-          <Package :size="40" class="empty-icon" />
-          <p>暂无内容</p>
-        </div>
-        <div v-else class="item-list">
-          <div
-            v-for="item in items"
-            :key="item.id"
-            class="item-card"
-            @click="openDetailModal(item)"
-          >
-            <div class="item-header">
-              <div class="item-type-badge">
-                <component :is="typeIcon[item.type]" :size="12" />
-                {{ typeLabel[item.type] || item.type }}
-              </div>
-              <div class="item-stats">
-                <span class="stat-item downloads" :title="`${item.downloads} 次下载`">
-                  <Download :size="11" />
-                  <span class="stat-value">{{ item.downloads }}</span>
-                </span>
-              </div>
-            </div>
-            <div class="item-title" :title="item.title">{{ item.title }}</div>
-            <div v-if="item.description" class="item-desc">{{ item.description }}</div>
-            <div class="item-meta">
-              <span class="meta-author" :title="item.author_name">
-                <UserCircle :size="12" />
-                {{ item.author_name }}
-              </span>
-              <span v-if="item.game_version" class="meta-version">{{ item.game_version }}</span>
-            </div>
-            <div v-if="item.tags?.length" class="tags">
-              <span v-for="t in item.tags" :key="t" class="tag">{{ t }}</span>
-            </div>
-            <div class="item-actions" @click.stop>
-              <button class="btn btn-sm btn-primary" @click="openDownload(item.id)">
-                <Download :size="14" />
-                下载
-              </button>
-              <button v-if="isMineTab" class="btn btn-sm danger" @click="deleteItem(item)">
-                <Trash2 :size="14" />
-                删除
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="totalPages > 1" class="pagination">
-          <div class="page-meta">
-            <span>共 {{ total }} 条</span>
-            <span>第 {{ page }} / {{ totalPages }} 页</span>
-          </div>
-          <div class="page-controls">
-            <button class="btn btn-secondary btn-sm" @click="goPrevPage" :disabled="page <= 1">
-              <ChevronLeft :size="16" />
-              上一页
-            </button>
-            <button class="btn btn-sm" @click="goNextPage" :disabled="page >= totalPages">
-              下一页
-              <ChevronRight :size="16" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div v-else class="upload scroll-content">
-        <div v-if="authState !== 'authed'" class="upload-locked">
-          <Lock :size="32" class="locked-icon" />
-          <p>上传需要先完成账号验证（用于标识作者与权限控制）</p>
-          <div class="actions">
-            <button class="btn btn-secondary" @click="goLogin">去验证</button>
-            <button class="btn" @click="refreshAuth">
-              <RefreshCw :size="14" />
-              刷新
-            </button>
-          </div>
-        </div>
-        <div v-else class="upload-form">
-          <div class="form-row">
-            <label class="label">类型</label>
-            <select v-model="uploadType" class="input">
+        <!-- 浏览 / 我的发布 -->
+        <div v-if="activeTab !== 'upload'" class="body">
+          <div class="filters">
+            <select v-model="filterType" class="cc-input type-select" aria-label="类型筛选">
+              <option value="">全部类型</option>
               <option value="settings">设置</option>
               <option value="prompts">提示词</option>
               <option value="saves">单机存档</option>
               <option value="start_config">开局配置</option>
             </select>
-          </div>
-          <div class="form-row">
-            <label class="label">标题</label>
-            <input v-model="uploadTitle" class="input" placeholder="给这个分享起个名字" />
-          </div>
-          <div class="form-row">
-            <label class="label">说明</label>
-            <textarea v-model="uploadDesc" class="input textarea" placeholder="可选：写点说明（支持 2000 字以内）" />
-          </div>
-          <div class="form-row">
-            <label class="label">标签</label>
-            <input v-model="uploadTagsText" class="input" placeholder="可选：用逗号分隔，如：新手,爽文,慢热" />
+            <form class="search-wrap" role="search" @submit.prevent="applySearch">
+              <Search :size="15" class="search-icon" aria-hidden="true" />
+              <input
+                v-model="query"
+                type="search"
+                class="cc-input search-input"
+                :placeholder="isMineTab ? '搜索标题 / 说明' : '搜索标题 / 作者 / 说明'"
+                aria-label="搜索"
+              />
+            </form>
+            <select v-model.number="pageSize" class="cc-input size-select" aria-label="每页数量">
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">每页 {{ size }} 个</option>
+            </select>
+            <button
+              type="button"
+              class="cc-icon-btn refresh-btn"
+              :disabled="loadingList"
+              title="刷新"
+              aria-label="刷新"
+              @click="refreshList"
+            >
+              <RefreshCw :size="15" :class="{ 'cc-spin': loadingList }" />
+            </button>
           </div>
 
-          <div class="form-row">
-            <label class="label">内容</label>
-            <div class="content-actions">
-              <button v-if="uploadType === 'settings'" class="btn btn-secondary" @click="loadLocalSettings">
-                <Settings :size="14" />
-                从本地读取设置
-              </button>
-              <button v-if="uploadType === 'prompts'" class="btn btn-secondary" @click="loadLocalPrompts">
-                <FileText :size="14" />
-                从本地导出提示词
-              </button>
-              <label class="file-btn btn btn-secondary">
-                <File :size="14" />
-                选择 JSON 文件
-                <input type="file" accept=".json,application/json" @change="handleUploadFile" hidden />
-              </label>
-              <span class="hint" v-if="payloadHint">
-                <CheckCircle :size="12" />
-                {{ payloadHint }}
-              </span>
+          <div v-if="isMineTab" class="manage-bar">
+            <span class="manage-title">
+              <Folder :size="15" />
+              我的发布
+            </span>
+            <span class="manage-meta">仅显示自己发布的内容 · 共 {{ total }} 条</span>
+          </div>
+
+          <div class="list-area">
+            <div v-if="loadingList" class="cc-state">
+              <Loader2 :size="20" class="cc-spin" />
+              <span>加载中…</span>
+            </div>
+            <div v-else-if="items.length === 0" class="cc-placeholder">
+              <span>{{ query || filterType ? '没有符合条件的内容' : isMineTab ? '尚未发布任何内容' : '暂无内容' }}</span>
+            </div>
+            <div v-else class="item-grid">
+              <article
+                v-for="item in items"
+                :key="item.id"
+                class="ws-card"
+                role="button"
+                tabindex="0"
+                @click="openDetailModal(item)"
+                @keydown.enter.self="openDetailModal(item)"
+              >
+                <div class="item-head">
+                  <span class="type-badge">
+                    <component :is="typeIcon[item.type]" :size="12" />
+                    {{ typeLabel[item.type] || item.type }}
+                  </span>
+                  <span class="downloads" :title="`${item.downloads} 次下载`">
+                    <Download :size="12" />
+                    {{ item.downloads }}
+                  </span>
+                </div>
+                <h3 class="item-title" :title="item.title">{{ item.title }}</h3>
+                <p v-if="item.description" class="item-desc">{{ item.description }}</p>
+                <div class="item-meta">
+                  <span class="meta-author" :title="item.author_name">
+                    <UserCircle :size="12" />
+                    {{ item.author_name }}
+                  </span>
+                  <span v-if="item.game_version" class="meta-version">{{ item.game_version }}</span>
+                </div>
+                <div v-if="item.tags?.length" class="tags">
+                  <span v-for="t in item.tags" :key="t" class="tag">{{ t }}</span>
+                </div>
+                <div class="item-actions" @click.stop>
+                  <button v-if="isMineTab" type="button" class="cc-btn small danger" @click="deleteItem(item)">
+                    <Trash2 :size="14" />
+                    删除
+                  </button>
+                  <button type="button" class="cc-btn small primary" @click="openDownload(item.id)">
+                    <Download :size="14" />
+                    下载
+                  </button>
+                </div>
+              </article>
             </div>
           </div>
-
-          <div class="actions upload-actions">
-            <button class="btn btn-secondary" @click="goBack">
-              <ArrowLeft :size="16" />
-              返回
-            </button>
-            <button class="btn btn-primary" @click="submitUpload" :disabled="uploading">
-              <Upload :size="16" v-if="!uploading" />
-              <Loader2 :size="16" class="spin" v-else />
-              {{ uploading ? '上传中…' : '上传到工坊' }}
-            </button>
-          </div>
         </div>
-      </div>
 
+        <!-- 上传 -->
+        <div v-else class="body">
+          <div v-if="authState !== 'authed'" class="cc-placeholder locked">
+            <div class="locked-inner">
+              <Lock :size="28" />
+              <span>上传需要先完成账号验证（用于标识作者与权限控制）</span>
+              <div class="locked-actions">
+                <button type="button" class="cc-btn small" @click="refreshAuth">
+                  <RefreshCw :size="14" />
+                  重新检测
+                </button>
+                <button type="button" class="cc-btn small primary" @click="goLogin">
+                  <LogIn :size="14" />
+                  去验证
+                </button>
+              </div>
+            </div>
+          </div>
+          <form v-else class="upload-form" @submit.prevent="submitUpload">
+            <div class="cc-field">
+              <label for="ws-type">类型</label>
+              <div class="cc-segmented type-seg" id="ws-type" role="radiogroup">
+                <label v-for="opt in uploadTypeOptions" :key="opt.value">
+                  <input v-model="uploadType" type="radio" name="ws-upload-type" :value="opt.value" />
+                  <component :is="typeIcon[opt.value]" :size="14" />
+                  <span>{{ opt.label }}</span>
+                </label>
+              </div>
+            </div>
+            <div class="cc-field">
+              <label for="ws-title">标题 <em class="req">*</em></label>
+              <input id="ws-title" v-model="uploadTitle" class="cc-input" maxlength="80" placeholder="给这个分享起个名字" />
+            </div>
+            <div class="cc-field">
+              <label for="ws-desc">说明</label>
+              <textarea id="ws-desc" v-model="uploadDesc" class="cc-input" maxlength="2000" placeholder="可选：写点说明（2000 字以内）" />
+            </div>
+            <div class="cc-field">
+              <label for="ws-tags">标签</label>
+              <input id="ws-tags" v-model="uploadTagsText" class="cc-input" placeholder="可选：用逗号分隔，如：新手,爽文,慢热（最多 12 个）" />
+            </div>
+
+            <div class="cc-field">
+              <span class="cc-field-label">内容 <em class="req">*</em></span>
+              <div class="content-actions">
+                <button v-if="uploadType === 'settings'" type="button" class="cc-btn small" @click="loadLocalSettings">
+                  <Settings :size="14" />
+                  读取本地设置
+                </button>
+                <button v-if="uploadType === 'prompts'" type="button" class="cc-btn small" @click="loadLocalPrompts">
+                  <FileText :size="14" />
+                  导出本地提示词
+                </button>
+                <label class="cc-btn small file-btn">
+                  <File :size="14" />
+                  选择 JSON 文件
+                  <input type="file" accept=".json,application/json" hidden @change="handleUploadFile" />
+                </label>
+              </div>
+              <p class="payload-hint" :class="{ ok: !!payloadHint }">
+                <CheckCircle v-if="payloadHint" :size="13" />
+                <span>{{ payloadHint || uploadContentHint }}</span>
+              </p>
+            </div>
+          </form>
+        </div>
       </template>
 
-      <!-- 底部返回按钮 -->
-      <div v-if="backendReady && activeTab !== 'upload'" class="footer-actions">
-        <button class="btn btn-secondary" @click="goBack">
-          <ArrowLeft :size="16" />
+      <footer class="footer">
+        <button type="button" class="cc-btn" @click="goBack">
+          <ArrowLeft :size="15" />
           返回
         </button>
-      </div>
-
+        <div v-if="backendReady && activeTab !== 'upload' && totalPages > 1" class="pagination">
+          <span class="page-meta">共 {{ total }} 条 · 第 {{ page }} / {{ totalPages }} 页</span>
+          <button type="button" class="cc-icon-btn" :disabled="page <= 1" title="上一页" aria-label="上一页" @click="goPrevPage">
+            <ChevronLeft :size="16" />
+          </button>
+          <button type="button" class="cc-icon-btn" :disabled="page >= totalPages" title="下一页" aria-label="下一页" @click="goNextPage">
+            <ChevronRight :size="16" />
+          </button>
+        </div>
+        <button
+          v-if="backendReady && activeTab === 'upload' && authState === 'authed'"
+          type="button"
+          class="cc-btn primary"
+          :disabled="uploading || !uploadTitle.trim() || !uploadPayload"
+          @click="submitUpload"
+        >
+          <Loader2 v-if="uploading" :size="15" class="cc-spin" />
+          <Upload v-else :size="15" />
+          {{ uploading ? '上传中…' : '上传到工坊' }}
+        </button>
+      </footer>
     </div>
 
-
     <!-- 详情弹窗 -->
-    <div v-if="detailModal.open" class="modal-overlay" @click.self="closeDetailModal">
-      <div class="modal detail-modal">
-        <div class="modal-header">
-          <h3>
-            <component :is="typeIcon[detailModal.item?.type || 'settings']" :size="18" />
-            {{ detailModal.item?.title }}
-          </h3>
-          <button class="close-btn" @click="closeDetailModal">
+    <div v-if="detailModal.open" class="cc-modal-overlay" @click.self="closeDetailModal">
+      <div class="cc-modal" role="dialog" aria-modal="true" aria-labelledby="ws-detail-title">
+        <div class="cc-modal-head">
+          <h3 id="ws-detail-title" class="cc-modal-title modal-title-ellipsis">{{ detailModal.item?.title }}</h3>
+          <button type="button" class="cc-modal-close" title="关闭" aria-label="关闭" @click="closeDetailModal">
             <X :size="18" />
           </button>
         </div>
-        <div class="modal-body">
-          <div class="detail-content">
-            <div class="detail-row">
-              <span class="detail-label">类型</span>
-              <span class="detail-value">
-                <span class="item-type-badge">
+        <div class="cc-modal-body">
+          <dl class="info-list">
+            <div class="info-row">
+              <dt>类型</dt>
+              <dd>
+                <span class="type-badge">
                   <component :is="typeIcon[detailModal.item?.type || 'settings']" :size="12" />
                   {{ typeLabel[detailModal.item?.type || ''] }}
                 </span>
-              </span>
+              </dd>
             </div>
-            <div class="detail-row">
-              <span class="detail-label">作者</span>
-              <span class="detail-value">
-                <UserCircle :size="14" />
-                {{ detailModal.item?.author_name }}
-              </span>
+            <div class="info-row">
+              <dt>作者</dt>
+              <dd>{{ detailModal.item?.author_name }}</dd>
             </div>
-            <div class="detail-row">
-              <span class="detail-label">下载次数</span>
-              <span class="detail-value downloads-value">
-                <Download :size="14" />
-                {{ detailModal.item?.downloads }}
-              </span>
+            <div class="info-row">
+              <dt>下载次数</dt>
+              <dd class="gold">{{ detailModal.item?.downloads }}</dd>
             </div>
-            <div v-if="detailModal.item?.game_version" class="detail-row">
-              <span class="detail-label">游戏版本</span>
-              <span class="detail-value">{{ detailModal.item?.game_version }}</span>
+            <div v-if="detailModal.item?.game_version" class="info-row">
+              <dt>游戏版本</dt>
+              <dd>{{ detailModal.item?.game_version }}</dd>
             </div>
-            <div v-if="detailModal.item?.tags?.length" class="detail-row">
-              <span class="detail-label">标签</span>
-              <div class="detail-tags">
+            <div v-if="detailModal.item?.tags?.length" class="info-row">
+              <dt>标签</dt>
+              <dd class="tags">
                 <span v-for="t in detailModal.item?.tags" :key="t" class="tag">{{ t }}</span>
-              </div>
+              </dd>
             </div>
-            <div v-if="detailModal.item?.description" class="detail-row desc-row">
-              <span class="detail-label">说明</span>
-              <p class="detail-desc">{{ detailModal.item?.description }}</p>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="closeDetailModal">关闭</button>
-            <button class="btn btn-primary" @click="openDownloadFromDetail">
-              <Download :size="16" />
-              下载
-            </button>
-          </div>
+          </dl>
+          <template v-if="detailModal.item?.description">
+            <h4 class="cc-section-title">说明</h4>
+            <p class="detail-desc">{{ detailModal.item?.description }}</p>
+          </template>
+        </div>
+        <div class="cc-modal-foot">
+          <button type="button" class="cc-btn" @click="closeDetailModal">关闭</button>
+          <button type="button" class="cc-btn primary" @click="openDownloadFromDetail">
+            <Download :size="15" />
+            下载
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 下载/导入弹窗 -->
-    <div v-if="downloadModal.open" class="modal-overlay" @click.self="closeDownloadModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>
-            <Download :size="18" />
-            下载内容
-          </h3>
-          <button class="close-btn" @click="closeDownloadModal">
+    <div v-if="downloadModal.open" class="cc-modal-overlay" @click.self="closeDownloadModal">
+      <div class="cc-modal" role="dialog" aria-modal="true" aria-labelledby="ws-download-title">
+        <div class="cc-modal-head">
+          <h3 id="ws-download-title" class="cc-modal-title">取用</h3>
+          <button type="button" class="cc-modal-close" title="关闭" aria-label="关闭" @click="closeDownloadModal">
             <X :size="18" />
           </button>
         </div>
-        <div v-if="downloadModal.loading" class="modal-body loading-body">
-          <Loader2 :size="24" class="spin" />
-          <span>加载中…</span>
+        <div v-if="downloadModal.loading" class="cc-modal-body">
+          <div class="cc-state">
+            <Loader2 :size="20" class="cc-spin" />
+            <span>加载中…</span>
+          </div>
         </div>
-        <div v-else class="modal-body">
-          <div class="modal-info">
-            <div class="modal-title">{{ downloadModal.item?.title }}</div>
-            <div class="modal-sub">
-              <span v-if="downloadModal.item">
-                <component :is="typeIcon[downloadModal.item.type]" :size="12" />
-                {{ typeLabel[downloadModal.item.type] || downloadModal.item.type }}
-              </span>
-              <span v-if="downloadModal.item?.author_name">
-                <UserCircle :size="12" />
-                {{ downloadModal.item.author_name }}
-              </span>
-              <span v-if="downloadModal.item?.game_version">{{ downloadModal.item.game_version }}</span>
+        <template v-else>
+          <div class="cc-modal-body">
+            <div class="dl-card">
+              <div class="dl-title">{{ downloadModal.item?.title }}</div>
+              <div class="dl-sub">
+                <span v-if="downloadModal.item">
+                  <component :is="typeIcon[downloadModal.item.type]" :size="12" />
+                  {{ typeLabel[downloadModal.item.type] || downloadModal.item.type }}
+                </span>
+                <span v-if="downloadModal.item?.author_name">
+                  <UserCircle :size="12" />
+                  {{ downloadModal.item.author_name }}
+                </span>
+                <span v-if="downloadModal.item?.game_version">{{ downloadModal.item.game_version }}</span>
+              </div>
             </div>
-          </div>
 
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="downloadAsFile">
-              <FileDown :size="16" />
-              下载为文件
-            </button>
-            <button v-if="downloadModal.item?.type === 'settings'" class="btn btn-primary" @click="applySettingsFromPayload">
-              <Import :size="16" />
-              导入到本地设置
-            </button>
-            <button v-if="downloadModal.item?.type === 'prompts'" class="btn btn-primary" @click="applyPromptsFromPayload">
-              <Import :size="16" />
-              导入到本地提示词
-            </button>
-            <button v-if="downloadModal.item?.type === 'start_config'" class="btn btn-primary" @click="applyStartConfigFromPayload">
-              <Import :size="16" />
-              应用到开局配置
-            </button>
-          </div>
-
-          <div v-if="downloadModal.item?.type === 'saves'" class="import-saves">
-            <div class="form-row">
-              <label class="label">导入到单机角色</label>
-              <select v-model="targetCharId" class="input">
-                <option value="">请选择角色</option>
+            <div v-if="downloadModal.item?.type === 'saves'" class="cc-field">
+              <label for="ws-target">导入到单机角色</label>
+              <select id="ws-target" v-model="targetCharId" class="cc-input">
+                <option value="">{{ localCharacters.length ? '请选择角色' : '暂无单机角色' }}</option>
                 <option v-for="c in localCharacters" :key="c.角色ID" :value="c.角色ID">
                   {{ c.name }}
                 </option>
               </select>
+              <p class="cc-hint">存档会追加到所选角色的存档列表中，不会覆盖已有存档。</p>
             </div>
-            <button class="btn btn-primary" :disabled="!targetCharId" @click="applySavesFromPayload">
-              <Import :size="16" />
+            <p v-else class="cc-hint">{{ applyHint }}</p>
+          </div>
+          <div class="cc-modal-foot">
+            <button type="button" class="cc-btn" @click="downloadAsFile">
+              <FileDown :size="15" />
+              下载为文件
+            </button>
+            <button v-if="downloadModal.item?.type === 'settings'" type="button" class="cc-btn primary" @click="applySettingsFromPayload">
+              <Import :size="15" />
+              导入到本地设置
+            </button>
+            <button v-if="downloadModal.item?.type === 'prompts'" type="button" class="cc-btn primary" @click="applyPromptsFromPayload">
+              <Import :size="15" />
+              导入到本地提示词
+            </button>
+            <button v-if="downloadModal.item?.type === 'start_config'" type="button" class="cc-btn primary" @click="applyStartConfigFromPayload">
+              <Import :size="15" />
+              应用到开局配置
+            </button>
+            <button v-if="downloadModal.item?.type === 'saves'" type="button" class="cc-btn primary" :disabled="!targetCharId" @click="applySavesFromPayload">
+              <Import :size="15" />
               导入存档
             </button>
           </div>
-        </div>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, type Component } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import VideoBackground from '@/components/common/VideoBackground.vue';
 import { verifyStoredToken } from '@/services/request';
@@ -401,10 +415,10 @@ import { createDadBundle, unwrapDadBundle } from '@/utils/dadBundle';
 import { isSaveDataV3, migrateSaveDataToLatest } from '@/utils/saveMigration';
 import { validateSaveDataV3 } from '@/utils/saveValidationV3';
 import {
-  Store, CheckCircle, AlertCircle, Loader2, RefreshCw, Info, ServerOff, ArrowLeft,
-  Compass, User, Upload, Search, Folder, Package, Download, UserCircle, Trash2,
+  CheckCircle, AlertCircle, Loader2, RefreshCw, Info, ServerOff, ArrowLeft,
+  Compass, User, Upload, Search, Folder, Download, UserCircle, Trash2,
   ChevronLeft, ChevronRight, Lock, Settings, FileText, File, X, FileDown, Import,
-  ScrollText, Save, PlayCircle
+  ScrollText, Save, PlayCircle, LogIn
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -436,6 +450,13 @@ const typeLabel: Record<string, string> = {
   saves: '单机存档',
   start_config: '开局配置',
 };
+
+const uploadTypeOptions: { value: WorkshopItemType; label: string }[] = [
+  { value: 'settings', label: '设置' },
+  { value: 'prompts', label: '提示词' },
+  { value: 'saves', label: '单机存档' },
+  { value: 'start_config', label: '开局配置' },
+];
 
 // 类型对应的图标
 const typeIcon: Record<string, Component> = {
@@ -585,6 +606,29 @@ watch(filterType, () => {
   }
 });
 
+// 搜索：回车立即查询，输入停顿后自动查询
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+const applySearch = () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+  if (page.value !== 1) {
+    page.value = 1; // page 的 watch 会触发刷新
+    return;
+  }
+  if (isListTab.value) void refreshList();
+};
+
+watch(query, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(applySearch, 450);
+});
+
+onBeforeUnmount(() => {
+  if (searchTimer) clearTimeout(searchTimer);
+});
+
 // --- 下载/导入 ---
 const downloadModal = ref<{
   open: boolean;
@@ -599,6 +643,19 @@ const downloadModal = ref<{
 });
 
 const targetCharId = ref('');
+
+const applyHint = computed(() => {
+  switch (downloadModal.value.item?.type) {
+    case 'settings':
+      return '导入会与本地设置合并（同名项被覆盖），刷新页面后生效。';
+    case 'prompts':
+      return '导入会覆盖同名提示词，刷新页面后生效。';
+    case 'start_config':
+      return '应用后会替换本地开局配置，重新打开开局页面生效。';
+    default:
+      return '';
+  }
+});
 
 const closeDownloadModal = () => {
   downloadModal.value.open = false;
@@ -793,6 +850,7 @@ const applySavesFromPayload = async () => {
     await characterStore.importSave(targetCharId.value, save);
   }
   toast.success(`已导入 ${saves.length} 个存档到本地单机角色`);
+  closeDownloadModal();
 };
 
 // --- 上传 ---
@@ -803,6 +861,25 @@ const uploadTagsText = ref('');
 const uploadPayload = ref<unknown>(null);
 const payloadHint = ref('');
 const uploading = ref(false);
+
+const uploadContentHint = computed(() => {
+  switch (uploadType.value) {
+    case 'settings':
+      return '可直接读取本机设置，或选择导出的设置文件。';
+    case 'prompts':
+      return '可直接导出本机提示词，或选择导出的提示词文件。';
+    case 'saves':
+      return '请选择游戏导出的存档包或角色包，上传前会自动转换并校验。';
+    default:
+      return '请选择导出的开局配置 JSON 文件。';
+  }
+});
+
+// 切换类型后，已选内容不再对应，清空避免误传
+watch(uploadType, () => {
+  uploadPayload.value = null;
+  payloadHint.value = '';
+});
 
 const parseTags = (text: string): string[] => {
   return text
@@ -973,1029 +1050,843 @@ const submitUpload = async () => {
 </script>
 
 <style scoped>
+/* 创意工坊 —— 令牌见 styles/xian-tokens.css，通用类见 styles/creation-theme.css */
 .workshop-container {
-  width: 100%;
-  height: 100vh;
-  height: 100svh;
-  height: 100dvh;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
-  padding-top: calc(16px + env(safe-area-inset-top));
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  width: 100%;
+  height: 100dvh;
+  padding: 1.5rem;
   box-sizing: border-box;
   overflow: hidden;
+  color: var(--cc-text);
 }
 
 .workshop-panel {
-  width: 100%;
-  max-width: 960px;
-  max-height: calc(100vh - 32px);
-  max-height: calc(100svh - 32px);
-  max-height: calc(100dvh - 32px);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 0;
-  color: var(--color-text);
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
+  width: min(980px, 100%);
+  height: min(760px, 100%);
+  box-sizing: border-box;
+  background: var(--cc-shell-bg);
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 6px;
+  box-shadow: var(--cc-shell-shadow);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
 }
 
-/* 顶部标题区域 - 层次感设计 */
-.header-section {
-  flex: 0 0 auto;
-  position: relative;
-  padding: 1.25rem 1.5rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(180deg,
-    rgba(147, 197, 253, 0.08) 0%,
-    rgba(147, 197, 253, 0.02) 50%,
-    transparent 100%
-  );
-}
-
-.header-bg {
+.workshop-panel::before {
+  content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(147, 197, 253, 0.1) 0%, transparent 70%);
+  inset: 9px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.16);
+  border-radius: 3px;
   pointer-events: none;
 }
 
-.header-content {
+.frame-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 0 solid var(--cc-gold);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.frame-corner.tl { top: 5px; left: 5px; border-top-width: 2px; border-left-width: 2px; }
+.frame-corner.tr { top: 5px; right: 5px; border-top-width: 2px; border-right-width: 2px; }
+.frame-corner.bl { bottom: 5px; left: 5px; border-bottom-width: 2px; border-left-width: 2px; }
+.frame-corner.br { bottom: 5px; right: 5px; border-bottom-width: 2px; border-right-width: 2px; }
+
+/* ---------- 头部 ---------- */
+.header {
   position: relative;
-  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.6rem 1.9rem 1.1rem;
+  border-bottom: 1px solid var(--cc-divider);
+  flex-shrink: 0;
+}
+
+.emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.25) 0%, rgba(var(--cc-accent-rgb), 0.05) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.5);
+  font-family: var(--cc-calligraphy);
+  font-size: 1.6rem;
+  color: var(--cc-accent);
+}
+
+.emblem::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.4);
+  transition: transform 0.8s ease;
+}
+
+.header:hover .emblem::before {
+  transform: rotate(90deg);
+}
+
+.title-block {
+  flex: 1;
+  min-width: 0;
 }
 
 .title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.title-group {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.title-icon-wrapper {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.2) 0%, rgba(147, 197, 253, 0.1) 100%);
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  color: var(--color-primary);
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
 }
 
 .title {
   margin: 0;
-  font-family: var(--font-family-serif);
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--color-text);
-  letter-spacing: -0.01em;
+  font-family: var(--cc-calligraphy);
+  font-size: 1.8rem;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  color: var(--cc-text);
 }
 
 .auth-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.65rem;
+  gap: 0.3rem;
+  padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+  border: 1px solid var(--cc-border);
   border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  user-select: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
   white-space: nowrap;
-  font-size: 0.8rem;
+  color: var(--cc-text-2);
 }
 
-.auth-pill.ok {
-  border-color: rgba(16, 185, 129, 0.4);
-  background: rgba(16, 185, 129, 0.08);
-  color: #10b981;
+.auth-pill.authed {
+  border-color: color-mix(in srgb, var(--cc-success) 45%, transparent);
+  background: color-mix(in srgb, var(--cc-success) 10%, transparent);
+  color: var(--cc-success);
 }
 
-.auth-pill.warn {
-  border-color: rgba(251, 191, 36, 0.4);
-  background: rgba(251, 191, 36, 0.08);
-  color: #f59e0b;
+.auth-pill.unauthed {
+  border-color: rgba(var(--cc-warning-rgb), 0.45);
+  background: rgba(var(--cc-warning-rgb), 0.1);
+  color: var(--cc-warning);
+}
+
+.pill-link,
+.pill-icon {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.35rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cc-accent);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
 }
 
 .pill-link {
-  border: none;
-  background: transparent;
-  color: var(--color-primary);
-  cursor: pointer;
-  padding: 0.15rem 0.3rem;
-  font-size: 0.75rem;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  transition: background 0.15s;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.pill-link:hover {
-  background: rgba(147, 197, 253, 0.15);
+.pill-icon {
+  color: inherit;
+}
+
+.pill-link:hover,
+.pill-icon:hover {
+  background: rgba(var(--cc-accent-rgb), 0.14);
 }
 
 .subtitle {
-  margin: 0.5rem 0 0;
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  color: var(--cc-text-2);
 }
 
 .notice {
-  margin: 0.35rem 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--cc-text-3);
 }
 
-/* Tabs */
-.tabs {
-  flex: 0 0 auto;
-  margin: 0.75rem 1.5rem 0;
+.notice svg {
+  flex-shrink: 0;
+  color: var(--cc-gold);
+}
+
+.notice strong {
+  margin: 0 0.15em;
+  color: var(--cc-gold);
+  font-weight: 600;
+}
+
+/* ---------- 标签页 ---------- */
+.ws-tabs {
+  flex-shrink: 0;
+  margin: 1rem 1.9rem 0;
+}
+
+.tab-lock {
+  opacity: 0.6;
+}
+
+/* ---------- 主体 ---------- */
+.body {
+  position: relative;
   display: flex;
-  gap: 0.35rem;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 4px;
-}
-
-.tab {
+  flex-direction: column;
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 7px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.85rem;
-}
-
-.tab:hover {
-  color: var(--color-text);
-  background: rgba(147, 197, 253, 0.05);
-}
-
-.tab.active {
-  background: var(--color-surface);
-  border-color: rgba(147, 197, 253, 0.3);
-  color: var(--color-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-/* Content Area */
-.scroll-content {
-  flex: 1;
-  overflow-y: auto;
   min-height: 0;
-  padding: 0 1.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
+  padding: 0.9rem 1.9rem 0;
 }
 
-.scroll-content::-webkit-scrollbar {
-  width: 5px;
-}
-
-.scroll-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scroll-content::-webkit-scrollbar-thumb {
-  background: rgba(147, 197, 253, 0.25);
-  border-radius: 3px;
-}
-
-.scroll-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(147, 197, 253, 0.4);
-}
-
-/* Filters */
 .filters {
-  margin-top: 0.75rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 128px auto;
   gap: 0.6rem;
   align-items: center;
-  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
-.filters > select.input {
-  width: auto;
-  min-width: 120px;
-}
-
-.search-input-wrapper {
-  flex: 1;
-  min-width: 180px;
+.search-wrap {
   position: relative;
+  min-width: 0;
+  margin: 0;
 }
 
 .search-icon {
   position: absolute;
-  left: 0.75rem;
+  left: 0.8rem;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--color-text-muted);
+  color: var(--cc-gold);
+  opacity: 0.8;
   pointer-events: none;
 }
 
-.search-input {
-  padding-left: 2.2rem;
+.filters .cc-input {
+  min-height: 38px;
 }
 
-.page-size-select {
-  width: auto;
-  min-width: 100px;
+.cc-input.search-input {
+  padding-left: 2.3rem;
 }
 
-.btn-icon-only {
-  padding: 0.55rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.search-input::-webkit-search-cancel-button {
+  cursor: pointer;
 }
 
-/* Manage Bar */
+.refresh-btn {
+  width: 38px;
+  height: 38px;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 .manage-bar {
-  margin-top: 0.75rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: 10px;
-  background: rgba(147, 197, 253, 0.06);
-  border: 1px solid rgba(147, 197, 253, 0.15);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--cc-border);
+  border-left: 3px solid var(--cc-gold);
+  border-radius: 6px;
+  background: var(--cc-surface);
+  flex-shrink: 0;
 }
 
 .manage-title {
-  font-weight: 600;
-  color: var(--color-text);
-  font-size: 0.85rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: var(--cc-text);
+}
+
+.manage-title svg {
+  color: var(--cc-gold);
 }
 
 .manage-meta {
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
+  color: var(--cc-text-3);
 }
 
-/* Input */
-.input {
-  width: 100%;
-  padding: 0.55rem 0.75rem;
+.list-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 0.85rem;
+  overflow-y: auto;
+  padding: 2px 4px 1rem 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--cc-gold-rgb), 0.35) transparent;
+}
+
+.list-area .cc-state {
+  gap: 0.6rem;
+}
+
+.cc-placeholder {
+  border: 1px dashed var(--cc-border);
   border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  outline: none;
-  font-size: 0.85rem;
-  transition: border-color 0.15s;
 }
 
-.input:focus {
-  border-color: var(--color-primary);
-}
-
-select.input {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.6rem center;
-  padding-right: 2rem;
-  cursor: pointer;
-}
-
-select.input option {
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-/* Loading & Empty */
-.loading {
-  margin-top: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-}
-
-.empty {
-  margin-top: 2rem;
-  padding: 2rem;
-  border-radius: 12px;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-  color: var(--color-text-muted);
-}
-
-.empty-icon {
-  opacity: 0.4;
-}
-
-.locked-icon {
-  opacity: 0.5;
-  color: var(--color-text-muted);
-}
-
-/* Item List */
-.item-list {
-  margin-top: 0.75rem;
+/* ---------- 卡片 ---------- */
+.item-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 0.75rem;
-  padding-bottom: 0.5rem;
+  gap: 0.8rem;
 }
 
-/* Item Card */
-.item-card {
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  overflow: hidden;
+.ws-card {
+  position: relative;
   display: flex;
   flex-direction: column;
+  gap: 0.4rem;
+  min-height: 168px;
+  padding: 0.9rem 1rem 0.85rem 1.1rem;
   box-sizing: border-box;
-  min-height: 165px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease, transform 0.2s ease;
 }
 
-.item-card:hover {
-  border-color: rgba(147, 197, 253, 0.5);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+.ws-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--cc-gold), rgba(var(--cc-gold-rgb), 0.3));
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition: opacity 0.25s ease, transform 0.3s ease;
+}
+
+.ws-card:hover,
+.ws-card:focus-visible {
+  outline: none;
+  background: var(--cc-selected-bg);
+  border-color: rgba(var(--cc-gold-rgb), 0.5);
+  box-shadow: var(--cc-glow);
   transform: translateY(-2px);
 }
 
-.item-header {
+.ws-card:focus-visible {
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
+
+.ws-card:hover::before,
+.ws-card:focus-visible::before {
+  opacity: 1;
+  transform: none;
+}
+
+.item-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
 }
 
-.item-type-badge {
+.type-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--color-primary);
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  padding: 0.2rem 0.5rem;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.4);
   border-radius: 999px;
-  background: rgba(147, 197, 253, 0.08);
+  background: rgba(var(--cc-gold-rgb), 0.07);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--cc-gold);
   white-space: nowrap;
 }
 
-.item-stats {
-  display: flex;
-  gap: 0.35rem;
-}
-
-.stat-item {
+.downloads {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  font-size: 0.7rem;
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  background: transparent;
-}
-
-.stat-item.downloads {
-  color: #10b981;
-}
-
-.stat-value {
-  font-weight: 600;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text-3);
 }
 
 .item-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--color-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: -webkit-box;
+  margin: 0.1rem 0 0;
+  overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  line-height: 1.35;
-  margin-bottom: 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
   word-break: break-word;
+  color: var(--cc-text);
+}
+
+.ws-card:hover .item-title {
+  color: var(--cc-accent);
 }
 
 .item-desc {
-  color: var(--color-text-secondary);
-  font-size: 0.78rem;
-  line-height: 1.45;
-  overflow: hidden;
   display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--cc-text-2);
 }
 
 .item-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 0.6rem;
-  font-size: 0.72rem;
-  margin-bottom: 0.35rem;
+  gap: 0.3rem 0.7rem;
+  font-size: 0.74rem;
+  color: var(--cc-text-3);
 }
 
 .meta-author {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  color: var(--color-text-muted);
-}
-
-.meta-version {
-  color: var(--color-text-muted);
-  opacity: 0.7;
-  font-size: 0.68rem;
-}
-
-.tags {
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
-  overflow: hidden;
-  max-height: 1.4rem;
-  margin-bottom: 0.35rem;
-}
-
-.tag {
-  font-size: 0.65rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.item-actions {
-  margin-top: auto;
-  padding-top: 0.5rem;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.4rem;
-}
-
-/* Buttons */
-.btn {
-  padding: 0.5rem 0.85rem;
-  border-radius: 7px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 0.82rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.btn:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-sm {
-  padding: 0.35rem 0.65rem;
-  font-size: 0.78rem;
-}
-
-.btn-secondary {
-  background: var(--color-surface);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.15) 0%, rgba(147, 197, 253, 0.08) 100%);
-  border-color: rgba(147, 197, 253, 0.4);
-  color: var(--color-primary);
-}
-
-.btn-primary:hover {
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.25) 0%, rgba(147, 197, 253, 0.15) 100%);
-  border-color: rgba(147, 197, 253, 0.5);
-}
-
-.btn.danger {
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.08);
-  color: #ef4444;
-}
-
-.btn.danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-}
-
-/* Pagination */
-.pagination {
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.page-meta {
-  display: flex;
-  gap: 0.75rem;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-}
-
-.page-controls {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Upload */
-.upload-locked {
-  margin-top: 2rem;
-  padding: 2rem;
-  border-radius: 12px;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  text-align: center;
-}
-
-.upload-form {
-  margin-top: 1rem;
-  display: grid;
-  gap: 0.8rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: start;
-}
-
-.label {
-  color: var(--color-text);
-  font-weight: 600;
-  font-size: 0.82rem;
-  padding-top: 0.5rem;
-}
-
-.content-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.file-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: #10b981;
-  font-size: 0.8rem;
-}
-
-.actions {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: flex-start;
-  gap: 0.6rem;
-}
-
-.upload-actions {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  justify-content: space-between;
-}
-
-/* Footer */
-.footer-actions {
-  flex: 0 0 auto;
-  padding: 0.75rem 1.5rem;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-}
-
-.backend-locked {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 2rem;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1600;
-  padding: 16px;
-}
-
-.modal {
-  width: min(640px, 100%);
-  max-height: 85vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border-radius: 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
-}
-
-.detail-modal {
-  width: min(520px, 100%);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(180deg, rgba(147, 197, 253, 0.05) 0%, transparent 100%);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.close-btn {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  cursor: pointer;
+.tags {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.15s;
+  flex-wrap: wrap;
+  gap: 0.3rem;
 }
 
-.close-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
+.ws-card .tags {
+  max-height: 1.45rem;
+  overflow: hidden;
 }
 
-.modal-body {
-  padding: 1rem;
-  overflow: auto;
+.tag {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  color: var(--cc-text-2);
+  white-space: nowrap;
 }
 
-.loading-body {
+.item-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.45rem;
+}
+
+.cc-btn.danger:hover:not(:disabled) {
+  color: var(--cc-danger);
+  border-color: rgba(var(--cc-danger-rgb), 0.55);
+  background: rgba(var(--cc-danger-rgb), 0.08);
+}
+
+/* ---------- 空态 / 未解锁 ---------- */
+.cc-placeholder.locked {
+  flex: 1;
+  margin-bottom: 1rem;
+}
+
+.locked-inner {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 0.8rem;
+  max-width: 360px;
+  line-height: 1.7;
+  letter-spacing: 0.08em;
+}
+
+.locked-inner > svg {
+  color: var(--cc-gold);
+}
+
+.locked-actions {
+  display: flex;
   gap: 0.6rem;
-  padding: 2rem;
-  color: var(--color-text-secondary);
 }
 
-.modal-info {
-  padding: 0.8rem 0.9rem;
-  border-radius: 10px;
-  background: var(--color-surface-light);
-  border: 1px solid var(--color-border);
+/* ---------- 上传 ---------- */
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0.1rem 4px 1rem 2px;
 }
 
-.modal-title {
-  font-weight: 600;
-  color: var(--color-text);
-  font-size: 0.95rem;
+.type-seg {
+  flex-wrap: wrap;
 }
 
-.modal-sub {
-  margin-top: 0.4rem;
+.req {
+  font-style: normal;
+  color: var(--cc-seal);
+}
+
+.content-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
+  gap: 0.5rem;
 }
 
-.modal-sub span {
+.file-btn {
+  cursor: pointer;
+}
+
+.file-btn svg,
+.content-actions .cc-btn svg {
+  color: var(--cc-gold);
+}
+
+.payload-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--cc-text-3);
+}
+
+.payload-hint.ok {
+  color: var(--cc-success);
+}
+
+/* ---------- 底栏 ---------- */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  padding: 0.9rem 1.9rem 1.4rem;
+  border-top: 1px solid var(--cc-divider);
+  flex-shrink: 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.page-meta {
+  margin-right: 0.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--cc-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination .cc-icon-btn {
+  width: 34px;
+  height: 34px;
+}
+
+.pagination .cc-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- 弹窗 ---------- */
+.modal-title-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-list {
+  margin: 0;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--cc-divider);
+  font-size: 0.86rem;
+}
+
+.info-row dt {
+  flex-shrink: 0;
+  letter-spacing: 0.1em;
+  color: var(--cc-text-3);
+}
+
+.info-row dd {
+  margin: 0;
+  text-align: right;
+  word-break: break-all;
+  color: var(--cc-text);
+}
+
+.info-row dd.gold {
+  color: var(--cc-gold);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.info-row dd.tags {
+  justify-content: flex-end;
+}
+
+.cc-section-title {
+  margin: 0.4rem 0 0;
+}
+
+.detail-desc {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--cc-text-2);
+}
+
+.dl-card {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--cc-border);
+  border-left: 3px solid var(--cc-gold);
+  border-radius: 6px;
+  background: var(--cc-surface);
+}
+
+.dl-title {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--cc-text);
+  word-break: break-word;
+}
+
+.dl-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+}
+
+.dl-sub span {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.modal-actions {
-  margin-top: 0.9rem;
-  display: flex;
-  gap: 0.5rem;
+.cc-modal-foot {
   flex-wrap: wrap;
 }
 
-.import-saves {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
+.workshop-container :is(.cc-btn, .cc-icon-btn, .pill-link, .pill-icon, .cc-segmented > button):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 
-/* Detail Modal */
-.detail-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
-.detail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.detail-label {
-  flex: 0 0 70px;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-}
-
-.detail-value {
-  flex: 1;
-  color: var(--color-text);
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.downloads-value {
-  color: #10b981;
-  font-weight: 600;
-}
-
-.detail-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.desc-row {
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.detail-desc {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Animation */
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Media Queries */
-@media (max-height: 700px) {
-  .header-section {
-    padding: 1rem 1.25rem 0.75rem;
-  }
-
-  .title-icon-wrapper {
-    width: 32px;
-    height: 32px;
-  }
-
-  .title {
-    font-size: 1.2rem;
+/* ---------- 响应式 ---------- */
+@media (min-width: 481px) and (max-width: 1400px) {
+  .header {
+    padding-right: 56px;
   }
 }
 
 @media (max-width: 768px) {
   .workshop-container {
-    padding: 10px;
-    padding-top: calc(10px + env(safe-area-inset-top));
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding: 0.75rem;
   }
 
-  .header-section {
-    padding: 1rem 1rem 0.75rem;
+  .header {
+    padding: 1.3rem 1.25rem 0.9rem;
+    padding-right: 56px;
   }
 
-  .tabs {
-    margin: 0.6rem 1rem 0;
+  .ws-tabs {
+    margin: 0.8rem 1.25rem 0;
   }
 
-  .scroll-content {
-    padding: 0 1rem;
-  }
-
-  .footer-actions {
-    padding: 0.6rem 1rem;
+  .body {
+    padding: 0.8rem 1.25rem 0;
   }
 
   .filters {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   }
 
-  .filters > select.input,
-  .page-size-select {
-    width: 100%;
+  .search-wrap {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 
-  .search-input-wrapper {
-    width: 100%;
-  }
-
-  .btn-icon-only {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .item-list {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.6rem;
-  }
-
-  .item-card {
-    min-height: 150px;
-    padding: 0.75rem 0.85rem;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 0.3rem;
-  }
-
-  .label {
-    padding-top: 0;
-  }
-
-  .upload-actions {
-    flex-direction: column-reverse;
-    gap: 0.5rem;
-  }
-
-  .upload-actions .btn {
-    width: 100%;
-    justify-content: center;
+  .footer {
+    padding: 0.8rem 1.25rem 1.1rem;
   }
 }
 
 @media (max-width: 480px) {
   .workshop-container {
-    padding: 8px;
-    padding-top: calc(8px + env(safe-area-inset-top));
-    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    padding: 0;
   }
 
   .workshop-panel {
-    border-radius: 12px;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 
-  .header-section {
-    padding: 0.85rem 0.85rem 0.65rem;
-  }
-
-  .title-row {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .auth-pill {
-    font-size: 0.72rem;
-    padding: 0.25rem 0.5rem;
-  }
-
-  .tabs {
-    margin: 0.5rem 0.85rem 0;
-  }
-
-  .tab {
-    padding: 0.4rem 0.5rem;
-    font-size: 0.78rem;
-  }
-
-  .tab span {
+  .workshop-panel::before,
+  .frame-corner {
     display: none;
   }
 
-  .scroll-content {
-    padding: 0 0.85rem;
+  .header {
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 64px 0.8rem 1rem;
   }
 
-  .footer-actions {
-    padding: 0.5rem 0.85rem;
+  .emblem {
+    width: 42px;
+    height: 42px;
+    font-size: 1.3rem;
   }
 
-  .item-list {
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .notice {
+    display: none;
+  }
+
+  .ws-tabs {
+    margin: 0.7rem 1rem 0;
+  }
+
+  .ws-tabs > button {
+    padding: 0.45rem 0.4rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+  }
+
+  .body {
+    padding: 0.7rem 1rem 0;
+  }
+
+  .item-grid {
     grid-template-columns: 1fr;
-    gap: 0.5rem;
+    gap: 0.6rem;
   }
 
-  .item-card {
-    min-height: auto;
-    padding: 0.7rem 0.8rem;
+  .ws-card {
+    min-height: 0;
   }
 
-  .item-card:hover {
+  .ws-card:hover {
     transform: none;
   }
 
-  .item-title {
-    font-size: 0.9rem;
-    -webkit-line-clamp: 2;
+  .footer {
+    padding: 0.7rem 1rem calc(0.8rem + env(safe-area-inset-bottom));
   }
 
-  .item-desc {
-    -webkit-line-clamp: 2;
+  .footer > .cc-btn {
+    flex: 1;
+  }
+
+  .pagination {
+    order: -1;
+    width: 100%;
+  }
+
+  .page-meta {
+    margin-right: auto;
+  }
+
+  .cc-modal-foot .cc-btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-height: 640px) and (min-width: 481px) {
+  .notice {
+    display: none;
+  }
+
+  .header {
+    padding-top: 1.1rem;
+    padding-bottom: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-card,
+  .emblem::before {
+    transition: none;
+  }
+
+  .ws-card:hover {
+    transform: none;
   }
 }
 </style>

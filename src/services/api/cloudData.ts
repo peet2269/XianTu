@@ -6,9 +6,9 @@ import type { World, TalentTier, Origin, SpiritRoot, Talent } from '@/types';
  */
 export async function fetchWorlds(): Promise<World[]> {
   try {
-    const response = await request.get<{ items: World[]; total: number }>('/api/v1/worlds/');
-    return response?.items || [];
-  } catch (_error) {
+    const response = await request.get<World[] | { items?: World[] }>('/api/v1/worlds/', { silent: true });
+    return unwrapItems(response);
+  } catch {
     return [];
   }
 }
@@ -18,9 +18,9 @@ export async function fetchWorlds(): Promise<World[]> {
  */
 export async function fetchTalentTiers(): Promise<TalentTier[]> {
   try {
-    const response = await request.get<{ items: TalentTier[]; total: number }>('/api/v1/talent_tiers/');
-    return response?.items || [];
-  } catch (_error) {
+    const response = await request.get<TalentTier[] | { items?: TalentTier[] }>('/api/v1/talent_tiers/', { silent: true });
+    return unwrapItems(response);
+  } catch {
     return [];
   }
 }
@@ -30,9 +30,9 @@ export async function fetchTalentTiers(): Promise<TalentTier[]> {
  */
 export async function fetchOrigins(): Promise<Origin[]> {
   try {
-    const response = await request.get<{ items: Origin[]; total: number }>('/api/v1/origins/');
-    return response?.items || [];
-  } catch (_error) {
+    const response = await request.get<Origin[] | { items?: Origin[] }>('/api/v1/origins/', { silent: true });
+    return unwrapItems(response);
+  } catch {
     return [];
   }
 }
@@ -42,9 +42,9 @@ export async function fetchOrigins(): Promise<Origin[]> {
  */
 export async function fetchSpiritRoots(): Promise<SpiritRoot[]> {
   try {
-    const response = await request.get<{ items: SpiritRoot[]; total: number }>('/api/v1/spirit_roots/');
-    return response?.items || [];
-  } catch (_error) {
+    const response = await request.get<SpiritRoot[] | { items?: SpiritRoot[] }>('/api/v1/spirit_roots/', { silent: true });
+    return unwrapItems(response);
+  } catch {
     return [];
   }
 }
@@ -53,10 +53,17 @@ export async function fetchSpiritRoots(): Promise<SpiritRoot[]> {
  * 从服务端获取所有天赋选项
  */
 type RawTalent = Partial<Talent> & { tier?: { id?: number }; tier_id?: number | null };
+
+/** 兼容后端分页响应 `{items,total}` 与旧版裸数组响应。 */
+export function unwrapItems<T>(response: T[] | { items?: T[] } | null | undefined): T[] {
+  if (Array.isArray(response)) return response;
+  return Array.isArray(response?.items) ? response.items : [];
+}
+
 export async function fetchTalents(): Promise<Talent[]> {
   try {
-    const response = await request.get<{ items: RawTalent[]; total: number }>('/api/v1/talents/');
-    const talents = response?.items || [];
+    const response = await request.get<RawTalent[] | { items?: RawTalent[] }>('/api/v1/talents/', { silent: true });
+    const talents = unwrapItems(response);
 
     // 转换后端数据结构，提取 tier_id
     const convertedTalents: Talent[] = talents.map((talent: RawTalent) => ({
@@ -72,7 +79,7 @@ export async function fetchTalents(): Promise<Talent[]> {
     }));
 
     return convertedTalents;
-  } catch (_error) {
+  } catch {
     return [];
   }
 }

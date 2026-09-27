@@ -23,13 +23,19 @@ import './style.css'
 import './styles/panel-theme.css'
 import './styles/theme-overrides.css'
 import './styles/design-system.css'
+import './styles/xian-tokens.css'
+import './styles/creation-theme.css'
+import './styles/game-theme.css'
 import './utils/consolePatch'
 import { migrateData } from './utils/indexedDBManager'
 import { useI18n } from './i18n'
-import { flushPendingTravelNotes } from '@/services/onlineLogQueue'
+import { applyStoredReadingPrefs } from './utils/readingPrefs'
 
 async function initializeApp() {
   console.log('【应用启动】开始初始化流程...');
+
+  // 正文字体 / 叙事配色 / 文字大小：尽早应用，避免闪一下旧字体
+  applyStoredReadingPrefs();
 
   // 首先执行数据迁移检查
   await migrateData();
@@ -53,9 +59,6 @@ async function initializeApp() {
   app.use(createPinia());
   app.use(router);
   app.mount('#app');
-
-  // 尝试补发联机穿越日志（网络波动/短暂掉线时的兜底）
-  void flushPendingTravelNotes();
 
   console.log('【应用启动】✅ Vue应用已成功挂载');
 }

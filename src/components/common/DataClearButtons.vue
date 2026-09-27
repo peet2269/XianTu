@@ -1,15 +1,14 @@
 <template>
   <div class="data-clear-container">
-    <div class="clear-buttons">
       <!-- 清除自定义数据（自定义+AI生成），保留本地基础+云端数据 -->
       <button 
         @click="clearCustomData" 
-        class="clear-button custom"
+        class="cc-tool-btn danger"
         :disabled="!hasCustomData"
         title="清除自定义和AI生成的数据"
       >
-        <span class="clear-icon">🗑️</span>
-        <span class="clear-text">清除自定义</span>
+        <Trash2 :size="14" />
+        <span>{{ t('清除自定义') }}</span>
       </button>
 
       <!-- 清除云端数据，保留本地基础+自定义数据 -->
@@ -17,19 +16,20 @@
       <button
         v-if="false"
         @click="clearCloudData"
-        class="clear-button cloud"
+        class="cc-tool-btn danger"
         :disabled="!hasCloudData"
         title="清除从云端获取的数据"
       >
-        <span class="clear-icon">☁️</span>
-        <span class="clear-text">清除云端</span>
+        <CloudOff :size="14" />
+        <span>{{ t('清除云端') }}</span>
       </button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { CloudOff, Trash2 } from 'lucide-vue-next';
+import { useI18n } from '../../i18n';
 import { useUIStore } from '@/stores/uiStore';
 import { useCharacterCreationStore } from '../../stores/characterCreationStore';
 import { toast } from '../../utils/toast';
@@ -50,6 +50,7 @@ const emit = defineEmits<{
 // Store
 const store = useCharacterCreationStore();
 const uiStore = useUIStore();
+const { t } = useI18n();
 
 // 检查是否有自定义数据
 const hasCustomData = computed(() => {
@@ -197,62 +198,6 @@ async function clearCloudData() {
 <style scoped>
 .data-clear-container {
   display: flex;
-  align-items: center;
-}
-
-.clear-buttons {
-  display: flex;
   gap: 0.5rem;
-  align-items: center;
-}
-
-.clear-button {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.5rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface-light);
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 80px;
-  white-space: nowrap;
-}
-
-.clear-button:hover:not(:disabled) {
-  background: rgba(var(--color-danger-rgb), 0.1);
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.clear-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.clear-icon {
-  font-size: 1em;
-  flex-shrink: 0;
-}
-
-.clear-text {
-  font-weight: 500;
-}
-
-/* 不同类型按钮的特定样式 */
-.clear-button.extra:hover:not(:disabled) {
-  background: rgba(255, 165, 0, 0.2);
-  border-color: orange;
-  color: orange;
-}
-
-.clear-button.sync:hover:not(:disabled) {
-  background: rgba(135, 206, 235, 0.2);
-  border-color: skyblue;
-  color: skyblue;
 }
 </style>
-

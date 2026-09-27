@@ -1,111 +1,124 @@
 <template>
   <div class="prompt-panel">
-    <div class="panel-header compact">
-      <div class="panel-title-compact">
-        <span class="title-text">📝 提示词管理</span>
+    <!-- 头部 -->
+    <header class="pm-header">
+      <div class="pm-title">
+        <div class="header-emblem" aria-hidden="true"><span class="emblem-glyph">诀</span></div>
+        <div class="pm-title-text">
+          <h3>{{ t('提示词管理') }}</h3>
+          <span>{{ t('调整发给 AI 的各段指令，改动需保存后生效') }}</span>
+        </div>
       </div>
-      <div class="panel-search">
+      <div class="pm-header-actions">
+        <button type="button" class="cc-btn small" :disabled="isOnlineMode" :title="t('导入')" @click="importPrompts">
+          <Upload :size="14" />
+          <span>{{ t('导入') }}</span>
+        </button>
+        <button type="button" class="cc-btn small" :title="t('导出全部')" @click="exportPrompts">
+          <Download :size="14" />
+          <span>{{ t('导出') }}</span>
+        </button>
+        <button type="button" class="cc-btn small danger-btn" :disabled="isOnlineMode" :title="t('重置全部')" @click="resetAllPrompts">
+          <RotateCcw :size="14" />
+          <span>{{ t('重置') }}</span>
+        </button>
+        <button type="button" class="cc-btn small primary" :disabled="isOnlineMode" :title="t('保存全部')" @click="saveAll">
+          <Save :size="14" />
+          <span>{{ t('保存全部') }}</span>
+        </button>
+        <button
+          v-if="closable"
+          type="button"
+          class="cc-modal-close"
+          :aria-label="t('关闭')"
+          :title="t('关闭')"
+          @click="emit('close')"
+        >
+          <X :size="18" />
+        </button>
+      </div>
+    </header>
+
+    <!-- 搜索 + 展开折叠 -->
+    <div class="pm-toolbar">
+      <div class="search-box">
+        <Search :size="15" class="search-icon" />
         <input
           v-model="searchQuery"
-          class="search-input"
+          class="cc-input search-input"
           type="text"
-          placeholder="搜索提示词（名称 / 键名 / 描述）"
+          :placeholder="t('搜索提示词（名称 / 键名 / 描述）')"
           :disabled="Object.keys(promptsByCategory).length === 0"
         />
-        <button class="clear-btn" @click="searchQuery = ''" :disabled="!searchQuery" title="清空搜索">×</button>
+        <button
+          v-if="searchQuery"
+          type="button"
+          class="clear-search"
+          :aria-label="t('清空搜索')"
+          @click="searchQuery = ''"
+        >
+          <X :size="14" />
+        </button>
       </div>
-      <div class="panel-actions">
-        <button class="action-btn-compact" @click="expandAllCategories" title="全部展开">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
+      <div class="cc-segmented fold-switch">
+        <button type="button" @click="expandAllCategories">
+          <ChevronsUpDown :size="14" />
+          <span>{{ t('全部展开') }}</span>
         </button>
-        <button class="action-btn-compact" @click="collapseAllCategories" title="全部折叠">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="18 15 12 9 6 15"></polyline>
-          </svg>
-        </button>
-        <button class="action-btn-compact" @click="exportPrompts" title="导出全部">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-        </button>
-        <button class="action-btn-compact" @click="importPrompts" title="导入" :disabled="isOnlineMode">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-        </button>
-        <button class="action-btn-compact primary" @click="saveAll" title="保存全部" :disabled="isOnlineMode">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
-          </svg>
-        </button>
-        <button class="action-btn-compact danger" @click="resetAllPrompts" title="重置全部" :disabled="isOnlineMode">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-          </svg>
+        <button type="button" @click="collapseAllCategories">
+          <ChevronsDownUp :size="14" />
+          <span>{{ t('全部折叠') }}</span>
         </button>
       </div>
     </div>
 
-    <!-- 联机模式警告 -->
-    <div v-if="isOnlineMode" class="online-mode-warning">
-      <span class="warning-icon">🔒</span>
-      <span class="warning-text">联机模式下提示词仅供查看，无法编辑</span>
+    <!-- 联机只读提示 -->
+    <div v-if="isOnlineMode" class="readonly-banner">
+      <Lock :size="14" />
+      <span>{{ t('联机模式下提示词仅供查看，无法编辑') }}</span>
     </div>
 
     <div class="prompt-list">
-      <div v-if="Object.keys(displayPromptsByCategory).length === 0" class="empty-search">
-        未找到匹配的提示词
+      <div v-if="Object.keys(displayPromptsByCategory).length === 0" class="cc-placeholder small">
+        {{ t('未找到匹配的提示词') }}
       </div>
-      <!-- 分类显示 -->
-      <div v-for="(categoryData, categoryKey) in displayPromptsByCategory" :key="categoryKey" class="category-section">
-        <!-- 分类头部 -->
-        <div class="category-header" @click="toggleCategory(String(categoryKey))">
-          <div class="category-title">
-            <span class="category-icon">{{ categoryData.info.icon }}</span>
-            <span class="category-name">{{ categoryData.info.name }}</span>
-            <span class="category-count">{{ categoryData.prompts.length }} 个提示词</span>
-          </div>
-          <div class="category-actions">
-            <span class="category-desc">{{ categoryData.info.description }}</span>
-            <svg
-              class="expand-icon"
-              :class="{ expanded: expandedCategories[categoryKey] }"
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
-        </div>
 
-        <!-- 分类内容 -->
+      <section v-for="(categoryData, categoryKey) in displayPromptsByCategory" :key="categoryKey" class="category-section">
+        <button
+          type="button"
+          class="category-header"
+          :aria-expanded="!!expandedCategories[categoryKey]"
+          @click="toggleCategory(String(categoryKey))"
+        >
+          <ChevronRight :size="16" class="expand-icon" :class="{ expanded: expandedCategories[categoryKey] }" />
+          <span class="category-name">{{ categoryData.info.name }}</span>
+          <span class="category-count">{{ categoryData.prompts.length }}</span>
+          <span class="category-desc">{{ categoryData.info.description }}</span>
+        </button>
+
         <div v-if="expandedCategories[categoryKey]" class="category-content">
-          <div v-for="prompt in categoryData.prompts" :key="prompt.key" class="prompt-item">
-            <div class="prompt-header" @click="togglePrompt(prompt.key)">
-              <div class="prompt-title-area">
-                <!-- 启用/禁用开关 -->
-                <label class="toggle-switch" @click.stop>
-                  <input
-                    type="checkbox"
-                    :checked="prompt.enabled"
-                    @change="toggleEnabled(prompt.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-                <!-- 序号已包含在name中，不再单独显示 -->
-                <span class="prompt-title" :class="{ disabled: !prompt.enabled }">{{ prompt.name }}</span>
+          <div
+            v-for="prompt in categoryData.prompts"
+            :key="prompt.key"
+            class="prompt-item"
+            :class="{ open: expandedPrompts[prompt.key], off: !prompt.enabled }"
+          >
+            <div class="prompt-header" role="button" tabindex="0" @click="togglePrompt(prompt.key)" @keydown.enter.prevent="togglePrompt(prompt.key)">
+              <label class="toggle-switch" :title="prompt.enabled ? t('已启用') : t('已停用')" @click.stop>
+                <input
+                  type="checkbox"
+                  :checked="prompt.enabled"
+                  @change="toggleEnabled(prompt.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <div class="prompt-main">
+                <span class="prompt-title">{{ prompt.name }}</span>
+                <span v-if="prompt.description" class="prompt-desc" :title="prompt.description">{{ prompt.description }}</span>
               </div>
               <div class="prompt-meta">
-                <div v-if="prompt.weight !== undefined" class="weight-editor" @click.stop>
-                  <label class="weight-label">W</label>
+                <label v-if="prompt.weight !== undefined" class="weight-editor" :title="t('权重越高，越靠前发送')" @click.stop>
+                  <span>{{ t('权重') }}</span>
                   <input
                     type="number"
                     class="weight-input"
@@ -113,41 +126,74 @@
                     :value="prompt.weight"
                     min="1"
                     max="10"
-                    :disabled="isOnlineMode"
+                    :disabled="isOnlineMode || !prompt.enabled"
                     @change="updateWeight(prompt.key, Number(($event.target as HTMLInputElement).value))"
                     @click.stop
                   />
-                </div>
-                <span v-if="prompt.description" class="prompt-desc" :title="prompt.description">
-                  {{ truncateText(prompt.description, 30) }}
-                </span>
-                <span class="prompt-key" :title="prompt.key" @click.stop>
-                  {{ prompt.key }}
-                </span>
+                </label>
                 <span class="prompt-status" :class="{ modified: prompt.modified }">
-                  {{ prompt.modified ? '已修改' : '默认' }}
+                  {{ prompt.modified ? t('已修改') : t('默认') }}
                 </span>
+                <ChevronDown :size="15" class="item-chevron" />
               </div>
             </div>
+
             <div v-if="expandedPrompts[prompt.key]" class="prompt-content">
-              <div v-if="prompt.description" class="prompt-description-full">
-                {{ prompt.description }}
+              <div class="prompt-key-row">
+                <span class="key-label">{{ t('键名') }}</span>
+                <code class="prompt-key">{{ prompt.key }}</code>
               </div>
               <textarea
                 v-model="prompt.content"
-                @input="markModified(prompt.key)"
-                rows="20"
-                class="prompt-textarea"
+                rows="18"
+                class="cc-input prompt-textarea"
                 :disabled="isOnlineMode"
-                :class="{ 'readonly-mode': isOnlineMode }"
+                @input="markModified(prompt.key)"
               ></textarea>
               <div class="prompt-actions">
-                <button class="btn-small" @click="resetPrompt(prompt.key)" :disabled="isOnlineMode">重置为默认</button>
-                <button class="btn-small" @click="exportSingle(prompt.key)">导出此项</button>
-                <button class="btn-small btn-primary" @click="saveSingle(prompt.key)" :disabled="isOnlineMode">保存修改</button>
+                <button type="button" class="cc-btn small" @click="openPreview(prompt)">
+                  <Eye :size="14" />
+                  <span>{{ t('预览渲染') }}</span>
+                </button>
+                <button type="button" class="cc-btn small" @click="exportSingle(prompt.key)">
+                  <Download :size="14" />
+                  <span>{{ t('导出此项') }}</span>
+                </button>
+                <button type="button" class="cc-btn small" :disabled="isOnlineMode || !prompt.modified" @click="resetPrompt(prompt.key)">
+                  <RotateCcw :size="14" />
+                  <span>{{ t('重置为默认') }}</span>
+                </button>
+                <button type="button" class="cc-btn small primary" :disabled="isOnlineMode" @click="saveSingle(prompt.key)">
+                  <Save :size="14" />
+                  <span>{{ t('保存修改') }}</span>
+                </button>
               </div>
             </div>
           </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 预览渲染 -->
+    <div v-if="previewPrompt" class="cc-modal-overlay preview-layer" @click.self="closePreview">
+      <div class="cc-modal wide preview-modal" role="dialog" aria-modal="true">
+        <div class="cc-modal-head">
+          <div class="preview-title">
+            <h3 class="cc-modal-title">{{ previewPrompt.name }}</h3>
+            <code>{{ previewPrompt.key }}</code>
+          </div>
+          <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="closePreview">
+            <X :size="18" />
+          </button>
+        </div>
+        <div class="cc-modal-body">
+          <div v-if="previewVariables.length" class="preview-grid">
+            <label v-for="variable in previewVariables" :key="variable" class="cc-field">
+              <span class="cc-field-label">{{ variable }}</span>
+              <input v-model="previewValues[variable]" class="cc-input" :placeholder="sampleValue(variable)" />
+            </label>
+          </div>
+          <pre class="preview-content">{{ renderedPreview }}</pre>
         </div>
       </div>
     </div>
@@ -159,16 +205,21 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { promptStorage, type PromptItem, type PromptsByCategory } from '@/services/promptStorage';
 import { toast } from '@/utils/toast';
 import { createDadBundle, unwrapDadBundle } from '@/utils/dadBundle';
-import { useCharacterStore } from '@/stores/characterStore';
 import { useGameStateStore } from '@/stores/gameStateStore';
+import { useI18n } from '@/i18n';
+import {
+  Upload, Download, RotateCcw, Save, X, Search, ChevronsUpDown, ChevronsDownUp,
+  Lock, ChevronRight, ChevronDown, Eye,
+} from 'lucide-vue-next';
 
-const characterStore = useCharacterStore();
+withDefaults(defineProps<{ closable?: boolean }>(), { closable: false });
+const emit = defineEmits<{ (e: 'close'): void }>();
+const { t } = useI18n();
+
 const gameStateStore = useGameStateStore();
 
-// 检测是否为联机模式
-const isOnlineMode = computed(() => {
-  return characterStore.activeCharacterProfile?.模式 === '联机';
-});
+// 云端修行仍允许用户编辑本地提示词；旧联机只读限制已移除。
+const isOnlineMode = computed(() => false);
 
 // 检测是否开启分步生成
 const isSplitGeneration = computed(() => {
@@ -193,6 +244,8 @@ const promptsByCategory = ref<PromptsByCategory>({});
 const expandedPrompts = ref<Record<string, boolean>>({});
 const expandedCategories = ref<Record<string, boolean>>({});
 const searchQuery = ref('');
+const previewPrompt = ref<PromptItem | null>(null);
+const previewValues = ref<Record<string, string>>({});
 
 const displayPromptsByCategory = computed<PromptsByCategory>(() => {
   const query = searchQuery.value.trim().toLowerCase();
@@ -244,6 +297,39 @@ function toggleCategory(categoryKey: string) {
 function togglePrompt(key: string) {
   expandedPrompts.value[key] = !expandedPrompts.value[key];
 }
+
+function openPreview(prompt: PromptItem) {
+  previewPrompt.value = prompt;
+  previewValues.value = Object.fromEntries(extractVariables(prompt.content).map((key) => [key, sampleValue(key)]));
+}
+
+function closePreview() {
+  previewPrompt.value = null;
+}
+
+function extractVariables(content: string): string[] {
+  const matches = [...content.matchAll(/\{\{\s*([\w.\-\u4e00-\u9fff]+)\s*\}\}|\{\s*([\w.\-\u4e00-\u9fff]+)\s*\}/g)];
+  return [...new Set(matches.map((match) => (match[1] || match[2]).trim()).filter(Boolean))];
+}
+
+function sampleValue(variable: string): string {
+  const normalized = variable.toLowerCase();
+  if (normalized.includes('玩家') || normalized.includes('角色')) return '当前角色';
+  if (normalized.includes('行动') || normalized.includes('输入')) return '尝试在山门外观察灵脉';
+  if (normalized.includes('世界')) return '朝天大陆';
+  if (normalized.includes('位置')) return '青云山脉';
+  if (normalized.includes('历史') || normalized.includes('记忆')) return '上一回合发生的关键事实';
+  return `[${variable}]`;
+}
+
+const previewVariables = computed(() => previewPrompt.value ? extractVariables(previewPrompt.value.content) : []);
+const renderedPreview = computed(() => {
+  if (!previewPrompt.value) return '';
+  return previewPrompt.value.content.replace(/\{\{\s*([\w.\-\u4e00-\u9fff]+)\s*\}\}|\{\s*([\w.\-\u4e00-\u9fff]+)\s*\}/g, (_match, doubleKey: string, singleKey: string) => {
+    const key = (doubleKey || singleKey).trim();
+    return previewValues.value[key] ?? `[${key}]`;
+  });
+});
 
 async function toggleEnabled(key: string, enabled: boolean) {
   // 更新本地状态
@@ -399,7 +485,7 @@ function importPrompts() {
       // 重新加载
       await loadPrompts();
       toast.success(`成功导入 ${count} 个提示词`);
-    } catch (error) {
+    } catch {
       toast.error('导入失败，请检查文件格式');
     }
   };
@@ -418,296 +504,384 @@ function downloadJSON(data: any, filename: string) {
 </script>
 
 <style scoped>
+/* ============================================================
+   提示词管理 —— 令牌见 styles/xian-tokens.css，通用类见 creation-theme.css
+   ============================================================ */
 .prompt-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-background);
+  min-height: 0;
+  background: var(--cc-shell-bg);
+  color: var(--cc-text);
 }
 
-/* 联机模式警告样式 */
-.online-mode-warning {
+/* ---------- 头部 ---------- */
+.pm-header {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: rgba(251, 191, 36, 0.15);
-  border-bottom: 1px solid rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--cc-border);
+  flex-shrink: 0;
 }
 
-.online-mode-warning .warning-icon {
-  font-size: 1rem;
+.pm-header::after {
+  content: '';
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cc-gold-rgb), 0.55), transparent);
 }
 
-.online-mode-warning .warning-text {
-  font-size: 0.85rem;
-  font-weight: 500;
+.pm-title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
 }
 
-/* 只读模式样式 */
-.prompt-textarea.readonly-mode {
-  opacity: 0.7;
-  cursor: not-allowed;
-  background: var(--color-surface-disabled, rgba(100, 100, 100, 0.1));
+.header-emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.25) 0%, rgba(var(--cc-accent-rgb), 0.06) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.5);
 }
 
-.btn-small:disabled,
-.action-btn-compact:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.header-emblem::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.4);
 }
 
-.panel-header.compact {
+.emblem-glyph {
+  font-family: var(--cc-calligraphy);
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--cc-accent);
+}
+
+.pm-title-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.pm-title-text h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+}
+
+.pm-title-text span {
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+}
+
+.pm-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.danger-btn:hover:not(:disabled) {
+  color: var(--cc-danger);
+  border-color: rgba(var(--cc-danger-rgb), 0.55);
+}
+
+/* ---------- 工具条 ---------- */
+.pm-toolbar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  padding: 0.85rem 1.25rem 0.5rem;
+  flex-shrink: 0;
 }
 
-
-.panel-title-compact {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 0 0 auto;
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
-.title-text {
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.panel-search {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex: 1 1 260px;
-  min-width: 200px;
+.search-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--cc-text-3);
+  pointer-events: none;
 }
 
 .search-input {
-  width: 100%;
-  padding: 0.45rem 0.65rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
-  outline: none;
+  padding-left: 2.1rem;
+  padding-right: 2rem;
 }
 
-.search-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.15);
-}
-
-.search-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.clear-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  cursor: pointer;
+.clear-search {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+  padding: 0.25rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cc-text-3);
+  cursor: pointer;
+  transform: translateY(-50%);
 }
 
-.clear-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.clear-search:hover {
+  color: var(--cc-text);
 }
 
-.clear-btn:not(:disabled):hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+.fold-switch {
+  flex-shrink: 0;
 }
 
-.empty-search {
-  padding: 0.9rem 1rem;
-  border-radius: 12px;
-  border: 1px dashed var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text-secondary);
-  margin: 0.9rem 0;
-}
-
-.panel-actions {
+.readonly-banner {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.action-btn-compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid var(--color-border);
+  margin: 0.25rem 1.25rem 0;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(var(--cc-warning-rgb), 0.4);
   border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s;
+  background: rgba(var(--cc-warning-rgb), 0.08);
+  font-size: 0.82rem;
+  color: var(--cc-warning);
 }
 
-.action-btn-compact:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.action-btn-compact.primary {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
-}
-
-.action-btn-compact.primary:hover {
-  background: var(--color-primary-hover);
-}
-
-.action-btn-compact.danger {
-  background: #dc2626;
-  color: white;
-  border-color: #dc2626;
-}
-
-.action-btn-compact.danger:hover {
-  background: #b91c1c;
-}
-
+/* ---------- 列表 ---------- */
 .prompt-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 0.5rem 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-/* 分类样式 */
+.cc-placeholder.small {
+  min-height: 200px;
+}
+
 .category-section {
-  margin-bottom: 1.5rem;
-  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  border: 1px solid var(--cc-border);
   border-radius: 10px;
+  background: var(--cc-surface);
   overflow: hidden;
-  background: var(--color-surface);
 }
 
 .category-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-surface-hover) 100%);
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
-  user-select: none;
-  transition: all 0.2s;
+  transition: background 0.2s ease;
 }
 
 .category-header:hover {
-  background: var(--color-surface-hover);
+  background: var(--cc-surface-hover);
 }
 
-.category-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.category-icon {
-  font-size: 1.25rem;
-}
-
-.category-name {
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--color-text);
-}
-
-.category-count {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  background: var(--color-background);
-  padding: 0.2rem 0.5rem;
-  border-radius: 10px;
-}
-
-.category-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.category-desc {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+.category-header:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(var(--cc-accent-rgb), 0.4);
 }
 
 .expand-icon {
-  transition: transform 0.3s ease;
-  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  color: var(--cc-gold);
+  transition: transform 0.2s ease;
 }
 
 .expand-icon.expanded {
-  transform: rotate(180deg);
+  transform: rotate(90deg);
+}
+
+.category-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+}
+
+.category-count {
+  flex-shrink: 0;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: rgba(var(--cc-gold-rgb), 0.15);
+  color: var(--cc-gold);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.category-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.76rem;
+  color: var(--cc-text-3);
 }
 
 .category-content {
-  border-top: 1px solid var(--color-border);
-  background: var(--color-background);
+  border-top: 1px solid var(--cc-divider);
 }
 
-/* 提示词项目样式 */
-.prompt-item {
-  border-bottom: 1px solid var(--color-border);
+.prompt-item + .prompt-item {
+  border-top: 1px solid var(--cc-divider);
 }
 
-.prompt-item:last-child {
-  border-bottom: none;
+.prompt-item.open {
+  background: rgba(var(--cc-gold-rgb), 0.03);
 }
 
 .prompt-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.875rem 1.25rem;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem 0.65rem 1.25rem;
   cursor: pointer;
-  user-select: none;
-  transition: background 0.2s;
+  transition: background 0.2s ease;
 }
 
 .prompt-header:hover {
-  background: var(--color-surface-hover);
+  background: var(--cc-surface-hover);
 }
 
-.prompt-title-area {
+.prompt-header:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(var(--cc-accent-rgb), 0.35);
+}
+
+.prompt-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.prompt-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--cc-text);
+}
+
+.prompt-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  color: var(--cc-text-3);
+}
+
+.prompt-item.off .prompt-title {
+  color: var(--cc-text-3);
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--cc-gold-rgb), 0.5);
+}
+
+.prompt-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-}
-
-/* 开关样式 */
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 36px;
-  height: 20px;
+  gap: 0.6rem;
   flex-shrink: 0;
 }
 
+.weight-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--cc-text-3);
+}
+
+.weight-input {
+  width: 3rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 4px;
+  background: var(--cc-inset);
+  color: var(--cc-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-input.weight-high { color: var(--cc-gold); }
+.weight-input.weight-medium { color: var(--cc-accent); }
+
+.weight-input:disabled {
+  opacity: 0.45;
+}
+
+.prompt-status {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 3px;
+  font-size: 0.68rem;
+  color: var(--cc-text-3);
+}
+
+.prompt-status.modified {
+  border-color: transparent;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+}
+
+.item-chevron {
+  color: var(--cc-text-3);
+  transition: transform 0.2s ease;
+}
+
+.prompt-item.open .item-chevron {
+  transform: rotate(180deg);
+  color: var(--cc-gold);
+}
+
+/* 开关 */
+.toggle-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 18px;
+}
+
 .toggle-switch input {
+  position: absolute;
   opacity: 0;
   width: 0;
   height: 0;
@@ -715,276 +889,139 @@ function downloadJSON(data: any, filename: string) {
 
 .toggle-slider {
   position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: var(--cc-inset);
+  border: 1px solid var(--cc-border-strong);
   cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--color-border);
-  transition: 0.3s;
-  border-radius: 20px;
+  transition: background 0.2s ease;
 }
 
-.toggle-slider:before {
+.toggle-slider::before {
+  content: '';
   position: absolute;
-  content: "";
-  height: 14px;
-  width: 14px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
+  left: 2px;
+  top: 2px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
+  background: #f5f2ea;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background-color: var(--color-primary);
+  background: var(--cc-primary-bg);
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
 }
 
-.toggle-switch input:checked + .toggle-slider:before {
+.toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(16px);
 }
 
-.toggle-switch:hover .toggle-slider {
-  box-shadow: 0 0 4px rgba(var(--color-primary-rgb), 0.4);
+.toggle-switch input:focus-visible + .toggle-slider {
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 
-.prompt-order {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  background: var(--color-primary);
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 6px;
-}
-
-.prompt-title {
-  font-weight: 500;
-  color: var(--color-text);
-  transition: opacity 0.2s;
-}
-
-.prompt-title.disabled {
-  opacity: 0.5;
-  text-decoration: line-through;
-}
-
-.prompt-meta {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.prompt-key {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.72rem;
-  padding: 0.18rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  user-select: text;
-}
-
-.prompt-desc {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.prompt-status {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-}
-
-.prompt-status.modified {
-  background: rgba(var(--color-warning-rgb), 0.2);
-  color: var(--color-warning);
-}
-
-/* 权重编辑器 */
-.weight-editor {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.weight-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-}
-
-.weight-input {
-  width: 36px;
-  height: 22px;
-  padding: 0 4px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-align: center;
-  background: transparent;
-  transition: all 0.2s;
-  -moz-appearance: textfield;
-}
-
-.weight-input::-webkit-outer-spin-button,
-.weight-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.weight-input:hover {
-  border-color: var(--color-border);
-  background: var(--color-surface);
-}
-
-.weight-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  background: var(--color-surface);
-}
-
-.weight-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.weight-input.weight-high {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-}
-
-.weight-input.weight-medium {
-  background: rgba(234, 179, 8, 0.2);
-  color: #eab308;
-}
-
-.weight-input.weight-low {
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
-}
-
+/* 展开内容 */
 .prompt-content {
-  padding: 1rem 1.25rem;
-  background: var(--color-background);
-  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.25rem 1rem 1rem 1.25rem;
 }
 
-.prompt-description-full {
-  margin-bottom: 0.75rem;
-  padding: 0.75rem;
-  background: var(--color-surface);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
+.prompt-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--cc-text-3);
+}
+
+.prompt-key,
+.preview-title code {
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+  background: var(--cc-inset);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--cc-text-2);
 }
 
 .prompt-textarea {
-  width: 100%;
-  min-height: 400px;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.85rem;
-  line-height: 1.6;
-  resize: vertical;
-}
-
-.prompt-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
+  min-height: 280px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.7;
 }
 
 .prompt-actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 0.45rem;
 }
 
-.btn-small {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s;
+/* ---------- 预览 ---------- */
+.preview-layer {
+  z-index: 2200;
 }
 
-.btn-small:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-primary);
+.preview-modal {
+  width: min(860px, 100%);
 }
 
-.btn-small.btn-primary {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+.preview-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
 }
 
-.btn-small.btn-primary:hover {
-  background: var(--color-primary-hover);
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.6rem;
 }
 
-/* 响应式适配 */
-@media (max-width: 768px) {
-  .panel-header.compact {
-    flex-wrap: wrap;
-  }
+.preview-content {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-inset);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--cc-text-2);
+}
 
-  .panel-search {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-
-  .category-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .category-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .prompt-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .prompt-meta {
-    width: 100%;
-    justify-content: space-between;
-  }
-
+/* ---------- 响应式 ---------- */
+@media (max-width: 720px) {
+  .pm-title-text span,
+  .category-desc,
   .prompt-desc {
-    max-width: 150px;
+    display: none;
   }
 
-  .prompt-textarea {
-    min-height: 300px;
+  .pm-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pm-header-actions .cc-btn span {
+    display: none;
+  }
+
+  .prompt-list,
+  .pm-toolbar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }
 </style>

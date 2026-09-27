@@ -1,73 +1,89 @@
 <template>
   <div class="origin-selection-container">
-    <div v-if="store.isLoading" class="loading-state">{{ $t('追溯过往，探寻出身...') }}</div>
-    <div v-else-if="store.error" class="error-state">{{ $t('因果不明') }}：{{ store.error }}</div>
+    <div v-if="store.isLoading" class="cc-state">{{ $t('追溯过往，探寻出身...') }}</div>
+    <div v-else-if="store.error" class="cc-state error">{{ $t('因果不明') }}：{{ store.error }}</div>
 
-    <div v-else class="origin-layout">
-      <!-- 左侧栏：列表和操作按钮 -->
-      <div class="origin-left-panel">
-        <!-- 顶部功能按钮 -->
-        <div class="top-actions-container">
-          <button
-            v-if="store.isLocalCreation"
-            @click="isCustomModalVisible = true"
-            class="action-item shimmer-on-hover"
-          >
-            <span class="action-name">{{ $t('自定义出身') }}</span>
+    <div v-else class="cc-split">
+      <!-- 左侧：出身列表 -->
+      <div class="cc-panel">
+        <div class="cc-actions">
+          <button v-if="store.isLocalCreation" type="button" class="cc-action" @click="isCustomModalVisible = true">
+            <PenLine :size="14" />
+            <span>{{ $t('自定义出身') }}</span>
           </button>
-          <button @click="handleAIGenerate" class="action-item shimmer-on-hover">
-            <span class="action-name">{{ $t('AI推演') }}</span>
+          <button type="button" class="cc-action" @click="handleAIGenerate">
+            <Sparkles :size="14" />
+            <span>{{ $t('AI推演') }}</span>
           </button>
         </div>
 
-        <div class="origin-list-container">
+        <div class="cc-list" @mouseleave="resetActiveOrigin">
           <div
-           class="origin-item"
-           :class="{ selected: isRandomSelected }"
-           @click="handleSelectRandom"
-           @mouseover="activeOrigin = 'random'"
+            class="cc-item random-item"
+            role="button"
+            tabindex="0"
+            :class="{ selected: isRandomSelected }"
+            @click="handleSelectRandom"
+            @keydown.enter.prevent="handleSelectRandom"
+            @mouseover="activeOrigin = 'random'"
+            @focus="activeOrigin = 'random'"
           >
-           <span class="origin-name">{{ $t('随机出身') }}</span>
-           <span class="origin-cost">{{ $t('0 点') }}</span>
+            <div class="cc-item-main">
+              <span class="random-name">
+                <Dices :size="15" class="random-icon" />
+                <span class="cc-item-name">{{ $t('随机出身') }}</span>
+              </span>
+              <span class="cc-item-meta">{{ $t('0 点') }}</span>
+            </div>
           </div>
-          <div class="divider"></div>
+          <div class="cc-divider"></div>
           <div
             v-for="origin in filteredOrigins"
             :key="origin.id"
-            class="origin-item"
+            class="cc-item"
+            role="button"
+            :tabindex="canSelect(origin) ? 0 : -1"
+            :aria-disabled="!canSelect(origin)"
             :class="{
               selected: store.characterPayload.origin_id === origin.id,
               disabled: !canSelect(origin),
             }"
             @click="handleSelectOrigin(origin)"
+            @keydown.enter.prevent="handleSelectOrigin(origin)"
             @mouseover="activeOrigin = origin"
+            @focus="activeOrigin = origin"
           >
-            <div class="item-content">
-              <span class="origin-name">{{ origin.name }}</span>
-              <span class="origin-cost">{{ origin.talent_cost }} {{ $t('点') }}</span>
+            <div class="cc-item-main">
+              <span class="cc-item-name">{{ origin.name }}</span>
+              <span class="cc-item-meta">{{ origin.talent_cost }} {{ $t('点') }}</span>
             </div>
-            <div v-if="origin.source === 'cloud' && store.isLocalCreation" class="action-buttons">
-              <button @click.stop="openEditModal(origin)" class="edit-btn" :title="$t('编辑此项')">
-                <Edit :size="14" />
+            <div v-if="origin.source === 'cloud' && store.isLocalCreation" class="cc-item-tools">
+              <button type="button" class="cc-icon-btn" :title="$t('编辑此项')" @click.stop="openEditModal(origin)">
+                <Edit :size="13" />
               </button>
-              <button @click.stop="handleDeleteOrigin(origin.id)" class="delete-btn" :title="$t('删除此项')">
-                <Trash2 :size="14" />
+              <button type="button" class="cc-icon-btn danger" :title="$t('删除此项')" @click.stop="handleDeleteOrigin(origin.id)">
+                <Trash2 :size="13" />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧详情 -->
-      <div class="origin-details-container">
-        <div v-if="activeOrigin" class="origin-details">
-          <h2>{{ activeDisplayName }}</h2>
-          <div class="description-scroll">
+      <!-- 右侧：出身详情 -->
+      <div class="cc-panel cc-detail">
+        <div v-if="activeOrigin" class="cc-detail-inner">
+          <div class="cc-detail-head">
+            <h2 class="cc-detail-title">{{ activeDisplayName }}</h2>
+          </div>
+          <div class="cc-detail-rule"></div>
+          <div class="cc-detail-body">
             <p>{{ activeDescription }}</p>
           </div>
-          <div class="cost-display">{{ $t('消耗天道点: {0}').replace('{0}', String(activeCost)) }}</div>
+          <div class="cc-stat-row">
+            <span class="cc-stat">{{ $t('消耗天道点') }} <strong>{{ activeCost }}</strong></span>
+          </div>
         </div>
-        <div v-else class="placeholder">{{ $t('请选择一处出身，或听天由命。') }}</div>
+        <div v-else class="cc-placeholder">{{ $t('请选择一处出身，或听天由命。') }}</div>
       </div>
     </div>
 
@@ -90,6 +106,7 @@
       @close="isEditModalVisible = false; editingOrigin = null"
       @submit="handleEditSubmit"
     />
+
     <!-- AI推演输入弹窗 -->
     <AIPromptModal
       :visible="isAIPromptModalVisible"
@@ -101,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Trash2, Edit } from 'lucide-vue-next'
+import { Trash2, Edit, PenLine, Sparkles, Dices } from 'lucide-vue-next'
 import { useCharacterCreationStore } from '../../stores/characterCreationStore'
 import type { Origin } from '../../types'
 import CustomCreationModal, { type ModalField } from './CustomCreationModal.vue'
@@ -113,7 +130,13 @@ import { parseJsonFromText } from '@/utils/jsonExtract'
 
 const emit = defineEmits(['ai-generate'])
 const store = useCharacterCreationStore()
-const activeOrigin = ref<Origin | 'random' | null>(null) // For hover details view - 仿照天赋选择
+// 详情区显示的出身：默认为当前选择（未选具体出身即为随机），悬停时预览
+const currentOriginChoice = (): Origin | 'random' | null =>
+  store.selectedOrigin ?? (store.characterPayload.origin_id === null ? 'random' : null)
+const activeOrigin = ref<Origin | 'random' | null>(currentOriginChoice())
+const resetActiveOrigin = () => {
+  activeOrigin.value = currentOriginChoice() ?? activeOrigin.value
+}
 const isCustomModalVisible = ref(false)
 const isEditModalVisible = ref(false)
 const isAIPromptModalVisible = ref(false)
@@ -517,585 +540,22 @@ const activeCost = computed(() => {
 </script>
 
 <style scoped>
-/* ========== 深色玻璃拟态风格 ========== */
+/* 通用外观见 styles/creation-theme.css */
 .origin-selection-container {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-.loading-state, .error-state, .placeholder {
-  display: flex;
-  justify-content: center;
+.random-name {
+  display: inline-flex;
   align-items: center;
-  height: 100%;
-  font-size: 1.1rem;
-  color: #94a3b8;
-  font-style: italic;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
-.origin-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 1.5rem;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* ========== 左侧面板 ========== */
-.origin-left-panel {
-  display: flex;
-  flex-direction: column;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.origin-list-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.origin-list-container::-webkit-scrollbar { width: 6px; }
-.origin-list-container::-webkit-scrollbar-track { background: transparent; }
-.origin-list-container::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-.origin-list-container::-webkit-scrollbar-thumb:hover { background: rgba(147, 197, 253, 0.5); }
-
-/* ========== 选项卡样式 ========== */
-.origin-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.1rem 1.2rem;
-  margin-bottom: 0.6rem;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: 1px solid transparent;
-  background: rgba(30, 41, 59, 0.4);
-}
-
-.origin-item:hover {
-  background: rgba(51, 65, 85, 0.6);
-  border-color: rgba(147, 197, 253, 0.2);
-}
-
-.origin-item.selected {
-  background: rgba(30, 58, 138, 0.4);
-  border-color: rgba(147, 197, 253, 0.4);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-}
-
-.origin-item.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.origin-item.disabled:hover {
-  background: rgba(30, 41, 59, 0.4);
-  border-color: transparent;
-}
-
-.item-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-grow: 1;
-}
-
-.origin-name {
-  font-weight: 500;
-  color: #f1f5f9;
-}
-
-.origin-item.selected .origin-name {
-  color: #bfdbfe;
-}
-
-.origin-cost {
-  color: #fbbf24;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-/* 按钮组容器 */
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.2s;
-  margin-left: 0.5rem;
-}
-
-.origin-item:hover .action-buttons {
-  opacity: 1;
-}
-
-.edit-btn, .delete-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 0.35rem;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.edit-btn:hover {
-  color: #93c5fd;
-  background: rgba(147, 197, 253, 0.1);
-}
-
-.delete-btn:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
-}
-
-.divider {
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(147, 197, 253, 0.2), transparent);
-  margin: 0.5rem 0;
-}
-
-.action-name {
-  font-weight: 500;
-}
-
-/* ========== 右侧详情面板 ========== */
-.origin-details-container {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.origin-details {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.origin-details h2 {
-  margin: 0 0 1rem 0;
-  color: #93c5fd;
+.random-icon {
   flex-shrink: 0;
-  font-size: 1.5rem;
-  text-shadow: 0 0 20px rgba(147, 197, 253, 0.3);
-}
-
-.description-scroll {
-  flex: 1;
-  overflow-y: auto;
-  line-height: 1.7;
-  margin-bottom: 1rem;
-  padding-right: 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.description-scroll::-webkit-scrollbar { width: 6px; }
-.description-scroll::-webkit-scrollbar-track { background: transparent; }
-.description-scroll::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-
-.description-scroll p {
-  margin: 0;
-  white-space: pre-wrap;
-  color: #94a3b8;
-}
-
-.cost-display {
-  text-align: right;
-  font-weight: 600;
-  color: #fbbf24;
-  flex-shrink: 0;
-}
-
-/* ========== 亮色主题适配 ========== */
-[data-theme="light"] .origin-left-panel,
-[data-theme="light"] .origin-details-container {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .origin-item {
-  background: rgba(255, 255, 255, 0.6);
-}
-
-[data-theme="light"] .origin-item:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .origin-item.selected {
-  background: rgba(219, 234, 254, 0.8);
-  border-color: rgba(59, 130, 246, 0.4);
-}
-
-[data-theme="light"] .origin-name {
-  color: #1e293b;
-}
-
-[data-theme="light"] .origin-item.selected .origin-name {
-  color: #1e40af;
-}
-
-[data-theme="light"] .origin-details h2 {
-  color: #2563eb;
-}
-
-[data-theme="light"] .description-scroll p {
-  color: #475569;
-}
-
-/* 响应式适配 - 手机端优化 */
-@media (max-width: 1200px) {
-  .origin-layout {
-    grid-template-columns: 1fr 1.8fr;
-    gap: 1.5rem;
-  }
-}
-
-@media (max-width: 1024px) {
-  .origin-layout {
-    grid-template-columns: 1fr 1.5fr;
-    gap: 1.2rem;
-  }
-
-  .origin-details h2 {
-    font-size: 1.6rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .top-actions-container {
-    flex-wrap: wrap;
-    justify-content: stretch;
-  }
-  .top-actions-container .action-item {
-    flex-grow: 1;
-    text-align: center;
-  }
-  .origin-layout {
-    /* 改为垂直堆叠布局 */
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    gap: 1rem;
-    height: auto;
-    overflow: visible;
-    padding: 0.8rem;
-  }
-
-  .origin-left-panel {
-    order: 1;
-    max-height: 40vh;
-  }
-
-  .origin-details-container {
-    order: 2;
-    min-height: 300px;
-  }
-
-  .origin-list-container {
-    max-height: 35vh;
-    /* 添加触摸滚动优化 */
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-  }
-
-  /* 优化触摸体验 */
-  .origin-item,
-  .action-item {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-}
-
-@media (max-width: 640px) {
-  .origin-layout {
-    gap: 0.8rem;
-    padding: 0.6rem;
-  }
-
-  .origin-left-panel {
-    max-height: 35vh;
-  }
-
-  .origin-list-container {
-    max-height: 30vh;
-    padding: 0.5rem;
-  }
-
-  .origin-item {
-    padding: 0.7rem;
-    font-size: 0.95rem;
-    margin-bottom: 0.4rem;
-  }
-
-  .single-actions-container {
-    padding: 0.5rem;
-    gap: 0.4rem;
-  }
-
-  .action-item {
-    padding: 0.7rem 1rem;
-    font-size: 0.9rem;
-  }
-
-  .origin-details-container {
-    padding: 1.2rem;
-    min-height: 250px;
-  }
-
-  .origin-details h2 {
-    font-size: 1.4rem;
-    margin-bottom: 0.8rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .top-actions-container {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .origin-selection-container {
-    padding: 0.4rem;
-    height: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .origin-layout {
-    gap: 0.6rem;
-    padding: 0;
-    height: auto;
-    min-height: 0;
-  }
-
-  .origin-left-panel {
-    max-height: none;
-    border-radius: 6px;
-  }
-
-  .origin-list-container {
-    max-height: 26vh;
-    padding: 0.4rem;
-  }
-
-  .origin-item {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.9rem;
-    margin-bottom: 0.3rem;
-    border-radius: 4px;
-  }
-
-  .origin-name {
-    font-size: 0.9rem;
-  }
-
-  .origin-cost {
-    font-size: 0.8rem;
-  }
-
-  .divider {
-    margin: 0.3rem 0;
-  }
-
-  .single-actions-container {
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.4rem;
-  }
-
-  .action-item {
-    padding: 0.6rem;
-    font-size: 0.85rem;
-    border-radius: 4px;
-  }
-
-  .origin-details-container {
-    padding: 1rem;
-    min-height: 200px;
-    border-radius: 6px;
-  }
-
-  .origin-details h2 {
-    font-size: 1.3rem;
-    margin-bottom: 0.6rem;
-  }
-
-  .description-scroll {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    padding-right: 0.3rem;
-    margin-bottom: 0.8rem;
-  }
-
-  .cost-display {
-    font-size: 1rem;
-    text-align: center;
-  }
-
-  .placeholder {
-    font-size: 1rem;
-    padding: 1rem;
-    text-align: center;
-    min-height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .top-actions-container {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 0.5rem;
-  }
-  .top-actions-container .action-item {
-    text-align: center;
-  }
-}
-
-/* 顶部功能按钮 - 深色玻璃拟态风格 */
-.top-actions-container {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(30, 41, 59, 0.3);
-  justify-content: center;
-}
-
-.top-actions-container .action-item {
-  padding: 0.5rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(30, 41, 59, 0.6);
-  color: #cbd5e1;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  font-size: 0.85rem;
-  font-weight: 500;
-  white-space: nowrap;
-  letter-spacing: 0.05em;
-}
-
-.top-actions-container .action-item:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(147, 197, 253, 0.3);
-  color: #f1f5f9;
-}
-
-/* 亮色主题顶部按钮 */
-[data-theme="light"] .top-actions-container {
-  background: rgba(241, 245, 249, 0.6);
-  border-bottom-color: rgba(59, 130, 246, 0.15);
-}
-
-[data-theme="light"] .top-actions-container .action-item {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #2563eb;
-}
-
-[data-theme="light"] .top-actions-container .action-item:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: #3b82f6;
-  color: #1e40af;
-}
-
-@media (max-width: 360px) {
-  .origin-selection-container {
-    padding: 0.3rem;
-  }
-
-  .origin-layout {
-    gap: 0.4rem;
-  }
-
-  .origin-left-panel {
-    max-height: 28vh;
-  }
-
-  .origin-list-container {
-    max-height: 24vh;
-    padding: 0.3rem;
-  }
-
-  .origin-item {
-    padding: 0.5rem 0.6rem;
-    font-size: 0.85rem;
-    margin-bottom: 0.2rem;
-  }
-
-  .origin-name {
-    font-size: 0.8rem;
-  }
-
-  .origin-cost {
-    font-size: 0.75rem;
-  }
-
-  .origin-details-container {
-    padding: 0.8rem;
-    min-height: 180px;
-  }
-
-  .origin-details h2 {
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .description-scroll {
-    font-size: 0.85rem;
-    line-height: 1.4;
-    margin-bottom: 0.6rem;
-  }
-
-  .cost-display {
-    font-size: 0.9rem;
-  }
-
-  .action-item {
-    padding: 0.5rem;
-    font-size: 0.8rem;
-  }
-
-  .placeholder {
-    font-size: 0.9rem;
-    padding: 0.8rem;
-    min-height: 120px;
-  }
-}
-
-/* 亮色主题下的编辑/删除按钮 */
-[data-theme="light"] .edit-btn,
-[data-theme="light"] .delete-btn {
-  background: rgba(241, 245, 249, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.15);
-  color: #475569;
-}
-
-[data-theme="light"] .edit-btn:hover {
-  color: #2563eb;
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-[data-theme="light"] .delete-btn:hover {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--cc-gold);
 }
 </style>

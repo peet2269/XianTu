@@ -85,7 +85,7 @@ defineEmits<{
   (e: 'debug-log'): void
 }>()
 
-const canEdit = computed(() => props.type === 'chat')
+const canEdit = computed(() => props.type === 'chat' || props.type === 'custom')
 
 const getDataType = (value: GameVariableValue): string => {
   if (value === null) return 'null'

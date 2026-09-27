@@ -1,177 +1,184 @@
 <template>
   <div class="preview-container">
-    <h2 class="title">{{ $t('最终预览') }}</h2>
-    <p class="subtitle">{{ $t('请确认你的选择，此为踏入仙途的最后一步。') }}</p>
+    <header class="preview-header">
+      <h2 class="title">{{ $t('最终预览') }}</h2>
+      <p class="subtitle">{{ $t('请确认你的选择，此为踏入仙途的最后一步。') }}</p>
+    </header>
 
-    <div class="preview-grid">
-      <!-- Character Name -->
-      <div class="preview-item name-item">
-        <label for="characterName">{{ $t('道号:') }}</label>
-        <input
-          type="text"
-          id="characterName"
-          class="named"
-          v-model="store.characterPayload.character_name"
-          :placeholder="$t('请输入道号')"
-        />
-        <span class="name-hint">{{ $t('可自定义修改') }}</span>
-      </div>
-
-      <!-- Character Race -->
-      <div class="preview-item race-item input-field">
-        <label for="characterRace">{{ $t('种族:') }}</label>
-        <input
-          type="text"
-          id="characterRace"
-          class="named"
-          v-model="store.characterPayload.race"
-          :placeholder="$t('人族')"
-          @mousedown.stop
-          @click.stop
-          @select.stop
-        />
-      </div>
-
-      <!-- Gender Selection -->
-      <div class="preview-item gender-item">
-        <h3>{{ $t('性别') }}</h3>
-        <div class="gender-control">
-          <label class="gender-label">
-            <input type="radio" name="gender" value="男" v-model="store.characterPayload.gender">
-            <span>{{ $t('男') }}</span>
-          </label>
-          <label class="gender-label">
-            <input type="radio" name="gender" value="女" v-model="store.characterPayload.gender">
-            <span>{{ $t('女') }}</span>
-          </label>
-          <label class="gender-label">
-            <input type="radio" name="gender" value="双性" v-model="store.characterPayload.gender">
-            <span>{{ $t('双性') }}</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Birth Age -->
-      <div class="preview-item age-item">
-        <h3>{{ $t('初始年龄') }}</h3>
-        <div class="age-control">
-          <button type="button" @click="decrementAge" :disabled="store.characterPayload.current_age <= 0" class="age-btn">-</button>
+    <!-- 法身：可编辑信息 -->
+    <section class="preview-section">
+      <h3 class="cc-section-title">{{ $t('法身') }}</h3>
+      <div class="form-grid">
+        <label class="field" for="characterName">
+          <span class="field-label">{{ $t('道号') }} <em>{{ $t('可自定义修改') }}</em></span>
           <input
-            type="number"
-            v-model.number="store.characterPayload.current_age"
-            class="age-input"
-            min="0"
-            @input="validateAge"
+            id="characterName"
+            v-model="store.characterPayload.character_name"
+            type="text"
+            class="cc-input name-input"
+            :placeholder="$t('请输入道号')"
           />
-          <span class="age-unit">{{ $t('岁') }}</span>
-          <button type="button" @click="incrementAge" class="age-btn">+</button>
+        </label>
+
+        <label class="field" for="characterRace">
+          <span class="field-label">{{ $t('种族') }}</span>
+          <input
+            id="characterRace"
+            v-model="store.characterPayload.race"
+            type="text"
+            class="cc-input"
+            :placeholder="$t('人族')"
+            @mousedown.stop
+            @click.stop
+            @select.stop
+          />
+        </label>
+
+        <div class="field">
+          <span class="field-label">{{ $t('性别') }}</span>
+          <div class="cc-segmented" role="radiogroup" :aria-label="$t('性别')">
+            <label v-for="g in genderOptions" :key="g">
+              <input v-model="store.characterPayload.gender" type="radio" name="gender" :value="g" />
+              <span>{{ $t(g) }}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">{{ $t('初始年龄') }}</span>
+          <div class="age-control">
+            <button
+              type="button"
+              class="age-btn"
+              :aria-label="$t('减少')"
+              :disabled="store.characterPayload.current_age <= 0"
+              @click="decrementAge"
+            >
+              <Minus :size="14" />
+            </button>
+            <input
+              v-model.number="store.characterPayload.current_age"
+              type="number"
+              class="age-input"
+              min="0"
+              :aria-label="$t('初始年龄')"
+              @input="validateAge"
+            />
+            <span class="age-unit">{{ $t('岁') }}</span>
+            <button type="button" class="age-btn" :aria-label="$t('增加')" @click="incrementAge">
+              <Plus :size="14" />
+            </button>
+          </div>
         </div>
       </div>
+    </section>
 
-      <!-- Start Mode (Streaming / Non-Streaming) -->
-      <div class="preview-item">
-        <h3>{{ $t('开局模式') }}</h3>
-        <div class="streaming-control">
-          <label class="streaming-label">
-            <input type="radio" name="startMode" :value="true" v-model="store.useStreamingStart">
-            <span>{{ $t('流式开局') }}</span>
-          </label>
-          <label class="streaming-label">
-            <input type="radio" name="startMode" :value="false" v-model="store.useStreamingStart">
-            <span>{{ $t('非流式开局') }}</span>
-          </label>
+    <!-- 开局设定 -->
+    <section class="preview-section">
+      <h3 class="cc-section-title">{{ $t('开局设定') }}</h3>
+      <div class="form-grid">
+        <div class="field">
+          <span class="field-label">{{ $t('开局模式') }}</span>
+          <div class="cc-segmented" role="radiogroup" :aria-label="$t('开局模式')">
+            <label>
+              <input v-model="store.useStreamingStart" type="radio" name="startMode" :value="true" />
+              <span>{{ $t('流式开局') }}</span>
+            </label>
+            <label>
+              <input v-model="store.useStreamingStart" type="radio" name="startMode" :value="false" />
+              <span>{{ $t('非流式开局') }}</span>
+            </label>
+          </div>
+          <p class="field-hint">
+            {{ store.useStreamingStart ? $t('流式开局：更快，可能被中断') : $t('非流式开局：一次性生成完整内容，更稳定可靠') }}
+          </p>
         </div>
-        <p class="streaming-hint">
-          {{ store.useStreamingStart ? $t('流式开局：更快，可能被中断') : $t('非流式开局：一次性生成完整内容，更稳定可靠') }}
-        </p>
-      </div>
 
-      <!-- Split Response Generation -->
-      <div class="preview-item">
-        <h3>{{ $t('生成方式') }}</h3>
-        <div class="generate-mode-control">
-          <label class="generate-mode-label">
-            <input type="radio" name="splitMode" :value="true" v-model="store.splitResponseGeneration">
-            <span>{{ $t('分步生成') }}</span>
-          </label>
-          <label class="generate-mode-label">
-            <input type="radio" name="splitMode" :value="false" v-model="store.splitResponseGeneration">
-            <span>{{ $t('一次性生成') }}</span>
-          </label>
+        <div class="field">
+          <span class="field-label">{{ $t('生成方式') }}</span>
+          <div class="cc-segmented" role="radiogroup" :aria-label="$t('生成方式')">
+            <label>
+              <input v-model="store.splitResponseGeneration" type="radio" name="splitMode" :value="false" />
+              <span>{{ $t('一次性生成') }}</span>
+            </label>
+            <label>
+              <input v-model="store.splitResponseGeneration" type="radio" name="splitMode" :value="true" />
+              <span>{{ $t('分步生成') }}</span>
+            </label>
+          </div>
+          <p class="field-hint">
+            {{ store.splitResponseGeneration ? $t('分步生成：先写正文，再单独生成指令；多一次调用，但指令更不易出错，适合常输出格式错误的模型') : $t('一次性生成：一次调用同时写出正文与指令，更快、更省额度') }}
+          </p>
         </div>
-        <p class="generate-mode-hint">
-          {{ store.splitResponseGeneration ? $t('分步生成：分步调用AI，提高开局稳定性（推荐）') : $t('一次性生成：一次性生成所有内容，速度更快但可能不稳定') }}
-        </p>
       </div>
+    </section>
 
-      <!-- World -->
-      <div class="preview-item">
-        <h3>{{ $t('所选世界') }}</h3>
-        <h4>{{ store.selectedWorld?.name || $t('未选择') }}</h4>
-        <p class="item-description">{{ store.selectedWorld?.description || $t('暂无描述') }}</p>
-      </div>
+    <!-- 命格总览 -->
+    <section class="preview-section">
+      <h3 class="cc-section-title">{{ $t('命格总览') }}</h3>
+      <div class="fate-grid">
+        <article class="fate-card">
+          <span class="fate-label">{{ $t('所选世界') }}</span>
+          <h4 class="fate-name">{{ store.selectedWorld?.name || $t('未选择') }}</h4>
+          <p class="fate-desc">{{ store.selectedWorld?.description || $t('暂无描述') }}</p>
+        </article>
 
-      <!-- Talent Tier -->
-      <div class="preview-item">
-        <h3>{{ $t('天资') }}</h3>
-        <h4 :style="{ color: store.selectedTalentTier?.color || 'inherit' }">
-          {{ store.selectedTalentTier?.name || $t('未选择') }}
-        </h4>
-        <p class="item-description">{{ store.selectedTalentTier?.description || $t('暂无描述') }}</p>
-      </div>
+        <article
+          class="fate-card tier-card"
+          :style="{ '--tier-color': store.selectedTalentTier?.color || 'var(--cc-text)' }"
+        >
+          <span class="fate-label">{{ $t('天资') }}</span>
+          <h4 class="fate-name">{{ store.selectedTalentTier?.name || $t('未选择') }}</h4>
+          <p class="fate-desc">{{ store.selectedTalentTier?.description || $t('暂无描述') }}</p>
+        </article>
 
-      <!-- Origin -->
-      <div class="preview-item">
-        <h3>{{ $t('出身') }}</h3>
-        <h4>{{ store.selectedOrigin?.name || $t('随机出身') }}</h4>
-        <p class="item-description">{{ store.selectedOrigin?.description || $t('暂无描述') }}</p>
-      </div>
+        <article class="fate-card">
+          <span class="fate-label">{{ $t('出身') }}</span>
+          <h4 class="fate-name">{{ store.selectedOrigin?.name || $t('随机出身') }}</h4>
+          <p class="fate-desc">{{ store.selectedOrigin?.description || $t('暂无描述') }}</p>
+        </article>
 
-      <!-- Spirit Root -->
-      <div class="preview-item">
-        <h3>{{ $t('灵根') }}</h3>
-        <h4>{{ store.selectedSpiritRoot?.name || $t('随机灵根') }}</h4>
-        <p class="item-description">{{ store.selectedSpiritRoot?.description || $t('暂无描述') }}</p>
-      </div>
+        <article class="fate-card">
+          <span class="fate-label">{{ $t('灵根') }}</span>
+          <h4 class="fate-name">{{ store.selectedSpiritRoot?.name || $t('随机灵根') }}</h4>
+          <p class="fate-desc">{{ store.selectedSpiritRoot?.description || $t('暂无描述') }}</p>
+        </article>
 
-      <!-- Talents -->
-      <div class="preview-item talents-item">
-        <h3>{{ $t('天赋') }}</h3>
-        <ul v-if="store.selectedTalents.length">
-          <li v-for="talent in store.selectedTalents" :key="talent.id">
-            <strong>{{ talent.name }}</strong>
-            <p class="item-description">{{ talent.description }}</p>
-          </li>
-        </ul>
-        <p v-else>{{ $t('未选择任何天赋') }}</p>
-      </div>
+        <article class="fate-card wide">
+          <span class="fate-label">{{ $t('天赋') }}</span>
+          <ul v-if="store.selectedTalents.length" class="talent-list">
+            <li v-for="talent in store.selectedTalents" :key="talent.id">
+              <strong>{{ talent.name }}</strong>
+              <span>{{ talent.description }}</span>
+            </li>
+          </ul>
+          <p v-else class="fate-desc">{{ $t('未选择任何天赋') }}</p>
+        </article>
 
-      <!-- Attributes -->
-      <div v-if="props.isLocalCreation" class="preview-item attributes-item">
-        <h3>{{ $t('先天六司') }}</h3>
-        <ul>
-          <li>{{ $t('根骨') }}: {{ store.attributes.root_bone }}</li>
-          <li>{{ $t('灵性') }}: {{ store.attributes.spirituality }}</li>
-          <li>{{ $t('悟性') }}: {{ store.attributes.comprehension }}</li>
-          <li>{{ $t('气运') }}: {{ store.attributes.fortune }}</li>
-          <li>{{ $t('魅力') }}: {{ store.attributes.charm }}</li>
-          <li>{{ $t('心性') }}: {{ store.attributes.temperament }}</li>
-        </ul>
-      </div>
+        <article v-if="props.isLocalCreation" class="fate-card wide">
+          <span class="fate-label">{{ $t('先天六司') }}</span>
+          <div class="attr-row">
+            <div v-for="attr in attributeSummary" :key="attr.key" class="attr-cell">
+              <span class="attr-cell-name">{{ $t(attr.label) }}</span>
+              <span class="attr-cell-value">{{ store.attributes[attr.key] }}</span>
+            </div>
+          </div>
+        </article>
 
-      <!-- Cloud Mode Placeholder -->
-      <div v-else class="preview-item cloud-info-item">
-        <h3>{{ $t('命格天定') }}</h3>
-        <p class="cloud-info-text">
-          {{ $t('联机模式下，角色的初始命格将由所选世界的天道法则在云端生成，以确保公平与平衡。') }}
-        </p>
+        <article v-else class="fate-card wide">
+          <span class="fate-label">{{ $t('命格天定') }}</span>
+          <p class="fate-desc">
+            {{ $t('联机模式下，角色的初始命格将由所选世界的天道法则在云端生成，以确保公平与平衡。') }}
+          </p>
+        </article>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { Minus, Plus } from 'lucide-vue-next'
 import { useCharacterCreationStore } from '../../stores/characterCreationStore'
 
 const store = useCharacterCreationStore()
@@ -179,6 +186,17 @@ const store = useCharacterCreationStore()
 const props = defineProps<{
   isLocalCreation: boolean
 }>()
+
+const genderOptions = ['男', '女', '双性'] as const
+
+const attributeSummary = [
+  { key: 'root_bone', label: '根骨' },
+  { key: 'spirituality', label: '灵性' },
+  { key: 'comprehension', label: '悟性' },
+  { key: 'fortune', label: '气运' },
+  { key: 'charm', label: '魅力' },
+  { key: 'temperament', label: '心性' },
+] as const
 
 // 从酒馆获取当前Persona名字（只在名字为空时获取，避免重试时覆盖）
 onMounted(async () => {
@@ -277,580 +295,295 @@ const validateAge = () => {
 </script>
 
 <style scoped>
-/* ========== 深色玻璃拟态风格 ========== */
-/* 主容器 */
+/* 最终预览：颜色令牌见 styles/creation-theme.css */
 .preview-container {
-  height: 100%;
-  padding: 2rem;
-  box-sizing: border-box;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-.preview-container::-webkit-scrollbar { width: 6px; }
-.preview-container::-webkit-scrollbar-track { background: transparent; }
-.preview-container::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-
-/* 标题 */
-.title {
+.preview-header {
   text-align: center;
-  color: #93c5fd;
-  margin: 0 0 0.5rem 0;
-  font-family: var(--font-family-serif);
-  font-size: 2rem;
-  font-weight: 600;
-  text-shadow: 0 0 20px rgba(147, 197, 253, 0.3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 2.2rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--cc-text);
 }
 
 .subtitle {
-  text-align: center;
-  color: #94a3b8;
-  margin: 0 0 2rem 0;
-  font-size: 1rem;
-  font-style: italic;
-}
-
-/* 网格布局 */
-.preview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-/* 基础卡片样式 */
-.preview-item {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  transition: all 0.25s ease;
-}
-
-.preview-item:hover {
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(147, 197, 253, 0.2);
-}
-
-.preview-item h3 {
-  margin: 0;
-  color: #93c5fd;
-  border-bottom: 1px solid rgba(147, 197, 253, 0.2);
-  padding-bottom: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.preview-item p {
-  margin: 0;
-  font-size: 1rem;
-  color: #f1f5f9;
-  line-height: 1.5;
-}
-
-.preview-item h4 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #bfdbfe;
-}
-
-.item-description {
-  font-size: 0.9rem !important;
-  color: #94a3b8 !important;
-  margin-top: 0.5rem !important;
-}
-
-.talents-item li .item-description {
-  margin-top: 0.25rem !important;
-  padding-left: 0.5rem;
-  border-left: 2px solid rgba(147, 197, 253, 0.3);
-}
-
-/* 名字输入 */
-.name-item, .race-item {
-  grid-column: span 2;
-}
-
-@media (min-width: 769px) {
-  .name-item, .race-item {
-    grid-column: 1 / -1;
-  }
-}
-
-.name-item label {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #93c5fd;
-  margin-bottom: 0.5rem;
-  display: block;
-}
-
-.name-item input, .input-field input {
-  width: 100%;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  color: #f1f5f9;
-  padding: 0.75rem;
-  border-radius: 8px;
-  font-size: 1rem;
-  box-sizing: border-box;
-  transition: all 0.25s ease;
-}
-
-.input-field input {
-  background: rgba(30, 41, 59, 0.4);
-}
-
-.name-item input:focus, .input-field input:focus {
-  outline: none;
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.1);
-}
-
-/* 只读输入框样式 */
-.readonly-input {
-  background: rgba(30, 41, 59, 0.3) !important;
-  cursor: not-allowed !important;
-  opacity: 0.7;
-  user-select: none;
-}
-
-.readonly-input:focus {
-  border-color: rgba(147, 197, 253, 0.2) !important;
-  box-shadow: none !important;
-}
-
-/* 名字提示文字 */
-.name-hint {
+  margin: 0.35rem 0 0;
   font-size: 0.85rem;
-  color: #94a3b8;
-  margin-top: 0.5rem;
-  display: block;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-3);
 }
 
-/* 性别选择 */
-.gender-control {
+.preview-section {
+  margin: 0;
+}
+
+/* ---------- 表单 ---------- */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+.field {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
-.gender-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  color: #f1f5f9;
-  background: rgba(30, 41, 59, 0.4);
-  border: 1px solid transparent;
-  transition: all 0.25s ease;
+.field-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-2);
 }
 
-.gender-label:hover {
-  background: rgba(51, 65, 85, 0.6);
-  border-color: rgba(147, 197, 253, 0.2);
+.field-label em {
+  margin-left: 0.4rem;
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  color: var(--cc-text-3);
 }
 
-.gender-label input[type="radio"] {
-  width: 16px;
-  height: 16px;
+.name-input {
+  font-family: var(--cc-calligraphy);
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+}
+
+.field-hint {
   margin: 0;
-  accent-color: #93c5fd;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--cc-text-3);
 }
 
-/* 开局模式选择 */
-.streaming-control {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.streaming-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0.5rem;
-  border-radius: 4px;
-  color: var(--color-text);
-  transition: all 0.2s ease;
-}
-
-.streaming-label:hover {
-  background: var(--color-surface-light);
-}
-
-.streaming-label input[type="radio"] {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--color-primary);
-}
-
-.streaming-hint {
-  font-size: 0.85rem !important;
-  color: var(--color-text-secondary) !important;
-  margin-top: 0.5rem !important;
-  padding: 0.5rem;
-  background: var(--color-surface-light);
-  border-radius: 4px;
-  border-left: 3px solid var(--color-primary);
-  line-height: 1.4;
-}
-
-/* 生成方式选择 */
-.generate-mode-control {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.generate-mode-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0.5rem;
-  border-radius: 4px;
-  color: var(--color-text);
-  transition: all 0.2s ease;
-}
-
-.generate-mode-label:hover {
-  background: var(--color-surface-light);
-}
-
-.generate-mode-label input[type="radio"] {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--color-primary);
-}
-
-.generate-mode-hint {
-  font-size: 0.85rem !important;
-  color: var(--color-text-secondary) !important;
-  margin-top: 0.5rem !important;
-  padding: 0.5rem;
-  background: var(--color-surface-light);
-  border-radius: 4px;
-  border-left: 3px solid var(--color-primary);
-  line-height: 1.4;
-}
-
-/* 年龄控制 */
+/* 年龄 */
 .age-control {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1rem;
+  gap: 0.35rem;
+  padding: 3px;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 6px;
+  background: var(--cc-inset);
 }
 
 .age-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  background: rgba(30, 41, 59, 0.6);
-  color: #93c5fd;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s ease;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cc-text-2);
+  cursor: pointer;
 }
 
 .age-btn:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: #93c5fd;
-  color: #bfdbfe;
+  background: var(--cc-surface-hover);
+  color: var(--cc-accent);
 }
 
 .age-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
-.age-display {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #f1f5f9;
-  min-width: 60px;
-  text-align: center;
-}
-
 .age-input {
-  width: 80px;
-  padding: 0.5rem;
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  border-radius: 8px;
-  background: rgba(30, 41, 59, 0.6);
-  color: #f1f5f9;
-  font-size: 1.1rem;
-  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--cc-gold);
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
   text-align: center;
-  transition: all 0.25s ease;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
 }
 
-.age-input:focus {
-  outline: none;
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.1);
-}
-
-.age-input::-webkit-inner-spin-button,
-.age-input::-webkit-outer-spin-button {
+.age-input::-webkit-outer-spin-button,
+.age-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-.age-input[type="number"] {
-  -moz-appearance: textfield;
+.age-input:focus {
+  outline: none;
 }
 
 .age-unit {
-  font-size: 1rem;
-  color: #94a3b8;
-  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--cc-text-3);
+  padding-right: 0.25rem;
 }
 
-/* 列表样式 */
-.preview-item ul {
-  list-style: none;
-  padding: 0;
+/* ---------- 命格总览 ---------- */
+.fate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.fate-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.95rem 1.1rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-surface);
+}
+
+.fate-card::before {
+  content: '';
+  position: absolute;
+  top: 0.95rem;
+  bottom: 0.95rem;
+  left: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cc-gold), transparent);
+  opacity: 0.7;
+}
+
+.fate-card.wide {
+  grid-column: 1 / -1;
+}
+
+.fate-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  color: var(--cc-gold);
+}
+
+.fate-name {
   margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 1.45rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--cc-text);
 }
 
-.preview-item li {
-  margin-bottom: 0.75rem;
-  padding: 0.75rem;
-  background: rgba(30, 41, 59, 0.4);
-  border-radius: 8px;
-  color: #f1f5f9;
-  line-height: 1.4;
-  border: 1px solid transparent;
-  transition: all 0.25s ease;
+.tier-card .fate-name {
+  color: var(--tier-color);
 }
 
-.preview-item li:hover {
-  background: rgba(51, 65, 85, 0.5);
-  border-color: rgba(147, 197, 253, 0.15);
+[data-theme='light'] .tier-card .fate-name {
+  color: color-mix(in srgb, var(--tier-color) 55%, #221d16);
 }
 
-.preview-item li strong {
+.fate-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--cc-text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fate-card.wide .fate-desc {
+  -webkit-line-clamp: unset;
   display: block;
-  margin-bottom: 0.25rem;
-  color: #93c5fd;
 }
 
-/* 云端信息 */
-.cloud-info-item {
-  text-align: center;
-  background: rgba(30, 41, 59, 0.3);
-  border: 1px dashed rgba(147, 197, 253, 0.3);
+.talent-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.cloud-info-text {
-  font-size: 0.95rem;
-  color: #94a3b8;
-  line-height: 1.6;
-  font-style: italic;
+.talent-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 6px;
+  background: var(--cc-surface-2);
 }
 
-/* 响应式 */
-@media (max-width: 768px) {
-  .preview-container {
-    padding: 1rem;
-  }
+.talent-list strong {
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-accent);
+}
 
-  .preview-grid {
+.talent-list span {
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--cc-text-3);
+}
+
+.attr-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.attr-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.55rem 0.25rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 6px;
+  background: var(--cc-surface-2);
+}
+
+.attr-cell-name {
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--cc-text-3);
+}
+
+.attr-cell-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--cc-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .form-grid,
+  .fate-grid,
+  .talent-list {
     grid-template-columns: 1fr;
-    gap: 1rem;
   }
 
-  .gender-control {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-around;
-  }
-
-  .gender-label {
-    flex: 1;
-    min-width: 80px;
-    justify-content: center;
-  }
-}
-
-@media (min-width: 769px) and (max-width: 1024px) {
-  .preview-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* ========== 亮色主题适配 ========== */
-[data-theme="light"] .preview-item {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .preview-item:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .preview-item h3 {
-  color: #2563eb;
-  border-bottom-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .preview-item h4 {
-  color: #1e40af;
-}
-
-[data-theme="light"] .preview-item p {
-  color: #1e293b;
-}
-
-[data-theme="light"] .title {
-  color: #2563eb;
-}
-
-[data-theme="light"] .subtitle {
-  color: #475569;
-}
-
-[data-theme="light"] .name-item label {
-  color: #2563eb;
-}
-
-[data-theme="light"] .name-item input,
-[data-theme="light"] .input-field input {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #1e293b;
-}
-
-[data-theme="light"] .gender-label {
-  background: rgba(255, 255, 255, 0.6);
-  color: #1e293b;
-}
-
-[data-theme="light"] .gender-label:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .age-btn {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #2563eb;
-}
-
-[data-theme="light"] .age-btn:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: #3b82f6;
-}
-
-[data-theme="light"] .age-input {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #1e293b;
-}
-
-[data-theme="light"] .preview-item li {
-  background: rgba(255, 255, 255, 0.6);
-  color: #1e293b;
-}
-
-[data-theme="light"] .preview-item li:hover {
-  background: rgba(241, 245, 249, 0.95);
-}
-
-[data-theme="light"] .preview-item li strong {
-  color: #2563eb;
-}
-
-[data-theme="light"] .cloud-info-item {
-  background: rgba(248, 250, 252, 0.6);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-[data-theme="light"] .cloud-info-text {
-  color: #475569;
-}
-
-@media (max-width: 480px) {
-  .preview-container {
-    padding: 1rem;
+  .attr-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .title {
-    font-size: 1.6rem;
-  }
-
-  .subtitle {
-    font-size: 0.9rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .preview-item {
-    padding: 1rem;
-    gap: 0.8rem;
-  }
-
-  .preview-item h3 {
-    font-size: 1rem;
-  }
-
-  .preview-item h4 {
-    font-size: 1rem;
-  }
-
-  .item-description {
-    font-size: 0.85rem !important;
-  }
-
-  .name-item label {
-    font-size: 1rem;
-  }
-
-  .name-item input {
-    padding: 0.6rem;
-    font-size: 0.9rem;
-  }
-
-  .gender-label {
-    font-size: 0.9rem;
-    padding: 0.4rem;
-  }
-
-  .age-control {
-    gap: 0.8rem;
-  }
-
-  .age-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.9rem;
-  }
-
-  .age-display {
-    font-size: 1rem;
-  }
-
-  .preview-item li {
-    padding: 0.6rem;
+    font-size: 1.7rem;
   }
 }
 </style>

@@ -418,6 +418,62 @@ export class EnhancedActionQueueManager {
   }
   
   /**
+   * 丢弃物品 - 扣数量（为 0 删除）+ 记入行动队列，可撤回
+   */
+  async discardItem(item: Item, quantity: number = 1): Promise<boolean> {
+    const actionQueue = useActionQueueStore();
+    try {
+      const gameStateStore = useGameStateStore();
+      const saveData = gameStateStore.toSaveData();
+      if (!saveData) {
+        toast.error('存档数据不存在');
+        return false;
+      }
+
+      const backpack = this.ensureRoleBackpack(saveData);
+      const inventoryItem = backpack?.物品?.[item.物品ID];
+      if (!inventoryItem || inventoryItem.数量 < quantity) {
+        toast.error('物品数量不足');
+        return false;
+      }
+      if (inventoryItem.已装备) {
+        toast.warning('请先卸下再丢弃');
+        return false;
+      }
+
+      const originalQuantity = inventoryItem.数量;
+      const itemToStore = JSON.parse(JSON.stringify(inventoryItem));
+      if (inventoryItem.数量 === quantity) delete backpack.物品[item.物品ID];
+      else inventoryItem.数量 -= quantity;
+
+      gameStateStore.updateInventory({ 物品: backpack.物品 });
+      await gameStateStore.saveGame();
+
+      this.undoActions.push({
+        type: 'discard',
+        itemId: item.物品ID,
+        itemName: item.名称,
+        quantity,
+        restoreData: { originalQuantity },
+        itemData: itemToStore,
+      });
+      this.saveUndoHistoryToStorage();
+
+      actionQueue.addAction({
+        type: 'discard',
+        itemName: item.名称,
+        itemType: item.类型,
+        description: `丢弃了 ${quantity} 个《${item.名称}》`,
+      });
+      return true;
+    } catch (error) {
+      console.error('丢弃物品失败:', error);
+      toast.error('丢弃失败');
+      return false;
+    }
+  }
+
+  /**
    * 修炼功法 - 直接修改修炼状态并支持撤回
    */
   async cultivateItem(item: Item): Promise<boolean> {
@@ -648,13 +704,18 @@ export class EnhancedActionQueueManager {
           await this.undoUnequip(lastAction, saveData);
           break;
         case 'use':
+        case 'discard':
           await this.undoUse(lastAction, saveData);
           break;
         case 'cultivate':
           await this.undoCultivate(lastAction, saveData);
           break;
       }
-      
+
+      // 撤回改的是 saveData 副本，需要写回 store 并落盘
+      gameStateStore.loadFromSaveData(saveData);
+      await gameStateStore.saveGame();
+
       // 从动作队列中移除最后一个对应的动作
       const actions = actionQueue.pendingActions;
       for (let i = actions.length - 1; i >= 0; i--) {
@@ -718,6 +779,7 @@ export class EnhancedActionQueueManager {
           await this.undoUnequip(action, saveData);
           break;
         case 'use':
+        case 'discard':
           await this.undoUse(action, saveData);
           break;
         case 'cultivate':

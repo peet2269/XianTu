@@ -124,7 +124,7 @@ export const useCharacterCreationStore = defineStore('characterCreation', () => 
   const creationPhase = ref<CreationPhase>('idle'); // 当前创建阶段
   const creationError = ref<string | null>(null); // 创建过程中的错误信息
   const generateMode = ref<'generate' | 'generateRaw'>('generate'); // 开局生成模式（默认使用 generate）
-  const splitResponseGeneration = ref(true); // 第七步是否使用分步生成（默认启用，提高开局稳定性）
+  const splitResponseGeneration = ref(false); // 第七步是否使用分步生成（默认一次性生成，与局内默认一致；模型常输出格式错误时可改为分步）
 
   // 世界生成配置 - 使用固定默认值，用户可在界面中修改
   const worldGenerationConfig = ref({

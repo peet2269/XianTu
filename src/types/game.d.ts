@@ -411,8 +411,6 @@ export interface SectSystemV2 extends AIMetadata {
   内容状态?: Record<string, SectContentStatus>; // 宗门内容初始化状态
   /** 宗门轻度经营（宗主面板） */
   宗门经营?: Record<string, SectManagementState>;
-  /** 宗门大战（分阶段推进） */
-  宗门战争?: SectWarSystem;
 }
 
 /** 宗门内容初始化状态 */
@@ -423,7 +421,7 @@ export interface SectContentStatus {
   演变次数: number; // AI随机增加内容的次数
 }
 
-// --- 宗门经营 / 宗门大战（扩展） ---
+// --- 宗门经营 ---
 
 export interface SectManagementState extends AIMetadata {
   宗门名称: string;
@@ -443,50 +441,6 @@ export interface SectManagementState extends AIMetadata {
     摘要: string;
     变化?: Record<string, number>;
   }>;
-}
-
-export type SectWarStatus = '备战' | '进行中' | '停战' | '胜利' | '失败';
-export type SectWarStageName = '侦察' | '交锋' | '破阵' | '攻山' | '善后';
-
-export interface SectWarSideState {
-  宗门名称: string;
-  战力: number; // 0-100
-  外门: number;
-  内门: number;
-  核心: number;
-  士气?: number; // 0-100
-}
-
-export interface SectWarReport {
-  时间: string;
-  阶段: SectWarStageName | string;
-  摘要: string;
-  我方变化?: Record<string, any>;
-  敌方变化?: Record<string, any>;
-}
-
-export interface SectWarState extends AIMetadata {
-  战争ID: string;
-  状态: SectWarStatus;
-  发起方: string;
-  守方: string;
-  目标?: string;
-  阶段列表: string[];
-  阶段索引: number; // 0-based
-  当前阶段: SectWarStageName | string;
-  我方: SectWarSideState;
-  敌方: SectWarSideState;
-  累计伤亡?: {
-    我方?: Partial<Pick<SectWarSideState, '外门' | '内门' | '核心'>>;
-    敌方?: Partial<Pick<SectWarSideState, '外门' | '内门' | '核心'>>;
-  };
-  战报?: SectWarReport[];
-  上一次?: Record<string, any>; // 上一步结算的结构化结果（便于下次发给AI）
-}
-
-export interface SectWarSystem extends AIMetadata {
-  当前?: SectWarState | null;
-  历史?: SectWarState[];
 }
 
 /** 宗门藏经阁功法 - 扩展版本 */
@@ -547,6 +501,17 @@ export interface DaoStage {
   名称: string;
   描述: string;
   突破经验: number;
+  /** 可选的阶段突破条件，由 AI 或规则数据生成。 */
+  突破条件?: string[];
+}
+
+/** 大道之间的相生、相克和融合关系。 */
+export interface DaoRelations {
+  相生?: string[];
+  相克?: string[];
+  互补?: string[];
+  冲突?: string[];
+  融合条件?: string[];
 }
 
 /** 大道数据（大道定义+进度合并） */
@@ -554,6 +519,17 @@ export interface DaoData {
   道名: string;
   描述: string;
   阶段列表: DaoStage[]; // 大道的所有阶段定义
+  分类?: string;
+  当前效果?: string[];
+  关联?: DaoRelations;
+  /** 兼容旧存档把关系直接放在大道对象上的写法。 */
+  关联大道?: DaoRelations;
+  相生?: string[];
+  相克?: string[];
+  互补?: string[];
+  冲突?: string[];
+  融合条件?: string[];
+  突破条件?: string[];
 
   // 进度数据（与大道数据合并）
   是否解锁: boolean;
@@ -826,7 +802,7 @@ export interface EconomyState extends AIMetadata {
 
 /** 事件类型（可扩展） */
 export type EventType =
-  | '宗门大战'
+  | '宗门变动'
   | '世界变革'
   | '异宝降世'
   | '秘境现世'
@@ -867,7 +843,7 @@ export interface EventSystemConfig {
   事件提示词: string;
   // 事件类型开关
   启用事件类型?: {
-    宗门大战?: boolean;
+    宗门变动?: boolean;
     世界变革?: boolean;
     异宝降世?: boolean;
     秘境现世?: boolean;
@@ -1116,6 +1092,8 @@ export interface SaveSlot {
     版本: number;
     需要同步: boolean;
     后端创建失败?: boolean; // 标记后端创建是否失败
+    本地修改时间?: string; // 本地最后一次未上传修改的时间（ISO）
+    冲突?: boolean; // 本地与云端都有新写入，需要玩家确认使用哪一份
   };
 }
 

@@ -7,6 +7,7 @@ import { request } from '../services/request';
 import { toast } from '../utils/toast';
 import type { World, TalentTier, Origin, SpiritRoot, Talent } from '../types';
 import { buildBackendUrl, isBackendConfigured } from '../services/backendConfig';
+import { unwrapItems } from '../services/api/cloudData';
 
 // 本地存储键名
 const SYNC_HISTORY_KEY = 'dad_cloud_data_sync_history';
@@ -56,7 +57,17 @@ export class CloudDataSync {
   private getSyncHistory(): SyncHistory {
     const stored = localStorage.getItem(SYNC_HISTORY_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      try {
+        const parsed = JSON.parse(stored) as Partial<SyncHistory>;
+        return {
+          lastSyncTime: typeof parsed.lastSyncTime === 'string' ? parsed.lastSyncTime : null,
+          syncedItems: Array.isArray(parsed.syncedItems) ? parsed.syncedItems.filter(item =>
+            item && typeof item.dataType === 'string' && Number.isFinite(item.dataId),
+          ) : [],
+        };
+      } catch {
+        localStorage.removeItem(SYNC_HISTORY_KEY);
+      }
     }
     return {
       lastSyncTime: null,
@@ -77,7 +88,18 @@ export class CloudDataSync {
   getSyncedCloudData(): SyncedCloudData {
     const stored = localStorage.getItem(SYNCED_DATA_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      try {
+        const parsed = JSON.parse(stored) as Partial<SyncedCloudData>;
+        return {
+          worlds: Array.isArray(parsed.worlds) ? parsed.worlds : [],
+          talentTiers: Array.isArray(parsed.talentTiers) ? parsed.talentTiers : [],
+          origins: Array.isArray(parsed.origins) ? parsed.origins : [],
+          spiritRoots: Array.isArray(parsed.spiritRoots) ? parsed.spiritRoots : [],
+          talents: Array.isArray(parsed.talents) ? parsed.talents : [],
+        };
+      } catch {
+        localStorage.removeItem(SYNCED_DATA_KEY);
+      }
     }
     return {
       worlds: [],
@@ -162,53 +184,60 @@ export class CloudDataSync {
       toast.info('正在连接云端获取数据...');
       
       // 获取所有云端数据
-      const [cloudWorlds, cloudTalentTiers, cloudOrigins, cloudSpiritRoots, cloudTalents] = await Promise.all([
-        request<World[]>('/api/v1/worlds'),
-        request<TalentTier[]>('/api/v1/talent_tiers'),
-        request<Origin[]>('/api/v1/origins'),
-        request<SpiritRoot[]>('/api/v1/spirit_roots'),
-        request<Talent[]>('/api/v1/talents')
+      const [worldsResponse, tiersResponse, originsResponse, rootsResponse, talentsResponse] = await Promise.all([
+        request<World[] | { items?: World[] }>('/api/v1/worlds', { silent: true }),
+        request<TalentTier[] | { items?: TalentTier[] }>('/api/v1/talent_tiers', { silent: true }),
+        request<Origin[] | { items?: Origin[] }>('/api/v1/origins', { silent: true }),
+        request<SpiritRoot[] | { items?: SpiritRoot[] }>('/api/v1/spirit_roots', { silent: true }),
+        request<Talent[] | { items?: Talent[] }>('/api/v1/talents', { silent: true })
       ]);
+      const cloudWorlds = unwrapItems(worldsResponse);
+      const cloudTalentTiers = unwrapItems(tiersResponse);
+      const cloudOrigins = unwrapItems(originsResponse);
+      const cloudSpiritRoots = unwrapItems(rootsResponse);
+      const cloudTalents = unwrapItems(talentsResponse);
 
       // 获取现有的同步数据
       const existingSyncedData = this.getSyncedCloudData();
-      const history = this.getSyncHistory();
-      
-      // 过滤出新的数据项
-      const filterNewItems = <T extends { id: number; name: string }>(
-        cloudItems: T[], 
-        existingItems: T[], 
-        dataType: string
-      ): T[] => {
-        if (forceSync) {
-          return cloudItems;
-        }
-        
-        return cloudItems.filter(cloudItem => {
-          // 检查是否已经同步过
-          const alreadySynced = this.isItemSynced(dataType, cloudItem.id);
-          if (!alreadySynced) {
-            // 添加同步记录
+      // 以 ID 合并而不是简单 append：后端更新同一条数据时，本地也能得到最新内容，且不会产生重复项。
+      const mergeItems = <T extends { id: number; name: string }>(
+        cloudItems: T[],
+        existingItems: T[],
+        dataType: string,
+      ): { merged: T[]; added: T[] } => {
+        const existingById = new Map(existingItems.map(item => [item.id, item]));
+        if (forceSync) existingById.clear();
+        const added: T[] = [];
+        for (const cloudItem of cloudItems) {
+          if (!existingById.has(cloudItem.id)) {
+            added.push(cloudItem);
             this.addSyncRecord(dataType, cloudItem.id, cloudItem.name);
           }
-          return !alreadySynced;
-        });
+          // forceSync 也只覆盖相同 ID，不制造重复数据。
+          existingById.set(cloudItem.id, cloudItem);
+        }
+        return { merged: [...existingById.values()], added };
       };
 
-      // 获取新数据
-      const newWorlds = filterNewItems(cloudWorlds, existingSyncedData.worlds, 'world');
-      const newTalentTiers = filterNewItems(cloudTalentTiers, existingSyncedData.talentTiers, 'talentTier');
-      const newOrigins = filterNewItems(cloudOrigins, existingSyncedData.origins, 'origin');
-      const newSpiritRoots = filterNewItems(cloudSpiritRoots, existingSyncedData.spiritRoots, 'spiritRoot');
-      const newTalents = filterNewItems(cloudTalents, existingSyncedData.talents, 'talent');
+      const worldResult = mergeItems(cloudWorlds, existingSyncedData.worlds, 'world');
+      const tierResult = mergeItems(cloudTalentTiers, existingSyncedData.talentTiers, 'talentTier');
+      const originResult = mergeItems(cloudOrigins, existingSyncedData.origins, 'origin');
+      const rootResult = mergeItems(cloudSpiritRoots, existingSyncedData.spiritRoots, 'spiritRoot');
+      const talentResult = mergeItems(cloudTalents, existingSyncedData.talents, 'talent');
+
+      const newWorlds = worldResult.added;
+      const newTalentTiers = tierResult.added;
+      const newOrigins = originResult.added;
+      const newSpiritRoots = rootResult.added;
+      const newTalents = talentResult.added;
 
       // 合并数据
       const updatedSyncedData: SyncedCloudData = {
-        worlds: [...existingSyncedData.worlds, ...newWorlds],
-        talentTiers: [...existingSyncedData.talentTiers, ...newTalentTiers],
-        origins: [...existingSyncedData.origins, ...newOrigins],
-        spiritRoots: [...existingSyncedData.spiritRoots, ...newSpiritRoots],
-        talents: [...existingSyncedData.talents, ...newTalents]
+        worlds: worldResult.merged,
+        talentTiers: tierResult.merged,
+        origins: originResult.merged,
+        spiritRoots: rootResult.merged,
+        talents: talentResult.merged,
       };
 
       // 保存更新后的数据

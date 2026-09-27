@@ -14,7 +14,7 @@
     <link rel="shortcut icon" href="https://www.ddct.top/favicon.ico" />
     <meta name="author" content="仙途开发团队" />
     <title>仙途 - AI驱动的修仙大世界 | AI游戏 | AI修仙 | 官方网站</title>
-    <meta name="theme-color" content="#0a0f1a" />
+    <meta name="theme-color" content="#100e0c" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="仙途 - AI驱动的修仙大世界 | AI游戏" />
     <meta
@@ -30,22 +30,49 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "VideoGame",
-      "name": "仙途",
-      "alternateName": ["XianTu", "AI修仙游戏", "AI驱动的游戏"],
-      "description": "仙途是一款AI驱动的修仙大世界游戏，NPC拥有独立思维链，世界随时间演变，体验真正的AI修仙之旅。",
-      "url": "https://www.ddct.top/",
-      "genre": ["修仙游戏", "AI游戏", "文字冒险", "角色扮演"],
-      "gamePlatform": "Web Browser",
-      "applicationCategory": "Game",
-      "operatingSystem": "Web",
-      "inLanguage": "zh-CN",
-      "keywords": "AI游戏,AI驱动的游戏,AI修仙,AI大世界,仙途,修仙游戏",
-      "author": {
-        "@type": "Organization",
-        "name": "仙途开发团队",
-        "url": "https://github.com/qianye60/XianTu"
-      }
+      "@graph": [
+        {
+          "@type": "VideoGame",
+          "name": "仙途",
+          "alternateName": ["XianTu", "AI修仙游戏", "AI驱动的游戏"],
+          "description": "仙途是一款AI驱动的修仙大世界游戏，NPC拥有独立思维链，世界随时间演变，体验真正的AI修仙之旅。",
+          "url": "https://www.ddct.top/",
+          "genre": ["修仙游戏", "AI游戏", "文字冒险", "角色扮演"],
+          "gamePlatform": "Web Browser",
+          "applicationCategory": "Game",
+          "operatingSystem": "Web",
+          "inLanguage": "zh-CN",
+          "keywords": "AI游戏,AI驱动的游戏,AI修仙,AI大世界,仙途,修仙游戏",
+          "author": {
+            "@type": "Organization",
+            "name": "仙途开发团队",
+            "url": "https://github.com/qianye60/XianTu"
+          }
+        },
+        {
+          "@type": "ItemList",
+          "@id": "https://www.ddct.top/#friend-links",
+          "name": "仙途友情链接",
+          "itemListOrder": "https://schema.org/ItemListOrderAscending",
+          "numberOfItems": 1,
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "织界 WorldLoom",
+              "url": "https://worldloom.top/",
+              "description": "AI 驱动的多世界文字冒险 RPG"
+            }
+          ]
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://www.ddct.top/friends.html",
+          "url": "https://www.ddct.top/friends.html",
+          "name": "仙途友情链接索引",
+          "isPartOf": { "@id": "https://www.ddct.top/" }
+        }
+      ]
     }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -59,12 +86,12 @@
           extend: {
             colors: {
               cyber: {
-                dark: '#0a0f1a',
-                darker: '#060a12',
-                blue: '#00d4ff',
-                gold: '#ffd700',
-                teal: '#00ffc8',
-                gray: '#1a2332'
+                dark: '#100e0c',
+                darker: '#0a0908',
+                blue: '#d4af37',
+                gold: '#f0d78c',
+                teal: '#6b8f71',
+                gray: '#1a1612'
               }
             },
             fontFamily: {
@@ -78,27 +105,51 @@
     <style>
       * { box-sizing: border-box; }
 
+      :root {
+        --ink: #100e0c;
+        --ink-deep: #0a0908;
+        --paper: #1a1612;
+        --gold: #d4af37;
+        --gold-bright: #f0d78c;
+        --gold-dim: rgba(212, 175, 55, 0.35);
+        --jade: #6b8f71;
+        --cinnabar: #a84a3a;
+        --text: #e8dfcf;
+        --muted: rgba(232, 223, 207, 0.65);
+      }
+
       body {
-        background: #0a0f1a;
-        font-family: 'Inter', system-ui, sans-serif;
-        color: #e0e8f0;
+        background:
+          radial-gradient(ellipse at 15% 10%, rgba(212, 175, 55, 0.07), transparent 42%),
+          radial-gradient(ellipse at 85% 0%, rgba(107, 143, 113, 0.05), transparent 40%),
+          linear-gradient(180deg, #12100e 0%, #0d0b09 45%, #090807 100%);
+        font-family: 'Noto Serif SC', 'Songti SC', serif;
+        color: var(--text);
         overflow-x: hidden;
         scroll-behavior: smooth;
       }
 
-      /* 格子背景 */
+      /* 水墨云雾背景（替代科技网格） */
       .grid-bg {
         position: fixed;
         inset: 0;
         background-image:
-          linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
-        background-size: 50px 50px;
+          radial-gradient(ellipse at 20% 30%, rgba(212, 175, 55, 0.04), transparent 50%),
+          radial-gradient(ellipse at 80% 70%, rgba(107, 143, 113, 0.035), transparent 45%),
+          radial-gradient(circle at 50% 100%, rgba(168, 74, 58, 0.03), transparent 40%);
         pointer-events: none;
         z-index: 0;
       }
+      .grid-bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.035;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+      }
 
-      /* 科技感浮动光点 */
+      /* 灵气光晕 */
       .tech-particles {
         position: fixed;
         inset: 0;
@@ -111,105 +162,305 @@
       .tech-particles::after {
         content: '';
         position: absolute;
-        width: 300px;
-        height: 300px;
+        width: 360px;
+        height: 360px;
         border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.15;
-        animation: float-glow 20s ease-in-out infinite;
+        filter: blur(90px);
+        opacity: 0.12;
+        animation: float-glow 22s ease-in-out infinite;
       }
 
       .tech-particles::before {
-        background: radial-gradient(circle, #00d4ff 0%, transparent 70%);
-        top: 10%;
-        left: 10%;
-        animation-delay: 0s;
+        background: radial-gradient(circle, #d4af37 0%, transparent 70%);
+        top: 8%;
+        left: 8%;
       }
 
       .tech-particles::after {
-        background: radial-gradient(circle, #00ffc8 0%, transparent 70%);
-        bottom: 20%;
-        right: 10%;
-        animation-delay: -10s;
+        background: radial-gradient(circle, #6b8f71 0%, transparent 70%);
+        bottom: 16%;
+        right: 8%;
+        animation-delay: -11s;
       }
 
       @keyframes float-glow {
         0%, 100% { transform: translate(0, 0) scale(1); }
-        25% { transform: translate(50px, 30px) scale(1.1); }
-        50% { transform: translate(20px, -20px) scale(0.9); }
-        75% { transform: translate(-30px, 20px) scale(1.05); }
+        25% { transform: translate(40px, 24px) scale(1.08); }
+        50% { transform: translate(16px, -18px) scale(0.92); }
+        75% { transform: translate(-28px, 18px) scale(1.04); }
       }
 
-      /* 发光文字 */
       .glow-text {
-        text-shadow: 0 0 20px rgba(0, 212, 255, 0.5), 0 0 40px rgba(0, 212, 255, 0.3);
+        text-shadow: 0 0 18px rgba(240, 215, 140, 0.28), 0 0 36px rgba(212, 175, 55, 0.12);
       }
 
       .glow-gold {
-        text-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3);
+        text-shadow: 0 0 18px rgba(212, 175, 55, 0.4), 0 0 36px rgba(212, 175, 55, 0.18);
       }
 
-      /* 渐变文字 - 炫彩流动 */
+      /* 修仙金墨标题（替换赛博彩虹） */
       .text-gradient-cyber {
-        background: linear-gradient(90deg, #00d4ff, #00ffc8, #ffd700, #ff6b6b, #c678dd, #00d4ff);
-        background-size: 300% 100%;
+        background: linear-gradient(180deg, #f7e7b0 0%, #d4af37 48%, #8c6a22 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        animation: gradient-flow 6s ease infinite;
+        animation: none;
+        font-family: 'Noto Serif SC', serif;
+        letter-spacing: 0.08em;
       }
 
-      @keyframes gradient-flow {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-      }
-
-      /* 科技感卡片 */
+      /* 卷轴/墨色卡片 */
       .cyber-card {
-        background: rgba(26, 35, 50, 0.8);
-        border: 1px solid rgba(0, 212, 255, 0.2);
+        background: linear-gradient(165deg, rgba(36, 30, 22, 0.92), rgba(18, 16, 14, 0.88));
+        border: 1px solid rgba(212, 175, 55, 0.22);
         backdrop-filter: blur(10px);
         position: relative;
         overflow: hidden;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.35s ease;
+        box-shadow: inset 0 0 0 1px rgba(255, 236, 180, 0.03);
       }
 
       .cyber-card::before {
         content: '';
         position: absolute;
         top: 0;
-        left: -100%;
+        left: 0;
         right: 0;
         height: 1px;
-        width: 200%;
-        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.6), rgba(0, 255, 200, 0.4), transparent);
-        animation: card-shine 4s ease-in-out infinite;
-      }
-
-      @keyframes card-shine {
-        0%, 100% { transform: translateX(-50%); }
-        50% { transform: translateX(0%); }
+        width: 100%;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.45), transparent);
+        animation: none;
+        transform: none;
       }
 
       .cyber-card::after {
         content: '';
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 50% 0%, rgba(0, 212, 255, 0.08), transparent 60%);
+        background: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.07), transparent 55%);
         opacity: 0;
-        transition: opacity 0.4s ease;
+        transition: opacity 0.35s ease;
         pointer-events: none;
       }
 
-      .cyber-card:hover::after {
-        opacity: 1;
-      }
+      .cyber-card:hover::after { opacity: 1; }
 
       .cyber-card:hover {
-        border-color: rgba(0, 212, 255, 0.5);
-        box-shadow: 0 8px 40px rgba(0, 212, 255, 0.15), 0 0 60px rgba(0, 212, 255, 0.05);
-        transform: translateY(-6px);
+        border-color: rgba(212, 175, 55, 0.5);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35), 0 0 28px rgba(212, 175, 55, 0.08);
+        transform: translateY(-4px);
+      }
+
+      /* 修仙风友链 */
+      .xian-friends {
+        position: relative;
+      }
+      .xian-friends::before {
+        content: '';
+        position: absolute;
+        inset: 8% 10% auto;
+        height: 220px;
+        background:
+          radial-gradient(ellipse at 30% 40%, rgba(212, 175, 55, 0.12), transparent 55%),
+          radial-gradient(ellipse at 70% 30%, rgba(180, 120, 60, 0.08), transparent 50%);
+        filter: blur(8px);
+        pointer-events: none;
+      }
+      .xian-title {
+        font-family: 'Noto Serif SC', serif;
+        letter-spacing: 0.18em;
+        background: linear-gradient(180deg, #f3e2a8 0%, #d4af37 45%, #a67c2a 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .xian-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Noto Serif SC', serif;
+        font-size: 13px;
+        letter-spacing: 0.28em;
+        color: rgba(212, 175, 55, 0.75);
+      }
+      .xian-eyebrow::before,
+      .xian-eyebrow::after {
+        content: '';
+        width: 28px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.55), transparent);
+      }
+      .friend-links {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .friend-links > li {
+        margin: 0;
+      }
+      .xian-friend-card {
+        position: relative;
+        display: block;
+        padding: 1.75rem 1.5rem;
+        text-decoration: none;
+        color: inherit;
+        background:
+          linear-gradient(160deg, rgba(36, 28, 18, 0.92), rgba(18, 16, 22, 0.88)),
+          radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 45%);
+        border: 1px solid rgba(212, 175, 55, 0.35);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 236, 180, 0.06),
+          0 18px 40px rgba(0, 0, 0, 0.35);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+      }
+      .xian-friend-card::before,
+      .xian-friend-card::after {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border-color: rgba(212, 175, 55, 0.7);
+        border-style: solid;
+        pointer-events: none;
+      }
+      .xian-friend-card::before {
+        top: 8px;
+        left: 8px;
+        border-width: 1px 0 0 1px;
+      }
+      .xian-friend-card::after {
+        right: 8px;
+        bottom: 8px;
+        border-width: 0 1px 1px 0;
+      }
+      .xian-friend-card:hover {
+        border-color: rgba(234, 200, 98, 0.7);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 236, 180, 0.1),
+          0 22px 48px rgba(0, 0, 0, 0.4),
+          0 0 36px rgba(212, 175, 55, 0.12);
+        transform: translateY(-3px);
+      }
+      .xian-friend-card h3 {
+        font-family: 'Noto Serif SC', serif;
+        font-size: clamp(1.5rem, 3vw, 2rem);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #f5e6c0;
+        margin: 0.35rem 0 0.75rem;
+      }
+      .xian-friend-card h3 span {
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 0.72em;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: rgba(212, 175, 55, 0.85);
+      }
+      .xian-friend-meta {
+        font-family: 'Noto Serif SC', serif;
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        color: rgba(212, 175, 55, 0.8);
+      }
+      .xian-friend-desc {
+        margin: 0;
+        color: rgba(220, 210, 190, 0.82);
+        line-height: 1.75;
+        font-size: 0.95rem;
+      }
+      .xian-friend-url {
+        display: inline-block;
+        margin-top: 0.85rem;
+        font-size: 0.85rem;
+        color: #d4af37;
+        letter-spacing: 0.04em;
+      }
+      .xian-friend-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding: 0.65rem 1.15rem;
+        border: 1px solid rgba(212, 175, 55, 0.45);
+        background: linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(120, 80, 20, 0.18));
+        color: #f3e2a8;
+        font-family: 'Noto Serif SC', serif;
+        letter-spacing: 0.12em;
+        transition: background 0.3s ease, border-color 0.3s ease;
+      }
+      .xian-friend-card:hover .xian-friend-cta {
+        background: linear-gradient(180deg, rgba(212, 175, 55, 0.28), rgba(140, 95, 25, 0.25));
+        border-color: rgba(234, 200, 98, 0.7);
+      }
+      .xian-nav-pill {
+        background: linear-gradient(180deg, rgba(212, 175, 55, 0.22), rgba(120, 80, 20, 0.18)) !important;
+        border-color: rgba(212, 175, 55, 0.55) !important;
+        color: #f3e2a8 !important;
+      }
+      .xian-nav-pill:hover {
+        box-shadow: 0 0 18px rgba(212, 175, 55, 0.25) !important;
+        border-color: rgba(234, 200, 98, 0.75) !important;
+      }
+      /* 织界品牌按钮 */
+      .wl-nav-btn {
+        background: linear-gradient(180deg, rgba(0, 208, 132, 0.28), rgba(0, 120, 80, 0.18)) !important;
+        border-color: rgba(0, 208, 132, 0.7) !important;
+        color: #b8ffe0 !important;
+        box-shadow: 0 0 0 1px rgba(0, 208, 132, 0.18), 0 0 16px rgba(0, 208, 132, 0.12);
+        font-size: 1.05rem !important;
+        padding: 0.65rem 1.1rem !important;
+      }
+      .wl-nav-btn:hover {
+        background: linear-gradient(180deg, rgba(0, 208, 132, 0.4), rgba(0, 140, 90, 0.24)) !important;
+        border-color: rgba(125, 255, 196, 0.85) !important;
+        box-shadow: 0 0 22px rgba(0, 208, 132, 0.3);
+        color: #e6fff4 !important;
+      }
+      .wl-hero-btn {
+        border-color: rgba(0, 208, 132, 0.7) !important;
+        color: #c8ffe8 !important;
+        background: linear-gradient(135deg, rgba(0, 208, 132, 0.22), rgba(0, 100, 70, 0.16)) !important;
+        font-size: 1.05rem !important;
+        gap: 0.65rem !important;
+        padding: 14px 28px !important;
+      }
+      .wl-hero-btn:hover {
+        background: linear-gradient(135deg, rgba(0, 208, 132, 0.34), rgba(0, 120, 80, 0.2)) !important;
+        box-shadow: 0 0 28px rgba(0, 208, 132, 0.28) !important;
+        color: #e6fff4 !important;
+      }
+      .wl-mark {
+        display: block;
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 6px rgba(0, 208, 132, 0.55));
+      }
+      .wl-hero-btn .wl-mark {
+        width: 28px;
+        height: 28px;
+      }
+      .wl-nav-btn .wl-mark {
+        width: 26px;
+        height: 26px;
+      }
+      .wl-friend-mark {
+        width: 44px;
+        height: 44px;
+      }
+      .wl-name {
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        font-size: 1.12em;
+      }
+      .xian-footer-friend {
+        border-color: rgba(212, 175, 55, 0.4) !important;
+        background: linear-gradient(90deg, rgba(212, 175, 55, 0.12), rgba(40, 32, 22, 0.55)) !important;
+      }
+      .xian-footer-friend:hover {
+        border-color: rgba(234, 200, 98, 0.7) !important;
+        box-shadow: 0 0 24px rgba(212, 175, 55, 0.15) !important;
       }
 
       /* 侧边导航 */
@@ -223,11 +474,11 @@
         flex-direction: column;
         gap: 6px;
         padding: 12px 10px;
-        background: rgba(10, 15, 26, 0.95);
-        border: 1px solid rgba(0, 212, 255, 0.15);
-        border-radius: 16px;
+        background: rgba(16, 14, 12, 0.94);
+        border: 1px solid rgba(212, 175, 55, 0.22);
+        border-radius: 4px;
         backdrop-filter: blur(20px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 60px rgba(0, 212, 255, 0.05);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
       }
 
       .side-nav a {
@@ -236,9 +487,9 @@
         justify-content: center;
         width: 44px;
         height: 44px;
-        color: rgba(224, 232, 240, 0.5);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border-radius: 12px;
+        color: rgba(232, 223, 207, 0.45);
+        transition: all 0.3s ease;
+        border-radius: 4px;
         position: relative;
         overflow: hidden;
       }
@@ -247,37 +498,37 @@
         content: '';
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at center, rgba(0, 212, 255, 0.15), transparent 70%);
+        background: radial-gradient(circle at center, rgba(212, 175, 55, 0.16), transparent 70%);
         opacity: 0;
         transition: opacity 0.3s ease;
       }
 
-      .side-nav a:hover::before {
-        opacity: 1;
-      }
+      .side-nav a:hover::before { opacity: 1; }
 
       .side-nav a:hover {
-        color: #00d4ff;
-        transform: scale(1.1);
-        text-shadow: 0 0 12px rgba(0, 212, 255, 0.6);
+        color: #f0d78c;
+        transform: scale(1.06);
+        text-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
       }
 
       .side-nav a.active {
-        color: #00d4ff;
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 200, 0.1));
-        box-shadow: 0 0 20px rgba(0, 212, 255, 0.3), inset 0 0 20px rgba(0, 212, 255, 0.1);
+        color: #f0d78c;
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.22), rgba(120, 80, 20, 0.12));
+        box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.35);
       }
 
-      /* 科技感按钮 */
+      /* 道门按钮 */
       .cyber-btn {
         position: relative;
         padding: 14px 36px;
         background: transparent;
-        border: 1px solid rgba(0, 212, 255, 0.5);
-        color: #00d4ff;
+        border: 1px solid rgba(212, 175, 55, 0.5);
+        color: #f0d78c;
         font-weight: 600;
+        font-family: 'Noto Serif SC', serif;
+        letter-spacing: 0.12em;
         overflow: hidden;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.35s ease;
       }
 
       .cyber-btn::before {
@@ -287,8 +538,8 @@
         left: -100%;
         width: 100%;
         height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.25), transparent);
-        transition: left 0.6s ease;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
+        transition: left 0.55s ease;
       }
 
       .cyber-btn::after {
@@ -296,50 +547,44 @@
         position: absolute;
         inset: 2px;
         background: transparent;
-        border-radius: inherit;
         opacity: 0;
         transition: opacity 0.3s ease;
-        box-shadow: inset 0 0 20px rgba(0, 212, 255, 0.2);
+        box-shadow: inset 0 0 18px rgba(212, 175, 55, 0.15);
       }
 
-      .cyber-btn:hover::before {
-        left: 100%;
-      }
-
-      .cyber-btn:hover::after {
-        opacity: 1;
-      }
+      .cyber-btn:hover::before { left: 100%; }
+      .cyber-btn:hover::after { opacity: 1; }
 
       .cyber-btn:hover {
-        background: rgba(0, 212, 255, 0.12);
-        box-shadow: 0 0 30px rgba(0, 212, 255, 0.35), 0 0 60px rgba(0, 212, 255, 0.15);
+        background: rgba(212, 175, 55, 0.1);
+        box-shadow: 0 0 24px rgba(212, 175, 55, 0.2);
         transform: translateY(-2px);
       }
 
       .cyber-btn-gold {
-        border-color: rgba(255, 215, 0, 0.5);
-        color: #ffd700;
-        background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(255, 180, 0, 0.05));
+        border-color: rgba(212, 175, 55, 0.65);
+        color: #f7e7b0;
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.16), rgba(120, 80, 20, 0.12));
       }
 
       .cyber-btn-gold::before {
-        background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.25), transparent);
+        background: linear-gradient(90deg, transparent, rgba(240, 215, 140, 0.25), transparent);
       }
 
       .cyber-btn-gold::after {
-        box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.2);
+        box-shadow: inset 0 0 18px rgba(212, 175, 55, 0.18);
       }
 
       .cyber-btn-gold:hover {
-        background: linear-gradient(135deg, rgba(255, 215, 0, 0.18), rgba(255, 180, 0, 0.12));
-        box-shadow: 0 0 35px rgba(255, 215, 0, 0.4), 0 0 70px rgba(255, 215, 0, 0.15);
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.26), rgba(140, 95, 25, 0.16));
+        box-shadow: 0 0 28px rgba(212, 175, 55, 0.28);
       }
 
       /* 滚动条 */
       ::-webkit-scrollbar { width: 8px; }
-      ::-webkit-scrollbar-track { background: #0a0f1a; }
+      ::-webkit-scrollbar-track { background: #0a0908; }
       ::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, #00d4ff, #00ffc8);
+        background: linear-gradient(180deg, #d4af37, #8c6a22);
         border-radius: 4px;
       }
 
@@ -355,13 +600,13 @@
         top: 64px;
         left: 12px;
         right: 12px;
-        background: rgba(10, 15, 26, 0.98);
+        background: rgba(16, 14, 12, 0.98);
         backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 212, 255, 0.2);
-        border-radius: 16px;
+        border: 1px solid rgba(212, 175, 55, 0.25);
+        border-radius: 8px;
         padding: 8px;
         z-index: 49;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(0, 212, 255, 0.1);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
       }
 
       .mobile-menu.active {
@@ -391,23 +636,24 @@
       }
 
       .mobile-menu a:hover, .mobile-menu a:active {
-        color: #00d4ff;
-        background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), rgba(0, 255, 200, 0.08));
+        color: #f0d78c;
+        background: linear-gradient(90deg, rgba(212, 175, 55, 0.14), rgba(120, 80, 20, 0.08));
       }
 
-      /* 数据标签 */
+      /* 道标标签 */
       .data-tag {
         display: inline-flex;
         align-items: center;
         gap: 6px;
         padding: 6px 14px;
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(0, 255, 200, 0.08));
-        border: 1px solid rgba(0, 212, 255, 0.35);
-        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(120, 80, 20, 0.08));
+        border: 1px solid rgba(212, 175, 55, 0.35);
+        border-radius: 2px;
         font-size: 12px;
-        font-family: monospace;
-        color: #00d4ff;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-family: 'Noto Serif SC', serif;
+        letter-spacing: 0.12em;
+        color: #f0d78c;
+        transition: all 0.3s ease;
         position: relative;
         overflow: hidden;
       }
@@ -416,26 +662,24 @@
         content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.15), transparent);
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.12), transparent);
         transform: translateX(-100%);
         transition: transform 0.5s ease;
       }
 
-      .data-tag:hover::before {
-        transform: translateX(100%);
-      }
+      .data-tag:hover::before { transform: translateX(100%); }
 
       .data-tag:hover {
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 200, 0.15));
-        border-color: rgba(0, 212, 255, 0.6);
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(140, 95, 25, 0.12));
+        border-color: rgba(212, 175, 55, 0.55);
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.25);
+        box-shadow: 0 6px 18px rgba(212, 175, 55, 0.12);
       }
 
       /* 分隔线 */
       .cyber-divider {
         height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.4), rgba(0, 255, 200, 0.3), rgba(0, 212, 255, 0.4), transparent);
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
         position: relative;
       }
 
@@ -445,11 +689,11 @@
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%) rotate(45deg);
-        width: 10px;
-        height: 10px;
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(0, 255, 200, 0.2));
-        border: 1px solid rgba(0, 212, 255, 0.5);
-        box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+        width: 8px;
+        height: 8px;
+        background: rgba(212, 175, 55, 0.25);
+        border: 1px solid rgba(212, 175, 55, 0.55);
+        box-shadow: none;
       }
 
       /* 动画 */
@@ -462,10 +706,12 @@
         animation: float 6s ease-in-out infinite;
       }
 
-      /* 导航栏科技感样式 */
+      /* 导航 */
       .nav-link-cyber {
         position: relative;
         overflow: hidden;
+        font-family: 'Noto Serif SC', serif;
+        letter-spacing: 0.08em;
       }
 
       .nav-link-bg {
@@ -476,7 +722,7 @@
       }
 
       .nav-link-cyber:hover .nav-link-bg {
-        background: linear-gradient(180deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.05) 100%);
+        background: linear-gradient(180deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.04) 100%);
       }
 
       .nav-link-border {
@@ -486,7 +732,7 @@
         transform: translateX(-50%);
         width: 0;
         height: 2px;
-        background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+        background: linear-gradient(90deg, transparent, #d4af37, transparent);
         transition: width 0.3s ease;
       }
 
@@ -494,45 +740,38 @@
         width: 100%;
       }
 
-      /* 导航栏装饰 */
       .nav-header {
         position: relative;
-        border-bottom: 1px solid rgba(0, 212, 255, 0.15);
-        background: linear-gradient(180deg, rgba(10, 15, 26, 0.98) 0%, rgba(10, 15, 26, 0.92) 100%);
+        border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+        background: linear-gradient(180deg, rgba(16, 14, 12, 0.97) 0%, rgba(16, 14, 12, 0.9) 100%);
       }
 
-      /* 顶部装饰线已移除 */
-
-      /* 导航链接容器 - 带底部发光线 */
       .nav-links {
         display: flex;
         align-items: center;
         gap: 2px;
         position: relative;
         padding: 6px 8px;
-        background: rgba(0, 212, 255, 0.03);
-        border: 1px solid rgba(0, 212, 255, 0.1);
-        border-radius: 12px;
+        background: rgba(212, 175, 55, 0.04);
+        border: 1px solid rgba(212, 175, 55, 0.14);
+        border-radius: 4px;
       }
 
       .nav-links::before {
         content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.05), transparent);
-        border-radius: 12px;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.05), transparent);
+        border-radius: 4px;
         opacity: 0;
         transition: opacity 0.3s ease;
       }
 
-      .nav-links:hover::before {
-        opacity: 1;
-      }
+      .nav-links:hover::before { opacity: 1; }
 
-      /* 导航链接悬停下划线 */
       .nav-link-cyber {
         position: relative;
-        border-radius: 8px;
+        border-radius: 4px;
         transition: all 0.3s ease;
       }
 
@@ -542,33 +781,57 @@
         bottom: 4px;
         left: 50%;
         width: 0;
-        height: 2px;
-        background: linear-gradient(90deg, #00d4ff, #00ffc8);
+        height: 1px;
+        background: linear-gradient(90deg, #d4af37, #f0d78c);
         transition: all 0.3s ease;
         transform: translateX(-50%);
-        border-radius: 1px;
-        box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        box-shadow: none;
       }
 
       .nav-link-cyber:hover {
-        background: rgba(0, 212, 255, 0.08);
+        background: rgba(212, 175, 55, 0.08);
+        color: #f0d78c !important;
       }
 
-      .nav-link-cyber:hover::before {
-        width: 50%;
-      }
+      .nav-link-cyber:hover::before { width: 50%; }
 
-      /* Logo 发光效果 */
       .logo-glow {
         position: relative;
         transition: all 0.3s ease;
+        border-color: rgba(212, 175, 55, 0.35) !important;
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(120, 80, 20, 0.08)) !important;
       }
+
+      /* 将页面内残留的赛博青改成金墨 */
+      .text-cyan-400, .text-cyan-300, .hover\:text-cyan-400:hover { color: #f0d78c !important; }
+      .text-cyan-500\/60 { color: rgba(212, 175, 55, 0.65) !important; }
+      .border-cyan-500\/20, .border-cyan-500\/30, .border-cyan-500\/40, .border-cyan-500\/50,
+      .hover\:border-cyan-500\/40:hover, .hover\:border-cyan-500\/50:hover, .hover\:border-cyan-500\/60:hover,
+      .hover\:border-cyan-400:hover, .hover\:border-cyan-500\/30:hover {
+        border-color: rgba(212, 175, 55, 0.35) !important;
+      }
+      .bg-cyan-500\/5, .bg-cyan-500\/10, .bg-cyan-500\/20, .bg-cyan-500\/30,
+      .hover\:bg-cyan-500\/5:hover, .hover\:bg-cyan-500\/10:hover,
+      .hover\:bg-cyan-500\/15:hover, .hover\:bg-cyan-500\/30:hover {
+        background-color: rgba(212, 175, 55, 0.1) !important;
+      }
+      .from-cyan-500\/15, .to-teal-500\/10 { --tw-gradient-from: rgba(212, 175, 55, 0.14) !important; }
+      .via-cyan-500\/30 { --tw-gradient-via: rgba(212, 175, 55, 0.28) !important; }
+      .border-l-2.border-cyan-500\/30 { border-left-color: rgba(212, 175, 55, 0.35) !important; }
+      .font-bold.text-cyan-400 { color: #d4af37 !important; }
+      #backToTop {
+        background: rgba(212, 175, 55, 0.15) !important;
+        border-color: rgba(212, 175, 55, 0.45) !important;
+        color: #f0d78c !important;
+        border-radius: 4px !important;
+      }
+      #backToTop:hover { background: rgba(212, 175, 55, 0.28) !important; }
 
       .logo-glow::before {
         content: '';
         position: absolute;
         inset: -2px;
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(0, 255, 200, 0.2));
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.28), rgba(140, 95, 25, 0.16));
         border-radius: inherit;
         opacity: 0;
         transition: opacity 0.3s ease;
@@ -580,15 +843,15 @@
         content: '';
         position: absolute;
         inset: -4px;
-        background: radial-gradient(circle, rgba(0, 212, 255, 0.25) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
         opacity: 0;
         transition: opacity 0.3s ease;
         pointer-events: none;
       }
 
       .logo-glow:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 25px rgba(0, 212, 255, 0.4);
+        transform: scale(1.04);
+        box-shadow: 0 0 18px rgba(212, 175, 55, 0.28);
       }
 
       .logo-glow:hover::before,
@@ -596,29 +859,16 @@
         opacity: 1;
       }
 
-      /* 整体导航栏扫描线 */
       .header-scan {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 150px;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.06), rgba(0, 255, 200, 0.04), transparent);
-        animation: header-scan 6s linear infinite;
-        pointer-events: none;
-      }
-
-      @keyframes header-scan {
-        0% { transform: translateX(-150px); }
-        100% { transform: translateX(calc(100vw + 150px)); }
+        display: none;
       }
 
     </style>
   </head>
-  <body class="min-h-screen">
-    <!-- 格子背景 -->
+  <body class="min-h-screen theme-xian">
+    <!-- 水墨云雾背景 -->
     <div class="grid-bg"></div>
-    <!-- 科技感浮动光点 -->
+    <!-- 灵气光晕 -->
     <div class="tech-particles"></div>
 
     <!-- 侧边导航 -->
@@ -637,6 +887,9 @@
       </a>
       <a href="#news" title="更新日志">
         <i data-lucide="scroll-text" class="w-5 h-5"></i>
+      </a>
+      <a href="#friends" title="友情链接 · 织界">
+        <i data-lucide="scroll" class="w-5 h-5"></i>
       </a>
     </nav>
 
@@ -681,6 +934,9 @@
               <a href="#news" class="nav-link-cyber px-4 py-2 text-sm text-gray-400 hover:text-cyan-400 transition-all relative">
                 <span class="relative z-10">更新日志</span>
               </a>
+              <a href="#friends" class="nav-link-cyber px-4 py-2 text-sm text-amber-200/80 hover:text-amber-100 transition-all relative">
+                <span class="relative z-10">友情链接</span>
+              </a>
             </div>
           </nav>
 
@@ -694,16 +950,9 @@
               <i data-lucide="heart" class="w-4 h-4"></i>
               <span>赞助</span>
             </a>
-            <a href="https://github.com/qianye60/XianTu" target="_blank" class="hidden sm:flex items-center gap-2 px-3 py-2 text-sm border border-gray-600/60 text-gray-400 hover:border-cyan-500/50 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all rounded-lg">
-              <i data-lucide="github" class="w-4 h-4"></i>
+            <a href="https://github.com/qianye60/XianTu" target="_blank" rel="noopener noreferrer" class="hidden sm:flex items-center gap-2 px-3 py-2 text-sm border border-amber-500/30 text-amber-100/80 hover:border-amber-400/60 hover:text-amber-100 hover:bg-amber-500/10 transition-all rounded-lg">
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.98 0 12.75c0 5.4 3.44 9.97 8.21 11.59.6.11.82-.27.82-.59 0-.29-.01-1.05-.02-2.06-3.34.74-4.04-1.67-4.04-1.67-.55-1.43-1.34-1.81-1.34-1.81-1.1-.77.08-.76.08-.76 1.21.09 1.85 1.28 1.85 1.28 1.08 1.9 2.83 1.35 3.52 1.03.11-.8.42-1.35.77-1.66-2.66-.31-5.46-1.38-5.46-6.14 0-1.36.46-2.46 1.22-3.33-.12-.31-.53-1.57.12-3.27 0 0 1-.33 3.3 1.27a11.1 11.1 0 0 1 6 0c2.29-1.6 3.29-1.27 3.29-1.27.65 1.7.24 2.96.12 3.27.76.87 1.22 1.97 1.22 3.33 0 4.77-2.8 5.82-5.48 6.13.43.38.82 1.13.82 2.28 0 1.65-.02 2.98-.02 3.38 0 .32.21.71.82.59C20.57 22.71 24 18.14 24 12.75 24 5.98 18.63.5 12 .5z"/></svg>
               <span>GitHub</span>
-            </a>
-            <a href="https://www.ddct.top/" target="_blank" class="flex items-center gap-2 px-4 sm:px-5 py-2 text-sm bg-gradient-to-r from-yellow-500/20 via-amber-500/15 to-yellow-600/20 border border-yellow-500/50 text-yellow-400 hover:from-yellow-500/30 hover:via-amber-500/25 hover:to-yellow-600/30 hover:border-yellow-400/70 hover:shadow-[0_0_20px_rgba(234,179,8,0.3)] transition-all rounded-lg font-semibold relative group">
-              <i data-lucide="play" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-              <span class="hidden sm:inline">开始修行</span>
-              <span class="sm:hidden">开始</span>
-              <!-- 呼吸灯 -->
-              <div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-cyan-400 rounded-full shadow-[0_0_10px_#00d4ff,0_0_20px_#00d4ff] animate-pulse"></div>
             </a>
           </div>
         </div>
@@ -717,6 +966,9 @@
       <a href="#features">核心特色</a>
       <a href="#gallery">道途一瞥</a>
       <a href="#news">更新日志</a>
+      <a href="#friends">友情链接</a>
+      <a href="https://www.ddct.top/" target="_blank" rel="noopener noreferrer">开始修行</a>
+      <a href="https://worldloom.top/" target="_blank" rel="noopener noreferrer">织界 WorldLoom</a>
     </nav>
 
     <!-- 主内容区域 -->
@@ -747,7 +999,7 @@
 
           <!-- 副标题 -->
           <p class="text-lg sm:text-xl text-gray-400 max-w-3xl mx-auto mb-4 leading-relaxed">
-            这是一款真正<span class="text-cyan-400">"活"</span>着的<strong class="text-white">AI修仙</strong>世界。
+            这是一款真正<span class="text-cyan-400">动态</span>的<strong class="text-white">AI修仙</strong>世界。
             NPC拥有独立思维，世界随时间演变。
           </p>
           <p class="text-base text-gray-500 max-w-2xl mx-auto mb-10">
@@ -756,16 +1008,16 @@
 
           <!-- 按钮组 -->
           <div class="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-            <a href="https://ddct.top/" target="_blank" class="cyber-btn cyber-btn-gold rounded-lg flex items-center justify-center gap-2">
+            <a href="https://www.ddct.top/" target="_blank" rel="noopener noreferrer" class="cyber-btn cyber-btn-gold rounded-lg flex items-center justify-center gap-2">
               <i data-lucide="play" class="w-5 h-5"></i>
               开始修行
             </a>
-            <a href="#features" class="cyber-btn rounded-lg flex items-center justify-center gap-2">
-              <i data-lucide="sparkles" class="w-5 h-5"></i>
-              了解核心特色
+            <a href="https://worldloom.top/" target="_blank" rel="noopener noreferrer" class="cyber-btn wl-hero-btn rounded-lg flex items-center justify-center gap-2" title="友情链接：织界 WorldLoom">
+              <img src="https://worldloom.top/assets/brand/trademark-symbol-light.svg" alt="" width="28" height="28" class="wl-mark" />
+              <span><span class="wl-name">织界</span> WorldLoom</span>
             </a>
-            <a href="https://github.com/qianye60/XianTu" target="_blank" class="cyber-btn rounded-lg flex items-center justify-center gap-2">
-              <i data-lucide="github" class="w-5 h-5"></i>
+            <a href="https://github.com/qianye60/XianTu" target="_blank" rel="noopener noreferrer" class="cyber-btn rounded-lg flex items-center justify-center gap-2">
+              <svg class="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.98 0 12.75c0 5.4 3.44 9.97 8.21 11.59.6.11.82-.27.82-.59 0-.29-.01-1.05-.02-2.06-3.34.74-4.04-1.67-4.04-1.67-.55-1.43-1.34-1.81-1.34-1.81-1.1-.77.08-.76.08-.76 1.21.09 1.85 1.28 1.85 1.28 1.08 1.9 2.83 1.35 3.52 1.03.11-.8.42-1.35.77-1.66-2.66-.31-5.46-1.38-5.46-6.14 0-1.36.46-2.46 1.22-3.33-.12-.31-.53-1.57.12-3.27 0 0 1-.33 3.3 1.27a11.1 11.1 0 0 1 6 0c2.29-1.6 3.29-1.27 3.29-1.27.65 1.7.24 2.96.12 3.27.76.87 1.22 1.97 1.22 3.33 0 4.77-2.8 5.82-5.48 6.13.43.38.82 1.13.82 2.28 0 1.65-.02 2.98-.02 3.38 0 .32.21.71.82.59C20.57 22.71 24 18.14 24 12.75 24 5.98 18.63.5 12 .5z"/></svg>
               GitHub 开源
             </a>
           </div>
@@ -783,33 +1035,6 @@
             </a>
           </div>
 
-          <!-- 实时数据展示 -->
-          <div id="live-stats" class="mt-12 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 max-w-4xl mx-auto">
-            <div class="cyber-card rounded-lg p-3 text-center">
-              <div class="text-xl font-bold text-cyan-400" id="stat-version">--</div>
-              <div class="text-xs text-gray-500 mt-1">当前版本</div>
-            </div>
-            <div class="cyber-card rounded-lg p-3 text-center">
-              <div class="text-xl font-bold text-green-400" id="stat-status">--</div>
-              <div class="text-xs text-gray-500 mt-1">服务状态</div>
-            </div>
-            <div class="cyber-card rounded-lg p-3 text-center">
-              <div class="text-xl font-bold text-yellow-400" id="stat-users">--</div>
-              <div class="text-xs text-gray-500 mt-1">注册用户</div>
-            </div>
-            <div class="cyber-card rounded-lg p-3 text-center">
-              <div class="text-xl font-bold text-purple-400" id="stat-characters">--</div>
-              <div class="text-xs text-gray-500 mt-1">角色总数</div>
-            </div>
-            <div class="cyber-card rounded-lg p-3 text-center">
-              <div class="text-xl font-bold text-pink-400" id="stat-online">--</div>
-              <div class="text-xs text-gray-500 mt-1">在线人数</div>
-            </div>
-            <div class="cyber-card rounded-lg p-3 text-center">
-              <div class="text-xl font-bold text-orange-400" id="stat-worlds">--</div>
-              <div class="text-xs text-gray-500 mt-1">联机世界</div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1082,19 +1307,34 @@
             <h2 class="text-3xl sm:text-5xl font-bold text-gradient-cyber mt-4">最新更新日志</h2>
           </div>
 
-          <!-- V4.5 最新版本 -->
+          <!-- 最新：同步自 CHANGELOG.md -->
           <div class="cyber-card rounded-xl p-6 mb-6 border-l-4 border-l-yellow-500">
             <div class="flex flex-wrap items-center gap-3 mb-4">
               <span class="data-tag bg-yellow-500/20 border-yellow-500/30 text-yellow-400">
-                <i data-lucide="star" class="w-3 h-3"></i> 最新版本
+                <i data-lucide="star" class="w-3 h-3"></i> 最新动态
+              </span>
+              <span class="text-2xl font-bold text-white">Unreleased</span>
+              <span class="text-gray-500 text-sm ml-auto font-mono">进行中</span>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span class="px-2 py-1 bg-amber-500/20 text-amber-300 rounded text-xs">联机日志</span>
+              <span class="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">服务拆分</span>
+            </div>
+            <p class="text-gray-400 text-sm">联机会话日志队列与自动补发；日志回显更及时；HTTP 客户端与业务 API 服务层拆分</p>
+          </div>
+
+          <div class="cyber-card rounded-xl p-6 mb-6 border-l-4 border-l-amber-600/70">
+            <div class="flex flex-wrap items-center gap-3 mb-4">
+              <span class="data-tag bg-amber-500/15 border-amber-500/30 text-amber-200">
+                <i data-lucide="bookmark" class="w-3 h-3"></i> 正式版
               </span>
               <span class="text-2xl font-bold text-white">V4.5</span>
               <span class="text-gray-500 text-sm ml-auto font-mono">2026-01-25</span>
             </div>
             <div class="flex flex-wrap gap-2 mb-4">
               <span class="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">宗门战争</span>
-              <span class="px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded text-xs">主题系统</span>
-              <span class="px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded text-xs">API兼容</span>
+              <span class="px-2 py-1 bg-amber-500/20 text-amber-300 rounded text-xs">主题系统</span>
+              <span class="px-2 py-1 bg-amber-500/20 text-amber-300 rounded text-xs">API兼容</span>
               <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">界面优化</span>
             </div>
             <p class="text-gray-400 text-sm">宗门战争模拟 | 主题化重构 | API兼容性增强 | 角色详情面板优化 | 提示词系统优化</p>
@@ -1103,119 +1343,150 @@
           <!-- 历史版本列表 -->
           <div class="cyber-card rounded-xl p-6">
             <h3 class="text-lg font-bold text-white mb-6 flex items-center gap-2">
-              <i data-lucide="history" class="w-5 h-5 text-cyan-400"></i>
+              <i data-lucide="history" class="w-5 h-5 text-amber-300"></i>
               历史版本
             </h3>
             <div class="space-y-4">
-              <!-- V4.4.9 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V4.4.9</span>
+                  <span class="font-bold text-amber-300">V4.4.9</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-24</span>
                 </div>
-                <p class="text-gray-400 text-sm">宗门战争模拟系统、宗门战争面板重构、AI服务优化</p>
+                <p class="text-gray-400 text-sm">宗门战争模拟系统、宗门战争面板重构、AI 服务优化</p>
               </div>
-
-              <!-- V4.4.8 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V4.4.8</span>
+                  <span class="font-bold text-amber-300">V4.4.8</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-23</span>
                 </div>
-                <p class="text-gray-400 text-sm">API兼容性修复、JSON解析优化、世界生成器重构</p>
+                <p class="text-gray-400 text-sm">API 兼容性修复、JSON 解析优化、世界生成器重构</p>
               </div>
-
-              <!-- V4.4.6 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V4.4.6</span>
+                  <span class="font-bold text-amber-300">V4.4.7</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-22</span>
                 </div>
-                <p class="text-gray-400 text-sm">角色详情面板重构、主题覆盖样式系统、API管理面板优化</p>
+                <p class="text-gray-400 text-sm">数据定义完善，增强数据结构</p>
               </div>
-
-              <!-- V4.4.5 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V4.4.5</span>
+                  <span class="font-bold text-amber-300">V4.4.6</span>
+                  <span class="text-gray-500 text-xs font-mono">2026-01-22</span>
+                </div>
+                <p class="text-gray-400 text-sm">角色详情面板重构、主题覆盖样式系统、API 管理面板优化</p>
+              </div>
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
+                <div class="flex items-center gap-3 mb-1">
+                  <span class="font-bold text-amber-300">V4.4.5</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-21</span>
                 </div>
                 <p class="text-gray-400 text-sm">角色详情面板增强、宗门子系统优化、提示词系统优化</p>
               </div>
-
-              <!-- V4.4 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V4.4</span>
+                  <span class="font-bold text-amber-300">V4.4</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-20</span>
                 </div>
                 <p class="text-gray-400 text-sm">主游戏面板优化、命令值验证修复</p>
               </div>
-
-              <!-- V4.0 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V4.0</span>
+                  <span class="font-bold text-amber-300">V4.0</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-18</span>
                 </div>
-                <p class="text-gray-400 text-sm">存档格式V3、联机世界穿越、多API智能调度、向量记忆系统</p>
+                <p class="text-gray-400 text-sm">存档格式 V3、联机世界穿越、多 API 智能调度、向量记忆系统</p>
               </div>
-
-              <!-- V3.7.4 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V3.7.4</span>
+                  <span class="font-bold text-amber-300">V3.7.4</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-02</span>
                 </div>
-                <p class="text-gray-400 text-sm">指令格式统一、物品属性修复、功法生成修复、API测试功能</p>
+                <p class="text-gray-400 text-sm">指令格式统一、物品属性修复、功法生成修复、API 测试功能</p>
               </div>
-
-              <!-- V3.7.0 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V3.7.0</span>
+                  <span class="font-bold text-amber-300">V3.7.0</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-01</span>
                 </div>
-                <p class="text-gray-400 text-sm">分步生成：第1步先出正文（可流式），第2步再出记忆/指令/行动选项</p>
+                <p class="text-gray-400 text-sm">分步生成：第 1 步先出正文（可流式），第 2 步再出记忆/指令/行动选项</p>
               </div>
-
-              <!-- V3.6.6 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V3.6.6</span>
+                  <span class="font-bold text-amber-300">V3.6.6</span>
                   <span class="text-gray-500 text-xs font-mono">2026-01-01</span>
                 </div>
                 <p class="text-gray-400 text-sm">流式开关修复、上下文长度保护、失败返回主页</p>
               </div>
-
-              <!-- V3.5 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V3.5</span>
+                  <span class="font-bold text-amber-300">V3.5</span>
                   <span class="text-gray-500 text-xs font-mono">2025-11-27</span>
                 </div>
-                <p class="text-gray-400 text-sm">全新提示词管理系统、自定义API支持</p>
+                <p class="text-gray-400 text-sm">全新提示词管理系统、自定义 API 支持</p>
               </div>
-
-              <!-- V3.2 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V3.2</span>
+                  <span class="font-bold text-amber-300">V3.2</span>
                   <span class="text-gray-500 text-xs font-mono">2025-11-11</span>
                 </div>
                 <p class="text-gray-400 text-sm">重构全新地图系统：朝天大陆游戏地图正式上线</p>
               </div>
-
-              <!-- V3.0 -->
-              <div class="border-l-2 border-cyan-500/30 pl-4 py-2">
+              <div class="border-l-2 border-amber-500/30 pl-4 py-2">
                 <div class="flex items-center gap-3 mb-1">
-                  <span class="font-bold text-cyan-400">V3.0</span>
+                  <span class="font-bold text-amber-300">V3.0</span>
                   <span class="text-gray-500 text-xs font-mono">2025-11-08</span>
                 </div>
-                <p class="text-gray-400 text-sm">思维链系统CoT v3.0、判定系统重构、提示词优化</p>
+                <p class="text-gray-400 text-sm">思维链系统 CoT v3.0、判定系统重构、提示词优化</p>
               </div>
             </div>
+            <p class="mt-6 text-sm text-amber-200/50">
+              完整变更见仓库 <a href="https://github.com/qianye60/XianTu/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:text-amber-200">CHANGELOG.md</a>
+            </p>
           </div>
+        </div>
+      </section>
+
+      <!-- 友情链接：爬虫可索引 + 修仙风展示 -->
+      <section id="friends" class="xian-friends py-20 px-6 relative" aria-labelledby="friends-heading">
+        <div class="max-w-5xl mx-auto relative">
+          <div class="text-center mb-10">
+            <div class="xian-eyebrow">道友相荐</div>
+            <h2 id="friends-heading" class="text-3xl sm:text-5xl font-bold xian-title mt-4">友情链接</h2>
+            <p class="text-amber-100/60 mt-4 max-w-2xl mx-auto font-serif tracking-wide">
+              同道共鉴。完整索引见 <a href="friends.html" class="text-amber-300 underline underline-offset-4 hover:text-amber-200">友链索引页</a>。
+            </p>
+          </div>
+
+          <ul class="friend-links" itemscope itemtype="https://schema.org/ItemList">
+            <meta itemprop="name" content="仙途友情链接" />
+            <meta itemprop="numberOfItems" content="1" />
+            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+              <meta itemprop="position" content="1" />
+              <a class="xian-friend-card sm:p-10"
+                 href="https://worldloom.top/"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 itemprop="url"
+                 title="织界 WorldLoom — AI 多世界文字冒险 RPG">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-8">
+                  <div class="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 border border-emerald-400/40 bg-emerald-500/10 flex items-center justify-center">
+                    <img src="https://worldloom.top/assets/brand/trademark-symbol-light.svg" alt="织界" width="44" height="44" class="wl-mark wl-friend-mark" />
+                  </div>
+                  <div class="flex-1 text-left">
+                    <div class="xian-friend-meta" itemprop="name">友情链接 · 强烈推荐</div>
+                    <h3>织界 <span>WorldLoom</span></h3>
+                    <p class="xian-friend-desc" itemprop="description">
+                      AI 驱动的多世界文字冒险 RPG。自由输入、NPC 记忆、云端存档与创意工坊——修仙、科幻、废土，每个世界都因你而生。
+                    </p>
+                    <span class="xian-friend-url">https://worldloom.top/</span>
+                    <div>
+                      <span class="xian-friend-cta">前往织界 <i data-lucide="arrow-up-right" class="w-4 h-4"></i></span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </li>
+          </ul>
         </div>
       </section>
     </main>
@@ -1230,8 +1501,33 @@
           <span class="text-gray-500 text-sm ml-2">XIANTU.AI</span>
         </div>
         <p class="text-gray-400 mb-3">AI驱动的游戏 | AI修仙 | AI大世界</p>
-        <p class="text-gray-500 text-sm mb-8 italic">天上白玉京，十二楼五城。</p>
+        <p class="text-gray-500 text-sm mb-8 italic font-serif">天上白玉京，十二楼五城。</p>
+
+        <nav class="mb-10" aria-label="友情链接">
+          <ul class="friend-links max-w-xl mx-auto">
+            <li>
+              <a href="https://worldloom.top/"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xian-friend-card xian-footer-friend px-5 py-4 text-left"
+                 title="织界 WorldLoom — AI 多世界文字冒险 RPG">
+                <div class="xian-friend-meta mb-1">友情链接</div>
+                <div class="text-lg font-serif font-bold text-amber-100 tracking-widest">织界 WorldLoom</div>
+                <p class="xian-friend-desc mt-1">AI 多世界文字冒险 RPG</p>
+                <span class="xian-friend-url">https://worldloom.top/</span>
+              </a>
+            </li>
+          </ul>
+          <p class="mt-4 text-sm text-amber-200/50">
+            <a href="friends.html" class="hover:text-amber-200 underline underline-offset-4">查看完整友链索引</a>
+          </p>
+        </nav>
+
         <div class="flex flex-wrap justify-center gap-6 mb-8">
+          <a href="https://worldloom.top/" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 text-amber-200 hover:text-amber-100 border border-amber-500/40 hover:border-amber-400/70 rounded-lg transition-all hover:bg-amber-500/10 font-serif tracking-wider">
+            <i data-lucide="scroll" class="w-4 h-4"></i>
+            织界 WorldLoom
+          </a>
           <a href="https://github.com/qianye60/XianTu" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-cyan-400 border border-transparent hover:border-cyan-500/30 rounded-lg transition-all hover:bg-cyan-500/5">
             <i data-lucide="github" class="w-4 h-4"></i>
             GitHub
@@ -1324,51 +1620,6 @@
           }
         });
       });
-
-      // 实时数据获取
-      const API_BASE = 'https://back.ddct.top/api/v1';
-
-      async function fetchLiveStats() {
-        const versionEl = document.getElementById('stat-version');
-        const statusEl = document.getElementById('stat-status');
-        const usersEl = document.getElementById('stat-users');
-        const charactersEl = document.getElementById('stat-characters');
-        const onlineEl = document.getElementById('stat-online');
-        const worldsEl = document.getElementById('stat-worlds');
-
-        try {
-          const res = await fetch(`${API_BASE}/stats`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            versionEl.textContent = data.version || '--';
-            statusEl.textContent = '在线';
-            statusEl.className = 'text-xl font-bold text-green-400';
-            usersEl.textContent = data.total_users || 0;
-            charactersEl.textContent = data.total_characters || 0;
-            onlineEl.textContent = data.online_users || 0;
-            worldsEl.textContent = data.total_worlds || 0;
-          } else {
-            throw new Error('API error');
-          }
-        } catch (e) {
-          versionEl.textContent = '--';
-          statusEl.textContent = '离线';
-          statusEl.className = 'text-xl font-bold text-red-400';
-          usersEl.textContent = '--';
-          charactersEl.textContent = '--';
-          onlineEl.textContent = '--';
-          worldsEl.textContent = '--';
-        }
-      }
-
-      // 页面加载时获取数据
-      fetchLiveStats();
-      // 每30秒刷新一次
-      setInterval(fetchLiveStats, 30000);
     </script>
   </body>
 </html>

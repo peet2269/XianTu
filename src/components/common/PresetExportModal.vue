@@ -1,130 +1,87 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-container">
-      <!-- Header -->
-      <div class="modal-header">
-        <h2 class="modal-title">📤 导出预设</h2>
-        <button class="modal-close" @click="closeModal">×</button>
+  <div v-if="visible" class="cc-modal-overlay sub-overlay" @click.self="closeModal">
+    <div class="cc-modal solid" role="dialog" aria-modal="true" aria-labelledby="preset-export-title">
+      <div class="cc-modal-head">
+        <h2 id="preset-export-title" class="cc-modal-title">导出预设</h2>
+        <button type="button" class="cc-modal-close" title="关闭" aria-label="关闭" :disabled="isExporting" @click="closeModal">
+          <X :size="18" />
+        </button>
       </div>
 
-      <!-- Content -->
-      <div class="modal-content">
-        <div v-if="isLoading" class="loading-state">
-          <div class="spinner"></div>
-          <p>正在加载预设列表...</p>
+      <div class="cc-modal-body">
+        <div v-if="isLoading" class="cc-state">
+          <Loader2 :size="20" class="cc-spin" />
+          <span>正在加载预设列表…</span>
         </div>
 
-        <div v-else-if="presets.length === 0" class="empty-state">
-          <div class="empty-icon">📭</div>
-          <p>暂无可导出的预设</p>
-          <p class="empty-hint">请先保存一些预设后再进行导出</p>
+        <div v-else-if="presets.length === 0" class="cc-placeholder empty">
+          <span>暂无可导出的预设<br /><small>请先在创角页保存预设</small></span>
         </div>
 
-        <div v-else>
-          <!-- 导出模式选择 -->
-          <div class="export-options">
-            <label class="option-label">
-              <input
-                type="radio"
-                v-model="exportMode"
-                value="all"
-                class="radio-input"
-              />
-              <span class="option-text">
-                <span class="option-title">导出全部预设</span>
-                <span class="option-desc">导出所有 {{ presets.length }} 个预设</span>
-              </span>
-            </label>
-
-            <label class="option-label">
-              <input
-                type="radio"
-                v-model="exportMode"
-                value="selected"
-                class="radio-input"
-              />
-              <span class="option-text">
-                <span class="option-title">导出选中预设</span>
-                <span class="option-desc">选择要导出的预设</span>
-              </span>
-            </label>
+        <template v-else>
+          <div class="cc-field">
+            <span class="cc-field-label">导出范围</span>
+            <div class="cc-segmented" role="radiogroup">
+              <label>
+                <input v-model="exportMode" type="radio" name="preset-export-mode" value="all" />
+                <span>全部（{{ presets.length }}）</span>
+              </label>
+              <label>
+                <input v-model="exportMode" type="radio" name="preset-export-mode" value="selected" />
+                <span>手动选择</span>
+              </label>
+            </div>
           </div>
 
-          <!-- 预设列表 (仅在选中模式下显示) -->
-          <div v-if="exportMode === 'selected'" class="presets-list">
-            <div class="list-header">
-              <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  :checked="isAllSelected"
-                  @change="toggleSelectAll"
-                  class="checkbox-input"
-                />
-                <span>全选/取消全选</span>
-              </label>
-              <span class="selected-count">已选择 {{ selectedPresetIds.length }} 个</span>
+          <!-- 预设列表：仅手动选择时出现 -->
+          <div v-if="exportMode === 'selected'" class="cc-panel pick-panel">
+            <div class="pick-head">
+              <button type="button" class="link-btn" @click="toggleSelectAll">
+                {{ isAllSelected ? '取消全选' : '全选' }}
+              </button>
+              <span class="pick-count">已选 {{ selectedPresetIds.length }} / {{ presets.length }}</span>
             </div>
-
-            <div class="preset-items">
+            <div class="cc-list">
               <label
                 v-for="preset in presets"
                 :key="preset.id"
-                class="preset-item"
+                class="cc-item"
                 :class="{ selected: selectedPresetIds.includes(preset.id) }"
               >
-                <input
-                  type="checkbox"
-                  :value="preset.id"
-                  v-model="selectedPresetIds"
-                  class="checkbox-input"
-                />
+                <input v-model="selectedPresetIds" type="checkbox" :value="preset.id" class="pick-input" />
                 <div class="preset-info">
-                  <div class="preset-header">
-                    <h3 class="preset-name">{{ preset.name || '未命名预设' }}</h3>
-                    <span class="preset-date">{{ formatDate(preset.savedAt) }}</span>
+                  <div class="preset-head">
+                    <span class="cc-item-name">{{ preset.name || '未命名预设' }}</span>
+                    <span class="cc-item-meta">{{ formatDate(preset.savedAt) }}</span>
                   </div>
-                  <p v-if="preset.description" class="preset-description">
-                    {{ preset.description }}
-                  </p>
+                  <p v-if="preset.description" class="preset-desc">{{ preset.description }}</p>
                   <div v-if="preset.data" class="preset-tags">
-                    <span v-if="preset.data.character_name" class="info-tag name-tag">{{ preset.data.character_name }}</span>
-                    <span v-if="preset.data.current_age" class="info-tag age-tag">{{ preset.data.current_age }}岁</span>
-                    <span v-if="preset.data.world" class="info-tag">{{ preset.data.world.name }}</span>
-                    <span v-if="preset.data.talentTier" class="info-tag">{{ preset.data.talentTier.name }}</span>
+                    <span v-if="preset.data.character_name" class="tag">{{ preset.data.character_name }}</span>
+                    <span v-if="preset.data.current_age" class="tag">{{ preset.data.current_age }} 岁</span>
+                    <span v-if="preset.data.world" class="tag">{{ preset.data.world.name }}</span>
+                    <span v-if="preset.data.talentTier" class="tag">{{ preset.data.talentTier.name }}</span>
                   </div>
                 </div>
+                <span class="cc-item-check" aria-hidden="true"><Check :size="12" /></span>
               </label>
             </div>
           </div>
 
-          <!-- 导出信息 -->
-          <div class="export-info">
-            <div class="info-item">
-              <span class="info-label">📦 导出数量：</span>
-              <span class="info-value">{{ getExportCount() }} 个预设</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">📄 文件格式：</span>
-              <span class="info-value">JSON</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">📅 导出时间：</span>
-              <span class="info-value">{{ currentTime }}</span>
-            </div>
-          </div>
-        </div>
+          <p class="cc-hint">将导出 <strong class="gold">{{ getExportCount() }}</strong> 个预设为 JSON 文件，可在其他设备通过「导入」恢复。</p>
+        </template>
       </div>
 
-      <!-- Footer -->
-      <div class="modal-footer">
-        <button class="btn btn-cancel" @click="closeModal">取消</button>
+      <div class="cc-modal-foot">
+        <button type="button" class="cc-btn" :disabled="isExporting" @click="closeModal">取消</button>
         <button
-          class="btn btn-confirm"
-          @click="handleExport"
+          type="button"
+          class="cc-btn primary"
           :disabled="!canExport || isExporting"
+          @click="handleExport"
         >
-          <span v-if="isExporting">⏳ 导出中...</span>
-          <span v-else>📥 导出预设</span>
+          <Loader2 v-if="isExporting" :size="15" class="cc-spin" />
+          <Upload v-else :size="15" />
+          <span>{{ isExporting ? '导出中…' : '导出预设' }}</span>
         </button>
       </div>
     </div>
@@ -132,7 +89,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { Check, Loader2, Upload, X } from 'lucide-vue-next';
 import { loadPresets, exportPresets, type CharacterPreset } from '@/utils/presetManager';
 import { toast } from '@/utils/toast';
 
@@ -150,8 +108,6 @@ const exportMode = ref<'all' | 'selected'>('all');
 const selectedPresetIds = ref<string[]>([]);
 const isLoading = ref(false);
 const isExporting = ref(false);
-const currentTime = ref('');
-let timeInterval: number | null = null;
 
 const isAllSelected = computed(() => {
   return presets.value.length > 0 && selectedPresetIds.value.length === presets.value.length;
@@ -162,29 +118,6 @@ const canExport = computed(() => {
   if (exportMode.value === 'all') return true;
   return selectedPresetIds.value.length > 0;
 });
-
-onMounted(() => {
-  updateCurrentTime();
-  timeInterval = window.setInterval(updateCurrentTime, 1000);
-});
-
-onUnmounted(() => {
-  if (timeInterval !== null) {
-    clearInterval(timeInterval);
-  }
-});
-
-function updateCurrentTime() {
-  const now = new Date();
-  currentTime.value = now.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-}
 
 watch(
   () => props.visible,
@@ -288,422 +221,129 @@ async function handleExport() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+/* 导出预设 —— 外壳用 creation-theme.css 的 cc-modal */
+.sub-overlay {
+  z-index: 1010;
 }
 
-.modal-container {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  animation: slideUp 0.3s ease-out;
+.cc-state {
+  gap: 0.6rem;
+  min-height: 140px;
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.cc-placeholder.empty {
+  min-height: 180px;
+  line-height: 1.9;
 }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--color-border);
+.cc-placeholder small {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
 }
 
-.modal-title {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--color-text);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.modal-close:hover {
-  background: rgba(var(--color-primary-rgb), 0.1);
-  color: var(--color-text);
-}
-
-.modal-content {
-  flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto;
-  min-height: 200px;
-}
-
-/* Loading State */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-  gap: 1rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(var(--color-primary-rgb), 0.2);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.empty-state p {
-  margin: 0.5rem 0;
-  color: var(--color-text-secondary);
-}
-
-.empty-hint {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  opacity: 0.7;
-  max-width: 300px;
-}
-
-/* Export Options */
-.export-options {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.option-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.option-label:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface-lighter);
-}
-
-.radio-input {
-  margin-top: 0.2rem;
-  cursor: pointer;
-}
-
-.option-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-}
-
-.option-title {
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.option-desc {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-/* Presets List */
-.presets-list {
-  margin-bottom: 1.5rem;
-}
-
-.list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
-  background: var(--color-surface-light);
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--color-text);
-}
-
-.checkbox-input {
-  cursor: pointer;
-}
-
-.selected-count {
-  font-size: 0.85rem;
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
-.preset-items {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+.pick-panel {
   max-height: 300px;
-  overflow-y: auto;
-  padding: 0.25rem;
 }
 
-.preset-item {
+.pick-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem;
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--cc-divider);
+  flex-shrink: 0;
+}
+
+.link-btn {
+  padding: 0.15rem 0.3rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cc-accent);
+  font-family: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.preset-item:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface-lighter);
+.link-btn:hover {
+  background: rgba(var(--cc-accent-rgb), 0.12);
 }
 
-.preset-item.selected {
-  border-color: var(--color-primary);
-  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-accent-rgb), 0.1));
+.pick-count {
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cc-item {
+  align-items: flex-start;
+}
+
+.pick-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cc-item:has(.pick-input:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
+
+.cc-item .cc-item-check {
+  margin-top: 0.15rem;
 }
 
 .preset-info {
-  flex: 1;
-}
-
-.preset-header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.preset-head {
+  display: flex;
   align-items: center;
-  margin-bottom: 0.25rem;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
 }
 
-.preset-name {
+.preset-desc {
+  display: -webkit-box;
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.preset-date {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
-
-.preset-description {
-  margin: 0.25rem 0;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  line-height: 1.3;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--cc-text-2);
 }
 
 .preset-tags {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
   flex-wrap: wrap;
+  gap: 0.3rem;
 }
 
-.info-tag {
-  padding: 0.2rem 0.6rem;
-  background: rgba(var(--color-primary-rgb), 0.1);
-  border: 1px solid rgba(var(--color-primary-rgb), 0.2);
-  border-radius: 10px;
+.tag {
+  padding: 0.02rem 0.4rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 4px;
   font-size: 0.7rem;
-  color: var(--color-primary);
+  color: var(--cc-text-2);
 }
 
-.info-tag.name-tag {
-  background: linear-gradient(135deg, rgba(var(--color-accent-rgb), 0.15), rgba(var(--color-primary-rgb), 0.15));
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  font-weight: 600;
+.gold {
+  margin: 0 0.15em;
+  color: var(--cc-gold);
+  font-variant-numeric: tabular-nums;
 }
 
-.info-tag.age-tag {
-  background: rgba(var(--color-success-rgb), 0.1);
-  border-color: rgba(var(--color-success-rgb), 0.3);
-  color: var(--color-success);
-}
-
-/* Export Info */
-.export-info {
-  padding: 1rem;
-  background: rgba(var(--color-primary-rgb), 0.05);
-  border: 1px solid rgba(var(--color-primary-rgb), 0.1);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-}
-
-.info-label {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.info-value {
-  color: var(--color-text);
-  font-family: 'Monaco', 'Courier New', monospace;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-}
-
-.btn {
-  padding: 0.7rem 1.5rem;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-cancel {
-  background: var(--color-surface-lighter);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-
-.btn-cancel:hover:not(:disabled) {
-  background: rgba(var(--color-text-rgb), 0.05);
-  border-color: var(--color-text-secondary);
-}
-
-.btn-confirm {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  color: #fff;
-  border: none;
-  min-width: 120px;
-}
-
-.btn-confirm:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
-  transform: translateY(-2px);
-}
-
-.btn-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .modal-container {
-    width: 95%;
-    max-width: 100%;
-    border-radius: 8px;
-  }
-
-  .modal-header {
-    padding: 1rem;
-  }
-
-  .modal-title {
-    font-size: 1.1rem;
-  }
-
-  .modal-content {
-    padding: 1rem;
-  }
-
-  .modal-footer {
-    padding: 1rem;
-    flex-direction: column-reverse;
-    gap: 0.75rem;
-  }
-
-  .btn {
-    width: 100%;
-    padding: 0.8rem 1rem;
-  }
+.cc-modal :is(.cc-btn, .cc-modal-close, .link-btn):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 </style>

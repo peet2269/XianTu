@@ -1,5 +1,6 @@
 // src/utils/indexedDBManager.ts
 import type { LocalStorageRoot, SaveData } from '@/types/game';
+import { buildSaveDataKey, isSaveDataKeyOfCharacter } from '@/utils/saveIdentity';
 
 /**
  * @fileoverview
@@ -16,8 +17,6 @@ const ROOT_KEY = 'root_data'; // 兼容旧数据，但未来会被逐步取代
 const CHARACTERS_KEY = 'characters';
 const ACTIVE_SAVE_KEY = 'active_save';
 
-// 新增：存储激活存档的 SaveData 的 key 前缀
-const SAVEDATA_KEY_PREFIX = 'savedata_'; // savedata_{characterId}_{slotId}
 
 // IndexedDB 实例缓存
 let dbInstance: IDBDatabase | null = null;
@@ -326,7 +325,7 @@ export async function saveSaveData(
   saveDataContent: SaveData
 ): Promise<void> {
   try {
-    const key = `${SAVEDATA_KEY_PREFIX}${characterId}_${slotId}`;
+    const key = buildSaveDataKey(characterId, slotId);
     await saveData(key, saveDataContent);
     console.log(`【乾坤宝库-IDB】SaveData 已保存 (${characterId}/${slotId})`);
   } catch (error) {
@@ -347,7 +346,7 @@ export async function loadSaveData(
   slotId: string
 ): Promise<SaveData | null> {
   try {
-    const key = `${SAVEDATA_KEY_PREFIX}${characterId}_${slotId}`;
+    const key = buildSaveDataKey(characterId, slotId);
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
@@ -375,7 +374,7 @@ export async function loadSaveData(
             return;
           }
 
-          const aliasKey = `${SAVEDATA_KEY_PREFIX}${characterId}_${alias}`;
+          const aliasKey = buildSaveDataKey(characterId, alias);
           const aliasReq = objectStore.get(aliasKey);
           aliasReq.onsuccess = () => {
             const aliasResult = aliasReq.result;
@@ -415,7 +414,7 @@ export async function deleteSaveData(
   slotId: string
 ): Promise<void> {
   try {
-    const key = `${SAVEDATA_KEY_PREFIX}${characterId}_${slotId}`;
+    const key = buildSaveDataKey(characterId, slotId);
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
@@ -442,12 +441,12 @@ export async function deleteSaveData(
 /**
  * 🔥 新增：批量删除指定角色的所有存档数据
  * @param characterId 角色ID
+ * @param knownCharacterIds 全部已知角色ID，用于排除“以本角色ID为前缀”的其他角色存档
  * @returns 删除的记录数量
  */
-export async function deleteAllSaveDataForCharacter(characterId: string): Promise<number> {
+export async function deleteAllSaveDataForCharacter(characterId: string, knownCharacterIds: string[] = []): Promise<number> {
   try {
     const db = await openDatabase();
-    const prefix = `${SAVEDATA_KEY_PREFIX}${characterId}_`;
     
     console.log(`【乾坤宝库-IDB】开始清理角色 ${characterId} 的所有存档...`);
     
@@ -462,7 +461,7 @@ export async function deleteAllSaveDataForCharacter(characterId: string): Promis
         const allKeys = getAllKeysRequest.result as string[];
         // 筛选出该角色的所有存档键
         const keysToDelete = allKeys.filter(key =>
-          typeof key === 'string' && key.startsWith(prefix)
+          typeof key === 'string' && isSaveDataKeyOfCharacter(key, characterId, knownCharacterIds)
         );
         
         console.log(`【乾坤宝库-IDB】找到 ${keysToDelete.length} 个存档记录待删除:`, keysToDelete);

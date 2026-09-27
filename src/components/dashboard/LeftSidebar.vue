@@ -1,308 +1,97 @@
 <template>
-  <div class="left-sidebar" :class="{ 'lang-en': currentLanguage === 'en' }">
-    <div class="sidebar-header">
-      <h3 class="sidebar-title">
-        <LayoutGrid :size="20" class="title-icon" />
-        {{ t('游戏功能') }}
-      </h3>
-      <div class="real-time">
-        <Clock :size="14" class="time-icon" />
-        <span>{{ currentRealTime }}</span>
-      </div>
+  <nav class="nav" :class="{ 'lang-en': currentLanguage === 'en' }" :aria-label="t('游戏功能')">
+    <div class="nav-scroll">
+      <section v-for="section in navSections" :key="section.title" class="nav-group">
+        <h3 class="nav-group-title" :title="t(section.title)"><span>{{ currentLanguage === 'en' ? t(section.title) : section.short }}</span></h3>
+        <ul class="nav-list">
+          <li v-for="item in section.items" :key="item.key">
+            <button
+              type="button"
+              class="nav-item"
+              :class="{ active: isActive(item.path) }"
+              :disabled="item.disabled"
+              :aria-current="isActive(item.path) ? 'page' : undefined"
+              :title="t(item.desc)"
+              @click="item.onClick"
+            >
+              <span class="nav-icon"><component :is="item.icon" :size="15" :stroke-width="1.75" /></span>
+              <span class="nav-name">{{ t(item.label) }}</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+
     </div>
 
-    <div class="sidebar-content">
-      <!-- 角色信息区 -->
-      <div class="function-section">
-        <div class="section-title">{{ t('角色信息') }}</div>
-        <div class="function-group">
-          <button class="function-btn primary" @click="handleCharacterDetails">
-            <div class="btn-icon">
-              <User :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('人物属性') }}</span>
-              <span class="btn-desc">{{ t('修为境界状态') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn primary" @click="handleInventory">
-            <div class="btn-icon">
-              <Package :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('背包物品') }}</span>
-              <span class="btn-desc">{{ t('管理道具装备') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-        </div>
-      </div>
-
-      <!-- 修炼系统区 -->
-      <div class="function-section">
-        <div class="section-title">{{ t('修炼系统') }}</div>
-        <div class="function-group">
-          <button class="function-btn cultivation" @click="handleTechniques">
-            <div class="btn-icon">
-              <BookOpen :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('功法技能') }}</span>
-              <span class="btn-desc">{{ t('修炼突破晋级') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn cultivation" @click="handleThousandDao">
-            <div class="btn-icon">
-              <Zap :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('大道感悟') }}</span>
-              <span class="btn-desc">{{ t('领悟天地法则') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn cultivation" @click="handleCrafting">
-            <div class="btn-icon">
-              <Hammer :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('炼制工坊') }}</span>
-              <span class="btn-desc">{{ t('炼丹炼器炼天地') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-        </div>
-      </div>
-
-      <!-- 事件与探索区 -->
-      <div class="function-section">
-        <div class="section-title">{{ t('事件探索') }}</div>
-        <div class="function-group">
-          <button class="function-btn quest" @click="handleEvents">
-            <div class="btn-icon">
-              <Bell :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('世界事件') }}</span>
-              <span class="btn-desc">{{ t('世界变革与危机') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn quest" @click="handleWorldMap">
-            <div class="btn-icon">
-              <Map :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('世界地图') }}</span>
-              <span class="btn-desc">{{ t('探索天下各地') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn quest" v-if="isOnlineMode" @click="handleOnlinePlay">
-            <div class="btn-icon">
-              <Globe :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('穿越') }}</span>
-              <span class="btn-desc">{{ t('进入他人世界') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-        </div>
-      </div>
-
-      <!-- 社交势力区 -->
-      <div class="function-section">
-        <div class="section-title">{{ t('社交势力') }}</div>
-        <div class="function-group">
-          <button class="function-btn secondary" @click="handleRelationships">
-            <div class="btn-icon">
-              <Users :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('人物关系') }}</span>
-              <span class="btn-desc">{{ t('人脉交际管理') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn secondary" @click="handleSect">
-            <div class="btn-icon">
-              <Home :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('宗门') }}</span>
-              <span class="btn-desc">{{ t('门派事务管理') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn secondary" @click="handleMemoryCenter">
-            <div class="btn-icon">
-              <Brain :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('记忆') }}</span>
-              <span class="btn-desc">{{ t('重要事件回顾') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- 系统功能区 -->
-      <div class="system-section">
-        <div class="section-title">{{ t('系统功能') }}</div>
-        <div class="function-group">
-          <button class="function-btn system" @click="handleSaveGame" :disabled="!activeCharacter">
-            <div class="btn-icon">
-              <Save :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('保存游戏') }}</span>
-              <span class="btn-desc">{{ t('保存当前进度') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn system" v-if="!isOnlineMode" @click="handleGameVariables">
-            <div class="btn-icon">
-              <Database :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('游戏变量') }}</span>
-              <span class="btn-desc">{{ t('查看游戏数据') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn system" @click="handlePrompts">
-            <div class="btn-icon">
-              <FileText :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('提示词管理') }}</span>
-              <span class="btn-desc">{{ t('自定义提示词') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn system" @click="handleAPIManagement">
-            <div class="btn-icon">
-              <Plug :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('API管理') }}</span>
-              <span class="btn-desc">{{ t('多API配置') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn system" @click="handleSettings">
-            <div class="btn-icon">
-              <Settings :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('系统设置') }}</span>
-              <span class="btn-desc">{{ t('偏好设置') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button v-if="isAdmin" class="function-btn admin" @click="handleBackendAdmin">
-            <div class="btn-icon">
-              <Shield :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('仙官后台') }}</span>
-              <span class="btn-desc">{{ t('管理员控制台') }}</span>
-            </div>
-            <ChevronRight :size="14" class="btn-arrow" />
-          </button>
-
-          <button class="function-btn exit-btn no-arrow" @click="handleBackToMenu">
-            <div class="btn-icon">
-              <LogOut :size="18" />
-            </div>
-            <div class="btn-content">
-              <span class="btn-text">{{ t('返回道途') }}</span>
-              <span class="btn-desc">{{ t('退出当前游戏') }}</span>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 版本号显示 -->
-    <div class="sidebar-footer">
-      <span class="app-version">V{{ displayVersion }}</span>
-      <div class="footer-links">
-        <a href="https://github.com/qianye60/XianTu" target="_blank" class="footer-link github" title="GitHub">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+    <footer class="nav-foot">
+      <button type="button" class="nav-exit" :title="`${t('现实时间')} ${currentRealTime}`" @click="handleBackToMenu">
+        <span class="nav-exit-seal">{{ t('归') }}</span>
+        <span class="nav-exit-text">{{ t('返回道途') }}</span>
+      </button>
+      <div class="nav-meta">
+        <a
+          href="https://github.com/qianye60/XianTu"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="nav-link"
+          :title="displayVersion ? `GitHub · V${displayVersion}` : 'GitHub'"
+          aria-label="GitHub"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
           </svg>
         </a>
-        <button type="button" class="footer-link sponsor" title="赞助支持" @click="showSponsorModal = true">
+        <button type="button" class="nav-link sponsor" :title="t('赞助支持')" :aria-label="t('赞助支持')" @click="showSponsorModal = true">
           <Heart :size="14" />
         </button>
       </div>
-    </div>
+    </footer>
 
     <teleport to="body">
-      <div v-if="showSponsorModal" class="sponsor-modal-overlay" @click.self="showSponsorModal = false">
-        <div class="sponsor-modal">
-        <div class="sponsor-modal-header">
-          <h3>赞助支持（自愿）</h3>
-          <button class="sponsor-close" @click="showSponsorModal = false">&times;</button>
-        </div>
-          <div class="sponsor-modal-body">
-            <div class="sponsor-qr">
-              <img src="https://ddct.top/zhifubao.jpg" alt="支付宝赞助二维码" loading="lazy" />
-              <span>支付宝</span>
-            </div>
-            <div class="sponsor-qr">
-              <img src="https://ddct.top/weixing.jpg" alt="微信赞助二维码" loading="lazy" />
-              <span>微信</span>
+      <div v-if="showSponsorModal" class="cc-modal-overlay" @click.self="showSponsorModal = false">
+        <div class="cc-modal" role="dialog" aria-modal="true" :aria-label="t('赞助支持（自愿）')">
+          <div class="cc-modal-head">
+            <h2 class="cc-modal-title">{{ t('赞助支持（自愿）') }}</h2>
+            <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="showSponsorModal = false">
+              <X :size="18" />
+            </button>
+          </div>
+          <div class="cc-modal-body">
+            <div class="sponsor-grid">
+              <figure class="sponsor-qr">
+                <img src="https://ddct.top/zhifubao.jpg" :alt="t('支付宝赞助二维码')" loading="lazy" />
+                <figcaption>{{ t('支付宝') }}</figcaption>
+              </figure>
+              <figure class="sponsor-qr">
+                <img src="https://ddct.top/weixing.jpg" :alt="t('微信赞助二维码')" loading="lazy" />
+                <figcaption>{{ t('微信') }}</figcaption>
+              </figure>
             </div>
           </div>
         </div>
       </div>
     </teleport>
-  </div>
+  </nav>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { Package, User, Users, BookOpen, Zap, Brain, Map, Globe, Save, Settings, LogOut, Compass, Home, Bell, ChevronRight, Database, Clock, FileText, Plug, LayoutGrid, Heart, Shield, Hammer } from 'lucide-vue-next';
+import { useRouter, useRoute } from 'vue-router';
+import { Package, User, Users, BookOpen, Zap, Brain, Map, Save, Settings, Home, Bell, Database, Clock, FileText, Plug, Heart, Shield, Hammer, X } from 'lucide-vue-next';
 import { useCharacterStore } from '@/stores/characterStore';
 import { toast } from '@/utils/toast';
 import { useUIStore } from '@/stores/uiStore';
 import { useI18n } from '@/i18n';
-import { isBackendConfigured, fetchBackendVersion } from '@/services/backendConfig';
 
 const router = useRouter();
+const route = useRoute();
 const characterStore = useCharacterStore();
 const uiStore = useUIStore();
 const { t, currentLanguage } = useI18n();
 
 // 版本号相关
-const backendReady = ref(false);
 const showSponsorModal = ref(false);
-const backendVersion = ref<string | null>(null);
-
-const displayVersion = computed(() => (
-  backendReady.value ? (backendVersion.value ?? '同步中') : APP_VERSION
-));
+const displayVersion = '5.0';
 
 // 实时北京时间
 const currentRealTime = ref('');
@@ -319,18 +108,10 @@ const updateRealTime = () => {
   currentRealTime.value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-onMounted(async () => {
+onMounted(() => {
   updateRealTime();
   timeInterval = window.setInterval(updateRealTime, 1000);
 
-  // 获取后端版本
-  if (isBackendConfigured()) {
-    const version = await fetchBackendVersion();
-    if (version) {
-      backendReady.value = true;
-      backendVersion.value = version;
-    }
-  }
 });
 
 onUnmounted(() => {
@@ -341,8 +122,74 @@ onUnmounted(() => {
 
 // 使用 store 的 getters 获取数据
 const activeCharacter = computed(() => characterStore.activeCharacterProfile);
-const isOnlineMode = computed(() => activeCharacter.value?.模式 === '联机');
 const isAdmin = computed(() => localStorage.getItem('is_admin') === 'true');
+// 功能目录（数据驱动，模板只负责渲染）
+type NavItem = {
+  key: string;
+  label: string;
+  desc: string;
+  icon: typeof User;
+  path?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+};
+
+const navSections = computed<Array<{ title: string; short: string; items: NavItem[] }>>(() => {
+  const systemItems: NavItem[] = [
+    { key: 'save', label: '保存游戏', desc: '保存当前进度', icon: Save, path: '/game/save', onClick: handleSaveGame, disabled: !activeCharacter.value },
+    { key: 'variables', label: '游戏变量', desc: '查看游戏数据', icon: Database, path: '/game/game-variables', onClick: handleGameVariables },
+    { key: 'prompts', label: '提示词管理', desc: '自定义提示词', icon: FileText, path: '/game/prompts', onClick: handlePrompts },
+    { key: 'api', label: 'API管理', desc: '多API配置', icon: Plug, path: '/game/api-management', onClick: handleAPIManagement },
+    { key: 'settings', label: '系统设置', desc: '偏好设置', icon: Settings, path: '/game/settings', onClick: handleSettings },
+  ];
+  if (isAdmin.value) {
+    systemItems.push({ key: 'admin', label: '仙官后台', desc: '管理员控制台', icon: Shield, path: '/game/backend-admin', onClick: handleBackendAdmin });
+  }
+
+  return [
+    {
+      title: '角色信息',
+      short: '角色',
+      items: [
+        { key: 'details', label: '人物属性', desc: '修为境界状态', icon: User, path: '/game/character-details', onClick: handleCharacterDetails },
+        { key: 'inventory', label: '背包物品', desc: '管理道具装备', icon: Package, path: '/game/inventory', onClick: handleInventory },
+      ],
+    },
+    {
+      title: '修炼系统',
+      short: '修炼',
+      items: [
+        { key: 'techniques', label: '功法技能', desc: '修炼突破晋级', icon: BookOpen, path: '/game/techniques', onClick: handleTechniques },
+        { key: 'dao', label: '大道感悟', desc: '领悟天地法则', icon: Zap, path: '/game/thousand-dao', onClick: handleThousandDao },
+        { key: 'crafting', label: '炼制工坊', desc: '炼丹炼器炼天地', icon: Hammer, path: '/game/crafting', onClick: handleCrafting },
+      ],
+    },
+    {
+      title: '事件探索',
+      short: '探索',
+      items: [
+        { key: 'events', label: '世界事件', desc: '世界变革与危机', icon: Bell, path: '/game/events', onClick: handleEvents },
+        { key: 'map', label: '世界地图', desc: '探索天下各地', icon: Map, path: '/game/world-map', onClick: handleWorldMap },
+      ],
+    },
+    {
+      title: '社交势力',
+      short: '社交',
+      items: [
+        { key: 'sect', label: '宗门事务', desc: '门派事务管理', icon: Home, path: '/game/sect', onClick: handleSect },
+        { key: 'npcs', label: '人物名录', desc: '结识的人物与好感', icon: Users, path: '/game/npcs', onClick: openNpcList },
+        { key: 'memory', label: '记忆档案', desc: '重要事件回顾', icon: Brain, path: '/game/memory', onClick: handleMemoryCenter },
+      ],
+    },
+    { title: '系统功能', short: '系统', items: systemItems },
+  ];
+});
+
+const isActive = (path?: string) => {
+  if (!path) return false;
+  return route.path === path || route.path.startsWith(path + '/');
+};
 
 const handleSaveGame = async () => {
   router.push('/game/save');
@@ -356,16 +203,16 @@ const handleCharacterDetails = () => {
   router.push('/game/character-details');
 };
 
+const openNpcList = () => {
+  router.push('/game/npcs');
+};
+
 const handleEvents = () => {
   router.push('/game/events');
 };
 
 const handleSect = () => {
   router.push('/game/sect');
-};
-
-const handleRelationships = () => {
-  router.push('/game/relationships');
 };
 
 const handleTechniques = () => {
@@ -386,10 +233,6 @@ const handleMemoryCenter = () => {
 
 const handleWorldMap = () => {
   router.push('/game/world-map');
-};
-
-const handleOnlinePlay = () => {
-  router.push('/game/travel');
 };
 
 const handlePrompts = () => {
@@ -460,174 +303,280 @@ const exitToMenu = async () => {
 </script>
 
 <style scoped>
-.left-sidebar {
-  --sidebar-card-radius: 10px;
-  --sidebar-btn-radius: 8px;
-  --sidebar-pill-radius: 6px;
+.nav {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 10px 8px;
-  box-sizing: border-box;
-  font-family: var(--font-family-sans-serif);
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border-radius: 0;
-  box-shadow: none;
-  position: relative;
-  isolation: isolate;
-  overflow: visible;
+  min-height: 0;
 }
 
-.left-sidebar::before {
+.nav-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9rem 0.6rem 0.6rem 0.5rem;
+}
+
+/* 分组：左侧竖排书脊签 + 右侧条目 */
+.nav-group {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 0.4rem;
+}
+
+.nav-group + .nav-group {
+  margin-top: 0.7rem;
+}
+
+.nav-group-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding-top: 0.45rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--cc-gold) 82%, var(--cc-text-2));
+}
+
+/* 竖排书签：两字，细金框 */
+.nav-group-title span {
+  writing-mode: vertical-rl;
+  padding: 0.4rem 0 0.25rem;
+  width: 20px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.32);
+  border-radius: 3px;
+  background: rgba(var(--cc-gold-rgb), 0.06);
+  letter-spacing: 0.25em;
+  line-height: 18px;
+  text-align: center;
+}
+
+.nav-group-title::after {
+  content: '';
+  flex: 1;
+  width: 1px;
+  min-height: 6px;
+  margin-bottom: 0.4rem;
+  background: linear-gradient(to bottom, rgba(var(--cc-gold-rgb), 0.4), rgba(var(--cc-gold-rgb), 0));
+}
+
+/* 英文：竖排不可读，退回横排组名 */
+.lang-en .nav-group {
+  display: block;
+}
+
+.lang-en .nav-group-title {
+  flex-direction: row;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+  padding: 0 0.55rem;
+}
+
+.lang-en .nav-group-title span {
+  writing-mode: horizontal-tb;
+  width: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  letter-spacing: 0.08em;
+}
+
+.lang-en .nav-group-title::after {
+  width: auto;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  background: linear-gradient(to right, rgba(var(--cc-gold-rgb), 0.4), rgba(var(--cc-gold-rgb), 0));
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  height: 38px;
+  padding: 0 0.55rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.nav-item:hover:not(:disabled) {
+  background: var(--gm-block-hover);
+  color: var(--cc-text);
+}
+
+.nav-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.17), rgba(var(--cc-gold-rgb), 0.02) 85%);
+  color: var(--cc-text);
+}
+
+.nav-item.active::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 50% at 10% 0%, rgba(var(--color-primary-rgb), 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 95% 5%, rgba(var(--color-accent-rgb), 0.06), transparent);
-  pointer-events: none;
-  z-index: 0;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--cc-gold);
+  box-shadow: 0 0 8px rgba(var(--cc-gold-rgb), 0.5);
 }
 
-.sidebar-header,
-.sidebar-content,
-.sidebar-footer {
-  position: relative;
-  z-index: 1;
-}
-
-.sidebar-header {
-  margin: 0 0 10px 0;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(var(--color-border-rgb), 0.3);
-  background: transparent;
-  display: flex;
-  flex-direction: column;
+/* 玉牌图标：平时只是淡色线图，悬停 / 当前页点亮成方牌 */
+.nav-icon {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--cc-gold) 55%, var(--cc-text-3));
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border-top: 1px solid rgba(var(--color-border-rgb), 0.3);
-  background: transparent;
-  flex-shrink: 0;
+.nav-item:hover:not(:disabled) .nav-icon {
+  color: var(--cc-gold);
+  box-shadow: inset 0 0 0 1px rgba(var(--cc-gold-rgb), 0.35);
 }
 
-.footer-links {
-  display: flex;
-  gap: 6px;
+.nav-item.active .nav-icon {
+  color: var(--cc-gold);
+  background: rgba(var(--cc-gold-rgb), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--cc-gold-rgb), 0.55);
 }
 
-.footer-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: 50%;
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.footer-link:hover {
-  transform: scale(1.1);
-}
-
-.footer-link.github {
-  color: var(--color-text-secondary);
-}
-
-.footer-link.github:hover {
-  color: #fff;
-  background: #333;
-  border-color: #333;
-}
-
-.footer-link.sponsor {
-  color: #f472b6;
-}
-
-.footer-link.sponsor:hover {
-  color: #fff;
-  background: #ec4899;
-  border-color: #ec4899;
-}
-
-.sponsor-modal-overlay {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 2000;
-}
-
-.sponsor-modal {
-  width: min(520px, 100%);
-  background: var(--color-surface, #ffffff);
-  border-radius: 14px;
-  border: 1px solid var(--color-border);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+.nav-name {
+  font-size: 14.5px;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.sponsor-modal-header {
+.lang-en .nav-name {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- 底栏：一行「归 返回道途 · 版本 · GitHub · 赞助」 ---------- */
+.nav-foot {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-  color: var(--color-text);
+  gap: 0.35rem;
+  padding: 0.55rem 0.6rem 0.6rem;
+  border-top: 1px solid var(--gm-rail-line);
 }
 
-.sponsor-modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 800;
-}
-
-.sponsor-close {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: 1.5rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  cursor: pointer;
+.nav-exit {
+  flex: 1;
+  min-width: 0;
   display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  height: 34px;
+  padding: 0 0.5rem 0 0.35rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text-2);
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.nav-exit-seal {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+  font-family: var(--cc-calligraphy);
+  font-size: 15px;
+  letter-spacing: 0;
+  line-height: 1;
 }
 
-.sponsor-close:hover {
-  background: var(--color-surface-hover);
+.lang-en .nav-exit-seal {
+  font-family: inherit;
+  font-size: 10px;
 }
 
-.sponsor-modal-body {
-  padding: 1rem 1.25rem 1.5rem;
+.nav-exit-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-exit:hover {
+  background: rgba(var(--cc-danger-rgb), 0.1);
+  color: var(--cc-text);
+}
+
+.nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex-shrink: 0;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--cc-text-3);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--cc-gold);
+}
+
+.nav-link.sponsor:hover {
+  color: var(--cc-seal);
+}
+
+/* ---------- 赞助弹窗 ---------- */
+.sponsor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-  justify-items: center;
 }
 
 .sponsor-qr {
@@ -635,410 +584,37 @@ const exitToMenu = async () => {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
+  margin: 0;
 }
 
 .sponsor-qr img {
   width: 100%;
-  max-width: 240px;
-  border-radius: 12px;
+  max-width: 200px;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 6px;
   background: #fff;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
-  display: block;
 }
 
-.sponsor-qr span {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+.sponsor-qr figcaption {
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  color: var(--cc-text-2);
 }
 
-.app-version {
-  font-family: monospace;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #67e8f9;
-  padding: 0.25rem 0.6rem;
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%);
-  border: 1px solid rgba(34, 211, 238, 0.35);
-  border-radius: 10px;
-  display: inline-block;
-  letter-spacing: 0.5px;
-  text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.15);
-  transition: all 0.3s ease;
-}
-
-.app-version:hover {
-  color: #a5f3fc;
-  border-color: rgba(34, 211, 238, 0.5);
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.25);
-  text-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
-}
-
-.sidebar-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-
-.real-time {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  font-family: 'Courier New', monospace;
-  padding: 4px 8px;
-  background: rgba(var(--color-surface-rgb), 0.7);
-  border-radius: var(--sidebar-pill-radius);
-  border: 1px solid rgba(var(--color-border-rgb), 0.5);
-}
-
-.time-icon {
-  color: var(--color-primary);
-}
-
-.title-icon {
-  color: var(--color-primary);
-}
-
-.sidebar-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: visible; /* 改为 visible 防止右边框被截断 */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  padding-bottom: 4px;
-  padding-right: 2px; /* 给右边框留出空间 */
-  min-width: 0;
-}
-
-.sidebar-content::-webkit-scrollbar {
-  width: 4px;
-}
-.sidebar-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-.sidebar-content::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
-}
-[data-theme="dark"] .sidebar-content::-webkit-scrollbar-thumb {
-  background: transparent;
-}
-
-/* 功能分区样式 */
-.function-section {
-  margin: 0 5px 8px 5px;
-  padding: 8px;
-  border-radius: var(--sidebar-card-radius);
-  border: 1px solid rgba(var(--color-border-rgb), 0.3);
-  background: rgba(var(--color-surface-rgb), 0.4);
-}
-
-.section-title {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  margin-bottom: 6px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(var(--color-primary-rgb), 0.05);
-  display: inline-flex;
-  align-items: center;
-  letter-spacing: 0.3px;
-}
-
-.function-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-right: 2px; /* 防止按钮右边框被截断 */
-}
-
-.system-section {
-  margin: 0 5px 8px 5px;
-  padding: 8px;
-  border-radius: var(--sidebar-card-radius);
-  border: 1px solid rgba(var(--color-border-rgb), 0.3);
-  background: rgba(var(--color-surface-rgb), 0.4);
-}
-
-.divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent 10%, rgba(var(--color-border-rgb), 0.4) 50%, transparent 90%);
-  margin: 8px 0;
-}
-
-/* 增强的按钮样式 */
-.function-btn {
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  background: rgba(var(--color-surface-rgb), 0.6);
-  border: 1px solid rgba(var(--color-border-rgb), 0.3);
-  border-radius: var(--sidebar-btn-radius);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-  text-align: left;
-  width: 100%;
-  position: relative;
-  overflow: hidden;
-}
-
-.function-btn:hover {
-  background: rgba(var(--color-surface-rgb), 0.9);
-  border-color: rgba(var(--color-primary-rgb), 0.4);
-  transform: translateX(2px);
-}
-
-.function-btn:active {
-  transform: translateX(1px) scale(0.99);
-}
-
-/* 按钮图标区域 */
-.function-btn .btn-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--sidebar-pill-radius);
-  background: var(--color-background);
-  margin-right: 10px;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-/* 按钮内容区域 */
-.function-btn .btn-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.function-btn .btn-text {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-text);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 英文环境下允许文字换行 */
-.lang-en .function-btn .btn-text {
-  white-space: normal;
-  word-break: break-word;
-  font-size: 0.8rem;
-}
-
-.function-btn .btn-desc {
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 英文环境下允许描述换行 */
-.lang-en .function-btn .btn-desc {
-  white-space: normal;
-  word-break: break-word;
-  font-size: 0.65rem;
-}
-
-/* 按钮箭头 */
-.function-btn .btn-arrow {
-  color: var(--color-text-muted);
-  transition: all 0.2s ease;
-  margin-left: 6px;
-  opacity: 0.5;
-}
-
-.function-btn:hover .btn-arrow {
-  color: var(--color-primary);
-  transform: translateX(2px);
-  opacity: 1;
-}
-
-/* 无箭头按钮的右边距补偿 */
-.function-btn.no-arrow .btn-content {
-  margin-right: 16px; /* 14px (箭头宽度) + 8px (margin-left) */
-}
-
-/* 分类颜色主题 */
-.function-btn.primary .btn-icon {
-  background: rgba(59, 130, 246, 0.08);
-  color: rgb(59, 130, 246);
-}
-
-.function-btn.primary:hover .btn-icon {
-  background: rgba(59, 130, 246, 0.12);
-}
-
-.function-btn.secondary .btn-icon {
-  background: rgba(16, 185, 129, 0.08);
-  color: rgb(16, 185, 129);
-}
-
-.function-btn.secondary:hover .btn-icon {
-  background: rgba(16, 185, 129, 0.12);
-}
-
-/* 修炼系统 - 金色 */
-.function-btn.cultivation .btn-icon {
-  background: rgba(245, 158, 11, 0.08);
-  color: rgb(245, 158, 11);
-}
-
-.function-btn.cultivation:hover .btn-icon {
-  background: rgba(245, 158, 11, 0.12);
-}
-
-/* 任务探索 - 紫色 */
-.function-btn.quest .btn-icon {
-  background: rgba(139, 92, 246, 0.08);
-  color: rgb(139, 92, 246);
-}
-
-.function-btn.quest:hover .btn-icon {
-  background: rgba(139, 92, 246, 0.12);
-}
-
-.function-btn.system .btn-icon {
-  background: rgba(107, 114, 128, 0.08);
-  color: rgb(107, 114, 128);
-}
-
-.function-btn.system:hover .btn-icon {
-  background: rgba(107, 114, 128, 0.12);
-}
-
-/* 禁用状态样式 */
-.function-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--color-surface-light);
-}
-
-.function-btn:disabled:hover {
-  background: var(--color-surface-light);
-  transform: none;
-  box-shadow: none;
-  border-color: var(--color-border);
-}
-
-.function-btn:disabled .btn-icon {
-  background: var(--color-background);
-  border-color: var(--color-border);
-}
-
-.function-btn:disabled .btn-arrow {
-  opacity: 0.3;
-  transform: none;
-}
-
-.function-btn.disabled {
-  position: relative;
-  opacity: 0.6;
-}
-
-.disabled-text {
-  font-style: italic;
-  opacity: 0.7;
-}
-
-/* 退出按钮特殊样式 */
-.exit-btn {
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.04);
-}
-
-.exit-btn:hover {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.4);
-}
-
-.exit-btn .btn-text {
-  color: var(--color-error);
-}
-
-.exit-btn .btn-desc {
-  color: rgba(239, 68, 68, 0.6);
-}
-
-.exit-btn .btn-icon {
-  background: rgba(239, 68, 68, 0.08);
-  color: var(--color-error);
-}
-
-.exit-btn:hover .btn-icon {
-  background: rgba(239, 68, 68, 0.12);
-}
-
-/* 管理员按钮样式 */
-.function-btn.admin .btn-icon {
-  background: rgba(245, 158, 11, 0.08);
-  color: rgb(245, 158, 11);
-}
-
-.function-btn.admin:hover .btn-icon {
-  background: rgba(245, 158, 11, 0.12);
-}
-
-.function-btn.admin .btn-text {
-  color: rgb(245, 158, 11);
-}
-
-.function-btn.admin .btn-desc {
-  color: rgba(245, 158, 11, 0.6);
-}
-
-/* 深色主题无需额外适配：已统一使用主题变量 */
-
-/* 响应式适配 */
-@media (max-width: 768px) {
-  .left-sidebar {
-    padding: 12px;
+@media (max-height: 820px) {
+  .nav-item {
+    height: 34px;
   }
 
-  .function-section,
-  .system-section {
-    padding: 8px;
-  }
-
-  .function-btn {
-    padding: 10px 12px;
-  }
-
-  .function-btn .btn-icon {
-    width: 32px;
-    height: 32px;
-  }
-
-  .function-btn .btn-text {
-    font-size: 0.8rem;
-  }
-
-  .function-btn .btn-desc {
-    font-size: 0.65rem;
+  .nav-group + .nav-group {
+    margin-top: 0.45rem;
   }
 }
 
-/* ========== iframe环境（酒馆端）样式 ========== */
-/* 不做特殊放大，使用与网页版相同的样式 */
+@media (max-width: 480px) {
+  .sponsor-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

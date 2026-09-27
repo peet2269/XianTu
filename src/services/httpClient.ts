@@ -2,6 +2,47 @@
 import { toast } from '../utils/toast';
 import { buildBackendUrl, isBackendConfigured } from './backendConfig';
 
+export interface RequestOptions extends RequestInit {
+  /** 单次请求超时；默认 30 秒。流式/长任务可显式传更长时间。 */
+  timeoutMs?: number;
+  /** 后台探活或由调用方处理错误时不弹 Toast。 */
+  silent?: boolean;
+}
+
+export class HttpClientError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = 'HttpClientError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+function withTimeout(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const abort = () => controller.abort();
+
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', abort, { once: true });
+  }
+  if (timeoutMs > 0) timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    },
+  };
+}
+
 const normalizeRequestErrorMessage = (message: string): string => {
   const trimmed = message.trim();
   if (!trimmed) {
@@ -71,13 +112,16 @@ const redirectToLogin = () => {
 };
 
 // 统一的请求函数
-export async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
   const token = localStorage.getItem('access_token');
   const headers = new Headers(options.headers || {});
   let didToast = false;
+  const silent = options.silent === true;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   if (token) {
-    headers.append('Authorization', `Bearer ${token}`);
+    // set() 避免调用方传入旧 token 时产生两个 Authorization 头。
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
   // 确保 Content-Type（如果需要）
@@ -85,10 +129,14 @@ export async function request<T>(url: string, options: RequestInit = {}): Promis
     headers.append('Content-Type', 'application/json');
   }
 
+  const timeout = withTimeout(options.signal, timeoutMs);
   const config: RequestInit = {
     ...options,
+    signal: timeout.signal,
     headers,
   };
+  delete (config as RequestOptions).timeoutMs;
+  delete (config as RequestOptions).silent;
 
   try {
     if (!isBackendConfigured()) {
@@ -110,7 +158,7 @@ export async function request<T>(url: string, options: RequestInit = {}): Promis
       try {
         const errorJson = JSON.parse(rawText) as unknown;
         errorMessage = extractErrorMessageFromBody(errorJson) || errorMessage;
-      } catch (_e) {
+      } catch {
         // 如果响应不是JSON，就使用原始文本的前100个字符作为错误信息
         errorMessage = rawText.substring(0, 100) || '无法解析服务端响应。';
       }
@@ -119,28 +167,35 @@ export async function request<T>(url: string, options: RequestInit = {}): Promis
 
       // 登录相关的401错误不自动弹toast，让调用方处理
       if (shouldSkipAuthRedirect(url)) {
-        throw new Error(errorMessage);
+        throw new HttpClientError(errorMessage, response.status, rawText);
       }
 
       if (response.status === 401) {
         errorMessage = '登录已失效或未登录，请先登录后再试。';
-        toast.info(errorMessage);
-        didToast = true;
+        if (!silent) {
+          toast.info(errorMessage);
+          didToast = true;
+        }
         redirectToLogin();
       } else {
-        toast.error(errorMessage);
-        didToast = true;
+        if (!silent) {
+          toast.error(errorMessage);
+          didToast = true;
+        }
       }
 
-      throw new Error(errorMessage);
+      throw new HttpClientError(errorMessage, response.status, rawText);
     }
 
     try {
       return (rawText ? (JSON.parse(rawText) as T) : (null as T));
-    } catch (_e) {
+    } catch {
       throw new Error('解析服务端响应失败，返回的不是有效的JSON格式。');
     }
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(timeoutMs > 0 ? `请求超时（${Math.round(timeoutMs / 1000)} 秒）` : '请求已取消');
+    }
     const errorMessage = normalizeRequestErrorMessage(
       error instanceof Error
         ? error.message
@@ -148,33 +203,38 @@ export async function request<T>(url: string, options: RequestInit = {}): Promis
     );
 
     // 避免重复显示由 !response.ok 块处理过的错误，以及登录相关错误
-    if (!didToast && !shouldSkipAuthRedirect(url)) {
+    if (!silent && !didToast && !shouldSkipAuthRedirect(url)) {
       toast.error(errorMessage);
     }
 
+    // 保留服务端状态码，调用方可对 409/422/401 做精确处理。
+    if (error instanceof HttpClientError) throw error;
     throw new Error(errorMessage); // 重新抛出，避免上层看到英文错误
+  }
+  finally {
+    timeout.cleanup();
   }
 }
 
 // 便捷的 HTTP 方法
-request.get = <T>(url: string, options: Omit<RequestInit, 'method'> = {}) =>
+request.get = <T>(url: string, options: Omit<RequestOptions, 'method'> = {}) =>
   request<T>(url, { ...options, method: 'GET' });
 
-request.post = <T>(url: string, data?: unknown, options: Omit<RequestInit, 'method' | 'body'> = {}) =>
+request.post = <T>(url: string, data?: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
   request<T>(url, {
     ...options,
     method: 'POST',
     body: data !== undefined ? JSON.stringify(data) : undefined,
   });
 
-request.put = <T>(url: string, data?: unknown, options: Omit<RequestInit, 'method' | 'body'> = {}) =>
+request.put = <T>(url: string, data?: unknown, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
   request<T>(url, {
     ...options,
     method: 'PUT',
     body: data !== undefined ? JSON.stringify(data) : undefined,
   });
 
-request.delete = <T>(url: string, options: Omit<RequestInit, 'method'> = {}) =>
+request.delete = <T>(url: string, options: Omit<RequestOptions, 'method'> = {}) =>
   request<T>(url, { ...options, method: 'DELETE' });
 
 

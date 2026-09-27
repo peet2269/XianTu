@@ -52,7 +52,7 @@ export function calculateMasteredSkills(saveData: SaveData): MasteredSkill[] {
     for (const skill of technique.功法技能) {
       const skillName = skill.技能名称;
       // 获取技能解锁所需的熟练度阈值
-      const unlockThreshold = skill.熟练度要求 || 0;
+      const unlockThreshold = (skill.熟练度要求 ?? (skill as any).解锁需要熟练度 ?? 0);
 
       debug.log('掌握技能计算', `  技能 ${skillName}，解锁阈值: ${unlockThreshold}`);
 

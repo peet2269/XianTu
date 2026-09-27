@@ -1,27 +1,32 @@
 <template>
-  <div v-if="show" class="retry-dialog-overlay" @click="handleCancel">
-    <div class="retry-dialog" @click.stop>
-      <div class="dialog-header">
-        <h3>{{ config?.title || $t('AI生成失败') }}</h3>
-      </div>
-
-      <div class="dialog-content">
-        <div class="error-icon">
-          <AlertTriangle :size="48" />
+  <transition name="dialog-fade">
+    <div v-if="show" class="cc-modal-overlay confirm-overlay" @click="handleCancel">
+      <div
+        class="cc-modal confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        :aria-label="config?.title || $t('AI生成失败')"
+        @click.stop
+      >
+        <div class="confirm-body">
+          <div class="confirm-emblem" aria-hidden="true">
+            <AlertTriangle :size="26" />
+          </div>
+          <h3 class="cc-modal-title confirm-title">{{ config?.title || $t('AI生成失败') }}</h3>
+          <p class="confirm-message">{{ config?.message || $t('生成过程遇到问题') }}</p>
         </div>
-        <p class="message">{{ config?.message || $t('生成过程遇到问题') }}</p>
-      </div>
 
-      <div class="dialog-actions">
-        <button class="btn-secondary" @click="handleCancel">
-          {{ config?.cancelText || $t('取消') }}
-        </button>
-        <button class="btn-primary" @click="handleConfirm">
-          {{ config?.confirmText || $t('重试') }}
-        </button>
+        <div class="cc-modal-foot confirm-actions">
+          <button type="button" class="cc-btn" @click="handleCancel">
+            {{ config?.cancelText || $t('取消') }}
+          </button>
+          <button type="button" class="cc-btn primary" @click="handleConfirm">
+            {{ config?.confirmText || $t('重试') }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </transition>
 </template>
 
 <script setup lang="ts">
@@ -44,202 +49,92 @@ const handleCancel = () => {
 </script>
 
 <style scoped>
-.retry-dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  backdrop-filter: blur(4px);
+/* 外观见 styles/creation-theme.css 的 cc-modal，令牌见 styles/xian-tokens.css */
+.confirm-overlay {
+  z-index: 15000;
 }
 
-.retry-dialog {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  width: 100%;
-  max-width: 480px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: dialog-appear 0.3s ease-out;
-  overflow: hidden;
-  /* 确保背景完全贴合 */
+.confirm-dialog {
+  width: min(420px, 100%);
+}
+
+.confirm-body {
+  position: relative;
   display: flex;
   flex-direction: column;
-}
-
-@keyframes dialog-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.9) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.dialog-header {
-  padding: 24px 24px 16px;
-  text-align: center;
-  background: var(--color-surface);
-  /* 去除可能的间隙 */
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.dialog-header h3 {
-  margin: 0;
-  padding: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-text);
-  line-height: 1.4;
-}
-
-.dialog-content {
-  padding: 20px 24px;
-  text-align: center;
-  background: var(--color-surface);
-  /* 确保内容区域可滚动但不超出 */
-  max-height: 50vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* 去除可能的间隙 */
-  margin: 0;
-  flex: 1;
-}
-
-/* 滚动条样式优化 */
-.dialog-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.dialog-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.dialog-content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
-.dialog-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.error-icon {
-  color: var(--color-warning);
-  margin: 0 0 16px 0;
-  padding: 0;
-  display: flex;
-  justify-content: center;
   align-items: center;
+  gap: 0.6rem;
+  padding: 1.75rem 1.5rem 1.25rem;
+  text-align: center;
+  overflow-y: auto;
 }
 
-.message {
-  color: var(--color-text);
-  line-height: 1.6;
+/* 玉璧徽记 */
+.confirm-emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 0.25rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-warning-rgb), 0.28) 0%, rgba(var(--cc-warning-rgb), 0.06) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.55);
+  color: var(--cc-warning);
+}
+
+.confirm-emblem::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.4);
+  animation: ring-spin 18s linear infinite;
+}
+
+@keyframes ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.confirm-title {
+  font-size: 1.45rem;
+}
+
+.confirm-message {
   margin: 0;
-  padding: 0;
-  white-space: pre-line;
-  text-align: left;
+  max-height: 40vh;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: var(--cc-text-2);
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
-.dialog-actions {
-  display: flex;
-  gap: 12px;
-  padding: 16px 24px 24px;
-  background: var(--color-surface);
-  /* 去除可能的间隙 */
-  margin: 0;
-  flex-shrink: 0;
+.confirm-actions {
+  justify-content: center;
 }
 
-.btn-primary,
-.btn-secondary {
-  flex: 1;
-  padding: 12px 20px;
-  margin: 0;
-  border-radius: 8px;
-  border: 1px solid;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 14px;
-  line-height: 1.5;
+.confirm-actions .cc-btn {
+  min-width: 112px;
 }
 
-.btn-primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
+.dialog-fade-enter-active,
+.dialog-fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-.btn-primary:hover {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
+.dialog-fade-enter-from,
+.dialog-fade-leave-to {
+  opacity: 0;
 }
 
-.btn-secondary {
-  background: transparent;
-  border-color: var(--color-border);
-  color: var(--color-text-secondary);
-}
-
-.btn-secondary:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-text-secondary);
-  color: var(--color-text);
-  transform: translateY(-1px);
-}
-
-.btn-primary:active,
-.btn-secondary:active {
-  transform: translateY(0) scale(0.98);
-}
-
-@media (max-width: 480px) {
-  .retry-dialog-overlay {
-    padding: 16px;
-  }
-
-  .retry-dialog {
-    max-width: none;
-    border-radius: 12px;
-  }
-
-  .dialog-header {
-    padding: 20px 20px 12px;
-  }
-
-  .dialog-header h3 {
-    font-size: 1.1rem;
-  }
-
-  .dialog-content {
-    padding: 16px 20px;
-    max-height: 60vh;
-  }
-
-  .dialog-actions {
-    flex-direction: column-reverse;
-    gap: 10px;
-    padding: 12px 20px 20px;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    flex: none;
-    width: 100%;
+@media (prefers-reduced-motion: reduce) {
+  .confirm-emblem::before {
+    animation: none;
   }
 }
 </style>

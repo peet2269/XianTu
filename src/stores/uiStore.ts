@@ -22,6 +22,37 @@ interface DetailModalConfig {
   className?: string;
 }
 
+// 分阶段加载（开局生成等长流程的可视化进度）
+export type LoadingStageStatus = 'pending' | 'active' | 'done' | 'error';
+
+export interface LoadingStageDef {
+  key: string;
+  label: string;
+  /** 这一步在做什么（副标题） */
+  hint?: string;
+  /** 玉璧中显示的书法单字 */
+  glyph?: string;
+  /** 进行到这一步时是否还允许取消（默认允许；写入存档之后应设为 false） */
+  cancelable?: boolean;
+}
+
+export interface LoadingStage extends LoadingStageDef {
+  status: LoadingStageStatus;
+  /** 实时细节：如「第 1 步 · 撰写正文」「第 2 次重试」 */
+  detail?: string;
+  startedAt?: number;
+  endedAt?: number;
+}
+
+/** 实时预览的内容类型：world=世界 JSON（抽取地名），story=剧情正文，commands=剧情指令 JSON */
+export type LoadingStreamKind = 'world' | 'story' | 'commands';
+
+export interface WorldGenTargets {
+  continents: number;
+  factions: number;
+  locations: number;
+}
+
 // Toast 类型定义
 interface ToastOptions {
   type?: 'success' | 'error' | 'warning' | 'info';
@@ -36,6 +67,20 @@ export const useUIStore = defineStore('ui', () => {
 
   const isLoading = ref(false);
   const loadingText = ref('');
+
+  // --- 分阶段加载 ---
+  const loadingTitle = ref('');
+  const loadingSubtitle = ref('');
+  const loadingStages = ref<LoadingStage[]>([]);
+  const loadingStartedAt = ref(0);
+  const loadingStream = shallowRef('');
+  const loadingStreamKind = ref<LoadingStreamKind | null>(null);
+  const worldGenTargets = ref<WorldGenTargets | null>(null);
+  const loadingCancelHandler = shallowRef<(() => void) | null>(null);
+  const loadingCancelling = ref(false);
+  const isStagedLoading = computed(() => isLoading.value && loadingStages.value.length > 0);
+  /** 流式预览只保留最近这么多字，避免超长响应拖慢界面 */
+  const LOADING_STREAM_LIMIT = 60000;
   const isAIProcessing = ref(false); // AI处理状态（持久化，切换面板时不丢失）
 
   // 🔥 流式响应状态（全局持久化，切换页面不丢失）
@@ -142,7 +187,20 @@ export const useUIStore = defineStore('ui', () => {
     showCharacterManagement.value = false;
   }
 
+  function resetStagedLoading() {
+    loadingTitle.value = '';
+    loadingSubtitle.value = '';
+    loadingStages.value = [];
+    loadingStartedAt.value = 0;
+    loadingStream.value = '';
+    loadingStreamKind.value = null;
+    worldGenTargets.value = null;
+    loadingCancelHandler.value = null;
+    loadingCancelling.value = false;
+  }
+
   function startLoading(text = '正在加载...') {
+    resetStagedLoading();
     isLoading.value = true;
     loadingText.value = text;
   }
@@ -150,6 +208,113 @@ export const useUIStore = defineStore('ui', () => {
   function stopLoading() {
     isLoading.value = false;
     loadingText.value = '';
+    resetStagedLoading();
+  }
+
+  /** 开启分阶段加载：遮罩显示步骤列表、进度条与实时预览 */
+  function startStagedLoading(options: { title: string; subtitle?: string; stages: LoadingStageDef[]; onCancel?: () => void }) {
+    resetStagedLoading();
+    loadingCancelHandler.value = options.onCancel ?? null;
+    loadingTitle.value = options.title;
+    loadingSubtitle.value = options.subtitle ?? '';
+    loadingStages.value = options.stages.map((stage) => ({ ...stage, status: 'pending' as const }));
+    loadingStartedAt.value = Date.now();
+    loadingText.value = options.title;
+    isLoading.value = true;
+  }
+
+  /** 把所有步骤重置为未开始（整体重试时用），计时重新开始 */
+  function restartLoadingStages() {
+    loadingStages.value = loadingStages.value.map(({ key, label, hint, glyph, cancelable }) => ({ key, label, hint, glyph, cancelable, status: 'pending' as const }));
+    loadingCancelling.value = false;
+    loadingStartedAt.value = Date.now();
+    loadingStream.value = '';
+    loadingStreamKind.value = null;
+  }
+
+  /**
+   * 进入某一步：之前进行中的步骤记为完成，之前未开始的跳过步骤也记为完成。
+   * 非分阶段加载时退化为更新文字。
+   */
+  function enterLoadingStage(key: string, detail?: string) {
+    const index = loadingStages.value.findIndex((stage) => stage.key === key);
+    if (index === -1) {
+      const text = detail ? `${key}：${detail}` : key;
+      updateLoadingText(text);
+      return;
+    }
+    const now = Date.now();
+    loadingStages.value = loadingStages.value.map((stage, i) => {
+      if (i < index && stage.status !== 'done') {
+        return { ...stage, status: 'done', endedAt: now, startedAt: stage.startedAt ?? now };
+      }
+      if (i === index) {
+        return { ...stage, status: 'active', detail, startedAt: now, endedAt: undefined };
+      }
+      // 回退（如整体重试）时，后面已开始的步骤恢复为未开始
+      if (i > index && stage.status !== 'pending') {
+        return { ...stage, status: 'pending', detail: undefined, startedAt: undefined, endedAt: undefined };
+      }
+      return stage;
+    });
+    loadingText.value = loadingStages.value[index].label;
+  }
+
+  /** 更新当前（或指定）步骤的实时细节 */
+  function setLoadingStageDetail(detail: string, key?: string) {
+    const target = key ?? loadingStages.value.find((stage) => stage.status === 'active')?.key;
+    if (!target) {
+      updateLoadingText(detail);
+      return;
+    }
+    loadingStages.value = loadingStages.value.map((stage) => (stage.key === target ? { ...stage, detail } : stage));
+  }
+
+  /** 所有步骤完成 */
+  function completeLoadingStages() {
+    const now = Date.now();
+    loadingStages.value = loadingStages.value.map((stage) =>
+      stage.status === 'done' ? stage : { ...stage, status: 'done', startedAt: stage.startedAt ?? now, endedAt: now },
+    );
+  }
+
+  /** 追加流式内容，供遮罩实时预览 */
+  function appendLoadingStream(chunk: string, kind: LoadingStreamKind) {
+    if (!isLoading.value || !chunk) return;
+    if (loadingStreamKind.value !== kind) {
+      loadingStreamKind.value = kind;
+      loadingStream.value = '';
+    }
+    const next = loadingStream.value + chunk;
+    loadingStream.value = next.length > LOADING_STREAM_LIMIT ? next.slice(-LOADING_STREAM_LIMIT) : next;
+  }
+
+  function resetLoadingStream() {
+    loadingStream.value = '';
+  }
+
+  /** 切换预览类型并清空内容（内容尚未到达时，遮罩先显示该类型的等待态） */
+  function setLoadingStreamKind(kind: LoadingStreamKind) {
+    loadingStreamKind.value = kind;
+    loadingStream.value = '';
+  }
+
+  /** 当前是否可以取消（有取消回调，且当前步骤允许） */
+  const canCancelLoading = computed(() => {
+    if (!isStagedLoading.value || !loadingCancelHandler.value) return false;
+    const active = loadingStages.value.find((stage) => stage.status === 'active');
+    return active ? active.cancelable !== false : true;
+  });
+
+  function cancelStagedLoading() {
+    if (!canCancelLoading.value || loadingCancelling.value) return;
+    loadingCancelling.value = true;
+    setLoadingStageDetail('正在取消…');
+    loadingCancelHandler.value?.();
+  }
+
+  function setWorldGenTargets(targets: WorldGenTargets | null) {
+    worldGenTargets.value = targets;
   }
 
   function setAIProcessing(value: boolean) {
@@ -408,6 +573,26 @@ export const useUIStore = defineStore('ui', () => {
     retryDialogConfig,
     startLoading,
     stopLoading,
+    loadingTitle,
+    loadingSubtitle,
+    loadingStages,
+    loadingStartedAt,
+    loadingStream,
+    loadingStreamKind,
+    worldGenTargets,
+    isStagedLoading,
+    startStagedLoading,
+    restartLoadingStages,
+    enterLoadingStage,
+    setLoadingStageDetail,
+    completeLoadingStages,
+    appendLoadingStream,
+    resetLoadingStream,
+    setLoadingStreamKind,
+    loadingCancelling,
+    canCancelLoading,
+    cancelStagedLoading,
+    setWorldGenTargets,
     setAIProcessing, // 暴露设置AI处理状态的方法
     updateLoadingText,
     showRetryDialog,

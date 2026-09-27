@@ -7,6 +7,11 @@ declare module '*.vue' {
   export default component
 }
 
+declare module '*.png' {
+  const src: string
+  export default src
+}
+
 declare const APP_VERSION: string;
 declare const BACKEND_BASE_URL: string;
 

@@ -2,7 +2,9 @@
  * 提示词存储服务 - 使用IndexedDB
  */
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { getSystemPrompts, PROMPT_CATEGORIES, type PromptDefinition } from './defaultPrompts';
+import { getSystemPrompts, PROMPT_CATEGORIES } from './defaultPrompts';
+import { fetchRemotePromptConfig, getPromptWithRemoteOverride, getRemotePromptEnabled } from './promptConfig';
+import type { PromptDefinition } from './defaultPrompts';
 
 interface PromptsDB extends DBSchema {
   prompts: {
@@ -43,18 +45,41 @@ export interface PromptsByCategory {
   };
 }
 
+type SavedPrompt = PromptsDB['prompts']['value'];
+
+/**
+ * 提示词是否启用（界面显示与实际发送共用同一套判定）：
+ * 用户停用 > 用户改过内容 > 远程配置 > 用户手动启用 > 默认值（defaultEnabled，缺省为启用）
+ */
+function resolvePromptEnabled(key: string, saved: SavedPrompt | undefined, def: PromptDefinition | undefined): boolean {
+  if (saved?.enabled === false) return false;
+  if (saved?.modified) return true;
+  const remote = getRemotePromptEnabled(key);
+  if (remote !== undefined) return remote;
+  if (saved?.enabled === true) return true;
+  return def?.defaultEnabled !== false;
+}
+
 class PromptStorage {
   private db: IDBPDatabase<PromptsDB> | null = null;
+  private remoteConfigPromise: Promise<void> | null = null;
 
   async init() {
-    if (this.db) return;
-    this.db = await openDB<PromptsDB>('dad-prompts', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('prompts')) {
-          db.createObjectStore('prompts', { keyPath: 'key' });
+    if (!this.db) {
+      this.db = await openDB<PromptsDB>('dad-prompts', 1, {
+        upgrade(db) {
+          if (!db.objectStoreNames.contains('prompts')) {
+            db.createObjectStore('prompts', { keyPath: 'key' });
+          }
         }
-      }
-    });
+      });
+    }
+    // 远程配置是增强项，失败时继续使用本地默认值；只发起一次，避免每个提示词重复请求。
+    if (!this.remoteConfigPromise) {
+      this.remoteConfigPromise = fetchRemotePromptConfig().then(() => undefined).catch(() => undefined);
+    }
+    // 不阻塞首个游戏请求；远程配置加载完成后，后续读取会自动使用它。
+    void this.remoteConfigPromise;
   }
 
   /**
@@ -67,9 +92,10 @@ class PromptStorage {
 
     for (const key in defaults) {
       const saved = await this.db!.get('prompts', key);
-      const currentContent = saved?.content || defaults[key].content;
-      // enabled 默认为 true，只有明确设置为 false 时才禁用
-      const isEnabled = saved?.enabled !== false;
+      const currentContent = saved?.modified
+        ? saved.content
+        : getPromptWithRemoteOverride(key, defaults[key].content);
+      const isEnabled = resolvePromptEnabled(key, saved, defaults[key]);
       // 权重：优先使用用户保存的，否则使用默认值
       const currentWeight = saved?.weight !== undefined ? saved.weight : defaults[key].weight;
       result[key] = {
@@ -167,7 +193,7 @@ class PromptStorage {
     await this.init();
     const defaults = getSystemPrompts();
     const saved = await this.db!.get('prompts', key);
-    const content = saved?.content || defaults[key]?.content || '';
+    const content = saved?.modified ? saved.content : defaults[key]?.content || '';
     const modified = saved?.modified || false;
 
     await this.db!.put('prompts', {
@@ -175,6 +201,7 @@ class PromptStorage {
       content,
       modified,
       enabled,
+      weight: saved?.weight ?? defaults[key]?.weight,
       updatedAt: new Date().toISOString()
     });
   }
@@ -192,7 +219,7 @@ class PromptStorage {
     const defaults = getSystemPrompts();
     const saved = await this.db!.get('prompts', key);
 
-    if (saved?.enabled === false) {
+    if (!resolvePromptEnabled(key, saved, defaults[key])) {
       return '';
     }
 
@@ -202,7 +229,7 @@ class PromptStorage {
       return saved.content;
     }
 
-    return defaults[key]?.content || '';
+    return getPromptWithRemoteOverride(key, defaults[key]?.content || '');
   }
 
   async reset(key: string) {

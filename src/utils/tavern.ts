@@ -174,15 +174,6 @@ export async function clearAllCharacterData(): Promise<void> {
     throw error;
   }
 
-  // 🔥 清理向量记忆数据库
-  try {
-    const { vectorMemoryService } = await import('@/services/vectorMemoryService');
-    if (vectorMemoryService) {
-      await vectorMemoryService.clear();
-      console.log('[Tavern] 向量记忆已清理');
-    }
-  } catch (error) {
-    console.warn('[Tavern] 清理向量记忆失败（非致命）:', error);
-    // 不抛出错误，因为向量记忆清理失败不应该阻止游戏创建
-  }
+  // 本地记忆索引按存档隔离（见 services/localMemoryIndex.ts），切换存档时无需清理；
+  // 删除存档/角色时由 characterStore 删除对应索引。
 }

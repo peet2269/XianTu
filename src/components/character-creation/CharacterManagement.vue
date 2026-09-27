@@ -3,28 +3,27 @@
     <VideoBackground v-if="isFullscreen" />
 
     <!-- 自定义对话框 -->
-    <div v-if="modalState.show" class="dialog-overlay" @click="handleModalCancel">
-      <div class="dialog-box" @click.stop>
-        <h3 class="dialog-title">{{ modalState.title }}</h3>
-        <p class="dialog-message">{{ modalState.message }}</p>
-
-        <input
-          v-if="modalState.type === 'prompt'"
-          v-model="modalState.inputValue"
-          :placeholder="modalState.placeholder"
-          class="dialog-input"
-          ref="promptInput"
-        />
-
-        <div class="dialog-actions">
-          <button
-            v-if="modalState.type !== 'alert'"
-            @click="handleModalCancel"
-            class="btn-dialog-cancel"
-          >
+    <div v-if="modalState.show" class="cc-modal-overlay dialog-layer" @click="handleModalCancel">
+      <div class="cc-modal small-dialog" role="dialog" aria-modal="true" @click.stop>
+        <div class="cc-modal-head">
+          <h3 class="cc-modal-title">{{ modalState.title }}</h3>
+        </div>
+        <div class="cc-modal-body">
+          <p class="cc-hint dialog-message">{{ modalState.message }}</p>
+          <input
+            v-if="modalState.type === 'prompt'"
+            ref="promptInput"
+            v-model="modalState.inputValue"
+            :placeholder="modalState.placeholder"
+            class="cc-input"
+            @keydown.enter="handleModalConfirm"
+          />
+        </div>
+        <div class="cc-modal-foot">
+          <button v-if="modalState.type !== 'alert'" type="button" class="cc-btn" @click="handleModalCancel">
             {{ $t('取消') }}
           </button>
-          <button @click="handleModalConfirm" class="btn-dialog-confirm">
+          <button type="button" class="cc-btn primary" @click="handleModalConfirm">
             {{ $t('确认') }}
           </button>
         </div>
@@ -33,12 +32,17 @@
 
     <!-- 主体区域 -->
     <main class="main-content" :class="{ 'fullscreen-content': isFullscreen }">
+      <span class="frame-corner tl" aria-hidden="true"></span>
+      <span class="frame-corner tr" aria-hidden="true"></span>
+      <span class="frame-corner bl" aria-hidden="true"></span>
+      <span class="frame-corner br" aria-hidden="true"></span>
+
       <input
         ref="fileInput"
         type="file"
         accept=".json"
-        @change="handleImportFile"
         style="display: none"
+        @change="handleImportFile"
       />
       <LegacySaveMigrationModal
         :open="showLegacyMigrationModal"
@@ -49,502 +53,423 @@
         @imported="handleLegacyImported"
         @character-created="handleLegacyCharacterCreated"
       />
-      <!-- 返回按钮 - 仅在全屏模式显示 -->
-      <div v-if="isFullscreen" class="fullscreen-header">
-        <button @click="handleClose" class="fullscreen-back-btn">
-          <ArrowLeft :size="20" />
+
+      <!-- 页头 -->
+      <header v-if="isFullscreen" class="page-header">
+        <button type="button" class="cc-btn small back-btn" @click="handleClose">
+          <ArrowLeft :size="16" />
           <span>{{ $t('返回道途') }}</span>
         </button>
-        <div class="fullscreen-title">
+        <div class="page-title">
           <h1>{{ $t('续前世因缘') }}</h1>
           <p>{{ $t('择一法身，入道重修') }}</p>
         </div>
-      </div>
+        <div class="header-spacer" aria-hidden="true"></div>
+      </header>
 
-      <!-- 移动端头部导航 -->
+      <!-- 移动端：角色列表抽屉开关 -->
       <div class="mobile-header">
         <button
-          class="mobile-menu-btn"
-          @click="toggleCharacterPanel"
+          type="button"
+          class="cc-btn small mobile-menu-btn"
           :class="{ active: isCharacterPanelOpen }"
+          :aria-expanded="isCharacterPanelOpen"
+          @click="toggleCharacterPanel"
         >
-          <div class="hamburger">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <span class="menu-text">{{ $t('角色列表') }}</span>
+          <Users :size="15" />
+          <span>{{ $t('角色列表') }}</span>
         </button>
-        <div class="mobile-title">
-          <h2>{{ $t('角色管理') }}</h2>
-          <div v-if="selectedCharacter?.角色?.名字" class="selected-info">
-            {{ selectedCharacter.角色.名字 }} - {{ selectedCharacter.模式 }}{{ $t('模式') }}
-          </div>
+        <div v-if="selectedCharacter?.角色?.名字" class="mobile-selected">
+          {{ selectedCharacter.角色.名字 }} · {{ selectedCharacter.模式 }}
         </div>
       </div>
 
-      <!-- 遮罩层 -->
       <div
         v-if="isCharacterPanelOpen && isMobile"
         class="panel-overlay"
         @click="isCharacterPanelOpen = false"
       ></div>
 
-      <!-- 无角色提示 -->
+      <!-- 无角色 -->
       <div v-if="Object.keys(characterStore.rootState.角色列表).length === 0" class="empty-state">
-        <div class="empty-icon"><Star :size="32" /></div>
+        <div class="empty-emblem" aria-hidden="true"><span>缘</span></div>
         <h2>{{ $t('道途未启') }}</h2>
         <p>{{ $t('尚未创建任何法身，请返回道途开启修仙之旅') }}</p>
         <div class="empty-actions">
-          <button @click="goBack" class="btn-create">{{ $t('踏入仙途') }}</button>
-          <button @click="importCharacter" class="btn-import">{{ $t('导入角色') }}</button>
+          <button type="button" class="cc-btn primary" @click="goBack">
+            <Sparkles :size="16" />
+            <span>{{ $t('踏入仙途') }}</span>
+          </button>
+          <button type="button" class="cc-btn" @click="importCharacter">
+            <Upload :size="16" />
+            <span>{{ $t('导入角色') }}</span>
+          </button>
         </div>
       </div>
 
-      <!-- 角色管理界面 -->
+      <!-- 角色管理 -->
       <div v-else class="management-layout">
-        <!-- 3行2列网格容器 -->
-        <div class="grid-container">
-          <!-- 第1行：标题栏 -->
-          <div class="grid-header-left">
-            <div class="header-title-group">
+        <!-- 左：角色列表 -->
+        <section class="cc-panel characters-panel" :class="{ 'is-open': isCharacterPanelOpen }">
+          <div class="panel-head">
+            <div class="panel-head-title">
               <h2>{{ $t('角色列表') }}</h2>
-              <div class="character-count">{{ allCharacterCount }} {{ $t('个角色') }}</div>
+              <span class="count-chip">{{ allCharacterCount }}</span>
             </div>
-            <button
-              @click="importCharacter"
-              class="btn-header-action import"
-              :title="$t('导入角色')"
-            >
-              <Upload :size="16" />
-              <span>{{ $t('导入') }}</span>
-            </button>
-            <button
-              @click="openLegacyMigrationStandalone"
-              class="btn-header-action migrate"
-              :title="$t('导入旧版本角色')"
-            >
-              <Wrench :size="16" />
-              <span>{{ $t('旧版本') }}</span>
-            </button>
+            <div class="panel-head-actions">
+              <button type="button" class="cc-btn small" :title="$t('导入角色')" @click="importCharacter">
+                <Upload :size="14" />
+                <span>{{ $t('导入') }}</span>
+              </button>
+              <button type="button" class="cc-btn small" :title="$t('导入旧版本角色')" @click="openLegacyMigrationStandalone">
+                <Wrench :size="14" />
+                <span>{{ $t('旧版本') }}</span>
+              </button>
+            </div>
           </div>
-          <div class="grid-header-right">
-            <div class="header-left-content">
-              <h2>{{ $t('存档管理') }}</h2>
-              <div v-if="selectedCharacter?.角色?.名字" class="selected-char-info">
-                {{ selectedCharacter.角色.名字 }} - {{ selectedCharacter.模式
-                }}{{ $t('模式') }}
+
+          <div class="characters-list">
+            <div
+              v-for="[charId, profile] in validCharacterList"
+              :key="charId"
+              class="character-card"
+              role="button"
+              tabindex="0"
+              :class="{
+                active: selectedCharId === String(charId),
+                'online-mode': profile.模式 === '联机',
+              }"
+              @click="selectCharacter(String(charId))"
+              @keydown.enter.prevent="selectCharacter(String(charId))"
+            >
+              <div class="char-avatar" aria-hidden="true">
+                <span>{{ profile.角色.名字[0] }}</span>
+              </div>
+              <div class="char-info">
+                <div class="name-row">
+                  <h3 class="char-name">{{ profile.角色.名字 }}</h3>
+                  <span class="mode-chip" :class="profile.模式 === '联机' ? 'online' : 'single'">
+                    {{ profile.模式 === '联机' ? $t('联机') : $t('单机') }}
+                  </span>
+                </div>
+                <div class="char-meta">
+                  <span>{{ profile.角色.世界.name }}</span>
+                  <span class="dot" aria-hidden="true">·</span>
+                  <span>{{ getFieldName(profile.角色.天资.name) }}</span>
+                </div>
+              </div>
+              <div class="save-count" :title="$t('存档')">
+                <strong>{{ getSaveCount(profile) }}</strong>
+                <span>{{ $t('存档') }}</span>
+              </div>
+              <div class="card-tools">
+                <button type="button" class="cc-icon-btn" :title="$t('详情')" @click.stop="showCharacterDetails(String(charId))">
+                  <ScrollText :size="13" />
+                </button>
+                <button type="button" class="cc-icon-btn" :title="$t('导出')" @click.stop="exportCharacter(String(charId))">
+                  <Download :size="13" />
+                </button>
+                <button type="button" class="cc-icon-btn danger" :title="$t('删除')" @click.stop="handleDeleteCharacter(String(charId))">
+                  <Trash2 :size="13" />
+                </button>
               </div>
             </div>
-            <div v-if="selectedCharacter" class="save-actions-buttons">
-              <button
-                @click="importSaves"
-                class="btn-save-action import"
-                :title="$t('向选中角色导入存档')"
-              >
-                <Upload :size="18" />
+          </div>
+        </section>
+
+        <!-- 右：存档 -->
+        <section class="cc-panel saves-panel">
+          <div class="panel-head">
+            <div class="panel-head-title">
+              <h2>{{ $t('存档管理') }}</h2>
+              <span v-if="selectedCharacter?.角色?.名字" class="selected-char">
+                {{ selectedCharacter.角色.名字 }} · {{ selectedCharacter.模式 }}{{ $t('模式') }}
+              </span>
+            </div>
+            <div v-if="selectedCharacter" class="panel-head-actions">
+              <button type="button" class="cc-btn small" :title="$t('向选中角色导入存档')" @click="importSaves">
+                <Upload :size="14" />
                 <span>{{ $t('导入存档') }}</span>
               </button>
               <button
-                @click="openLegacyMigration"
-                class="btn-save-action migrate"
+                type="button"
+                class="cc-btn small"
                 :disabled="selectedCharacter.模式 !== '单机'"
                 title="旧存档转化（单机）"
+                @click="openLegacyMigration"
               >
-                <Wrench :size="18" />
+                <Wrench :size="14" />
                 <span>旧存档转化</span>
               </button>
             </div>
           </div>
 
-          <!-- 第2行：主要内容区 -->
-          <section
-            class="grid-content-left characters-panel"
-            :class="{ 'is-open': isCharacterPanelOpen }"
-          >
-            <div class="characters-grid">
-              <div
-                v-for="[charId, profile] in validCharacterList"
-                :key="charId"
-                class="character-card"
-                :class="{
-                  active: selectedCharId === String(charId),
-                  'single-mode': profile.模式 === '单机',
-                  'online-mode': profile.模式 === '联机',
-                }"
-                @click="selectCharacter(String(charId))"
-              >
-                <!-- 卡片头部 -->
-                <div class="card-header">
-                  <div class="char-avatar" :class="profile.模式">
-                    <span class="avatar-text">{{ profile.角色.名字[0] }}</span>
-                  </div>
-                  <div class="char-info">
-                    <div class="name-row">
-                      <h3 class="char-name">{{ profile.角色.名字 }}</h3>
-                      <span class="mode-badge" :class="profile.模式 === '联机' ? 'online' : 'single'">
-                        {{ profile.模式 === $t('单机') ? $t('单机') : $t('联机') }}
-                      </span>
-                    </div>
-                    <div class="char-meta">
-                      <span class="world">{{ profile.角色.世界.name }}</span>
-                      <span class="talent">{{ getFieldName(profile.角色.天资.name) }}</span>
-                    </div>
-                  </div>
-                  <div class="save-count">
-                    <span class="count">{{ getSaveCount(profile) }}</span>
-                    <span class="label">{{ $t('存档管理') }}</span>
-                  </div>
-                </div>
-
-                <!-- 卡片底部操作 -->
-                <div class="card-actions">
-                  <button @click.stop="showCharacterDetails(String(charId))" class="btn-details">
-                    {{ $t('详情') }}
-                  </button>
-                  <button @click.stop="exportCharacter(String(charId))" class="btn-export">
-                    {{ $t('导出') }}
-                  </button>
-                  <button @click.stop="handleDeleteCharacter(String(charId))" class="btn-delete">
-                    {{ $t('删除') }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 右侧：存档详情 -->
-          <section class="grid-content-right saves-panel">
+          <div class="saves-body">
             <!-- 未选择角色 -->
-            <div v-if="!selectedCharacter" class="no-selection">
-              <div class="no-selection-icon"><Wrench :size="30" /></div>
-              <p>{{ $t('请选择左侧角色查看存档详情') }}</p>
+            <div v-if="!selectedCharacter" class="cc-placeholder">
+              {{ $t('请选择左侧角色查看存档详情') }}
             </div>
 
-            <!-- 正在加载存档 -->
-            <div v-else-if="isLoadingSaves" class="loading-saves">
-              <div class="loading-spinner"></div>
-              <p>{{ $t('正在加载存档...') }}</p>
+            <!-- 加载中 -->
+            <div v-else-if="isLoadingSaves" class="cc-state">
+              <Loader2 :size="22" class="cc-spin" />
+              <span class="state-text">{{ $t('正在加载存档...') }}</span>
             </div>
 
-            <!-- 单机模式存档 -->
+            <!-- 单机存档 -->
             <div v-else-if="selectedCharacter.模式 === '单机'" class="saves-container">
-              <div class="saves-section">
-                <!-- 手动存档区 - 仅单机模式显示 -->
-                <div v-if="selectedCharacter.模式 === '单机'" class="manual-saves-section">
-                  <div class="manual-saves-header">
-                    <h3>{{ $t('手动存档') }}</h3>
-                    <div class="save-info-text">
-                      <span>{{ $t('存档通过游戏内保存功能创建') }}</span>
-                    </div>
-                  </div>
+              <div class="saves-intro">
+                <h3 class="cc-section-title">{{ $t('手动存档') }}</h3>
+                <span class="saves-tip">{{ $t('存档通过游戏内保存功能创建') }}</span>
+              </div>
 
-                  <div class="manual-saves-grid">
-                    <div
-                      v-for="(slot, slotKey) in getAllSaves(selectedCharacter)"
-                      :key="slotKey"
-                      class="save-card manual-save"
-                      :class="{
-                        'has-data': slot.存档数据,
-                        'auto-save': slotKey === '上次对话' || slotKey === '时间点存档',
-                      }"
-                      @click="slot.存档数据 && handleSelect(selectedCharId!, String(slotKey), true)"
-                      :style="{ cursor: slot.存档数据 ? 'pointer' : 'default' }"
-                    >
-                      <div v-if="slot.存档数据" class="save-data">
-                        <div class="save-header">
-                          <h4 class="save-name">
-                            <History
-                              v-if="slotKey === '上次对话'"
-                              :size="16"
-                              class="save-icon last-save-icon"
-                            />
-                            <Clock
-                              v-else-if="slotKey === '时间点存档'"
-                              :size="16"
-                              class="save-icon time-save-icon"
-                            />
-                            {{ slot.存档名 || slotKey }}
-                          </h4>
-                          <div class="save-actions">
-                            <button
-                              @click.stop="exportSingleSave(selectedCharId!, String(slotKey), slot)"
-                              class="btn-export-save"
-                              :title="$t('导出此存档')"
-                            >
-                              {{ $t('导') }}
-                            </button>
-                            <button
-                              @click.stop="handleEditSaveName(selectedCharId!, String(slotKey))"
-                              class="btn-edit-save"
-                              :title="$t('重命名')"
-                              :disabled="slotKey === '上次对话' || slotKey === '时间点存档'"
-                            >
-                              {{ $t('编') }}
-                            </button>
-                            <button
-                              @click.stop="handleDeleteSave(selectedCharId!, String(slotKey))"
-                              class="btn-delete-save"
-                              :class="{
-                                disabled: !canDeleteSave(selectedCharacter, String(slotKey)),
-                              }"
-                              :disabled="!canDeleteSave(selectedCharacter, String(slotKey))"
-                              :title="getDeleteTooltip(selectedCharacter, String(slotKey))"
-                            >
-                              {{ $t('删') }}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div class="save-badges">
-                          <span class="realm-badge">{{
-                            getRealmName(normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.境界)
-                          }}</span>
-                          <span class="age-badge"
-                            >{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.寿命?.当前 ?? 18 }}岁</span
-                          >
-                        </div>
-
-                        <div class="save-stats">
-                          <div class="stat-grid">
-                            <div class="stat">
-                              <span class="label">气血</span>
-                              <span class="value"
-                                >{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.气血?.当前 ?? 0 }}/{{
-                                  normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.气血?.上限 ?? 0
-                                }}</span
-                              >
-                            </div>
-                            <div class="stat">
-                              <span class="label">灵气</span>
-                              <span class="value"
-                                >{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.灵气?.当前 ?? 0 }}/{{
-                                  normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.灵气?.上限 ?? 0
-                                }}</span
-                              >
-                            </div>
-                            <div class="stat">
-                              <span class="label">神识</span>
-                              <span class="value"
-                                >{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.神识?.当前 ?? 0 }}/{{
-                                  normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.神识?.上限 ?? 0
-                                }}</span
-                              >
-                            </div>
-                            <div class="stat">
-                              <span class="label">声望</span>
-                              <span class="value">{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.声望 ?? 0 }}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="save-footer">
-                          <span class="location">{{
-                            normalizeSaveDataV3(slot.存档数据)?.角色?.位置?.描述 || '初始地'
-                          }}</span>
-                          <span class="save-time">{{ formatTime(slot.保存时间) }}</span>
-                        </div>
-                      </div>
-
-                      <div v-else class="save-empty">
-                        <div class="empty-slot-icon">📁</div>
-                        <span class="empty-text">{{ $t('空存档槽') }}</span>
-                        <span class="empty-desc">{{ $t('通过游戏内保存创建') }}</span>
+              <div class="saves-grid">
+                <div
+                  v-for="(slot, slotKey) in getAllSaves(selectedCharacter)"
+                  :key="slotKey"
+                  class="save-card"
+                  :class="{
+                    'has-data': slot.存档数据,
+                    'auto-save': slotKey === '上次对话' || slotKey === '时间点存档',
+                  }"
+                  :role="slot.存档数据 ? 'button' : undefined"
+                  :tabindex="slot.存档数据 ? 0 : undefined"
+                  @click="slot.存档数据 && handleSelect(selectedCharId!, String(slotKey), true)"
+                  @keydown.enter.prevent="slot.存档数据 && handleSelect(selectedCharId!, String(slotKey), true)"
+                >
+                  <template v-if="slot.存档数据">
+                    <div class="save-header">
+                      <h4 class="save-name">
+                        <History v-if="slotKey === '上次对话'" :size="15" class="save-icon" />
+                        <Clock v-else-if="slotKey === '时间点存档'" :size="15" class="save-icon" />
+                        <span>{{ slot.存档名 || slotKey }}</span>
+                      </h4>
+                      <div class="save-tools">
+                        <button
+                          type="button"
+                          class="cc-icon-btn"
+                          :title="$t('导出此存档')"
+                          @click.stop="exportSingleSave(selectedCharId!, String(slotKey), slot)"
+                        >
+                          <Download :size="13" />
+                        </button>
+                        <button
+                          type="button"
+                          class="cc-icon-btn"
+                          :title="$t('重命名')"
+                          :disabled="slotKey === '上次对话' || slotKey === '时间点存档'"
+                          @click.stop="handleEditSaveName(selectedCharId!, String(slotKey))"
+                        >
+                          <PenLine :size="13" />
+                        </button>
+                        <button
+                          type="button"
+                          class="cc-icon-btn danger"
+                          :disabled="!canDeleteSave(selectedCharacter, String(slotKey))"
+                          :title="getDeleteTooltip(selectedCharacter, String(slotKey))"
+                          @click.stop="handleDeleteSave(selectedCharId!, String(slotKey))"
+                        >
+                          <Trash2 :size="13" />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <!-- 联机模式存档 -->
-            <div v-else-if="selectedCharacter.模式 === '联机'" class="online-saves-container">
-              <div v-if="!isLoggedIn" class="login-prompt">
-                <div class="login-icon">🔐</div>
-                <h3>{{ $t('需要登录') }}</h3>
-                <p>{{ $t('请先登录以管理联机角色存档') }}</p>
-                <button @click="handleLogin" class="btn-login">{{ $t('登入道籍') }}</button>
-              </div>
-
-              <!-- 加载中状态 -->
-              <div v-else-if="isLoadingSaves" class="loading-saves">
-                <div class="loading-spinner">⏳</div>
-                <span>{{ $t('正在加载云端存档...') }}</span>
-              </div>
-
-              <div v-else-if="selectedCharacter.存档列表?.['云端修行']?.存档数据" class="online-save-card">
-                <div class="save-data">
-                  <div class="save-header">
-                    <h4 class="save-name">{{ $t('云端存档') }}</h4>
                     <div class="save-badges">
-                      <span class="realm-badge">{{
-                        getRealmName(normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.境界)
-                      }}</span>
-                      <span class="age-badge"
-                        >{{
-                          normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.寿命?.当前 ?? 18
-                        }}岁</span
-                      >
+                      <span class="realm-badge">{{ getRealmName(normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.境界) }}</span>
+                      <span class="age-badge">{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.寿命?.当前 ?? 18 }}岁</span>
                     </div>
-                  </div>
 
-                  <div class="save-stats">
                     <div class="stat-grid">
-                      <div class="stat">
+                      <div class="stat vital-hp">
                         <span class="label">气血</span>
-                        <span class="value"
-                          >{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.气血?.当前 ?? 0 }}/{{
-                            normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.气血?.上限 ?? 0
-                          }}</span
-                        >
+                        <span class="value">{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.气血?.当前 ?? 0 }}/{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.气血?.上限 ?? 0 }}</span>
                       </div>
-                      <div class="stat">
+                      <div class="stat vital-qi">
                         <span class="label">灵气</span>
-                        <span class="value"
-                          >{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.灵气?.当前 ?? 0 }}/{{
-                            normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.灵气?.上限 ?? 0
-                          }}</span
-                        >
+                        <span class="value">{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.灵气?.当前 ?? 0 }}/{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.灵气?.上限 ?? 0 }}</span>
                       </div>
-                      <div class="stat">
+                      <div class="stat vital-sense">
                         <span class="label">神识</span>
-                        <span class="value"
-                          >{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.神识?.当前 ?? 0 }}/{{
-                            normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.神识?.上限 ?? 0
-                          }}</span
-                        >
+                        <span class="value">{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.神识?.当前 ?? 0 }}/{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.神识?.上限 ?? 0 }}</span>
                       </div>
                       <div class="stat">
                         <span class="label">声望</span>
-                        <span class="value">{{
-                          normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.声望 ?? 0
-                        }}</span>
+                        <span class="value">{{ normalizeSaveDataV3(slot.存档数据)?.角色?.属性?.声望 ?? 0 }}</span>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="save-footer">
-                    <span class="location">{{
-                      normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.位置?.描述 || '初始地'
-                    }}</span>
-                    <div class="sync-info">
-                      <span
-                        class="sync-status"
-                        :class="{ synced: !selectedCharacter.存档列表['云端修行'].云端同步信息?.需要同步 }"
-                      >
-                        {{
-                          selectedCharacter.存档列表['云端修行'].云端同步信息?.需要同步
-                            ? $t('待同步')
-                            : $t('已同步')
-                        }}
+                    <div class="save-footer">
+                      <span class="location">
+                        <MapPin :size="12" />
+                        {{ normalizeSaveDataV3(slot.存档数据)?.角色?.位置?.描述 || '初始地' }}
                       </span>
+                      <span class="save-time">{{ formatTime(slot.保存时间) }}</span>
                     </div>
-                  </div>
+                  </template>
 
-                  <div class="online-actions">
-                    <button @click="handleSelect(selectedCharId!, '云端修行', true)" class="btn-play">
-                      {{ $t('进入游戏') }}
-                    </button>
-                    <button v-if="selectedCharacter.存档列表['云端修行']?.云端同步信息?.需要同步" class="btn-sync">
-                      {{ $t('同步云端') }}
-                    </button>
+                  <div v-else class="save-empty">
+                    <FolderOpen :size="22" :stroke-width="1.5" class="empty-slot-icon" />
+                    <span class="empty-text">{{ $t('空存档槽') }}</span>
+                    <span class="empty-desc">{{ $t('通过游戏内保存创建') }}</span>
                   </div>
-                </div>
-              </div>
-
-              <!-- 没有存档数据：显示开始游戏 -->
-              <div v-else class="online-save-card">
-                <div class="save-empty">
-                  <div class="empty-slot-icon">☁️</div>
-                  <span class="empty-text">{{ $t('尚未开始修行') }}</span>
-                  <p class="empty-hint">{{ $t('开始您的联机修仙之旅，存档将自动同步到云端') }}</p>
-                  <button @click="handleSelect(selectedCharId!, '云端修行', false)" class="btn-start">
-                    {{ $t('开始游戏') }}
-                  </button>
                 </div>
               </div>
             </div>
-          </section>
 
-          <!-- 第3行：底部信息栏（可选） -->
-          <div class="grid-footer-left">
-            <!-- 预留底部区域 -->
+            <!-- 联机存档 -->
+            <div v-else-if="selectedCharacter.模式 === '联机'" class="online-saves-container">
+              <div v-if="!isLoggedIn" class="center-card">
+                <div class="center-emblem" aria-hidden="true"><Lock :size="22" /></div>
+                <h3>{{ $t('需要登录') }}</h3>
+                <p>{{ $t('请先登录以管理联机角色存档') }}</p>
+                <button type="button" class="cc-btn primary" @click="handleLogin">{{ $t('登入道籍') }}</button>
+              </div>
+
+              <div v-else-if="isLoadingSaves" class="cc-state">
+                <Loader2 :size="22" class="cc-spin" />
+                <span class="state-text">{{ $t('正在加载云端存档...') }}</span>
+              </div>
+
+              <div v-else-if="selectedCharacter.存档列表?.['云端修行']?.存档数据" class="save-card has-data online-card">
+                <div class="save-header">
+                  <h4 class="save-name">
+                    <Cloud :size="15" class="save-icon" />
+                    <span>{{ $t('云端存档') }}</span>
+                  </h4>
+                  <span
+                    class="sync-status"
+                    :class="{ synced: !selectedCharacter.存档列表['云端修行'].云端同步信息?.需要同步 }"
+                  >
+                    {{ selectedCharacter.存档列表['云端修行'].云端同步信息?.需要同步 ? $t('待同步') : $t('已同步') }}
+                  </span>
+                </div>
+
+                <div class="save-badges">
+                  <span class="realm-badge">{{ getRealmName(normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.境界) }}</span>
+                  <span class="age-badge">{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.寿命?.当前 ?? 18 }}岁</span>
+                </div>
+
+                <div class="stat-grid">
+                  <div class="stat vital-hp">
+                    <span class="label">气血</span>
+                    <span class="value">{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.气血?.当前 ?? 0 }}/{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.气血?.上限 ?? 0 }}</span>
+                  </div>
+                  <div class="stat vital-qi">
+                    <span class="label">灵气</span>
+                    <span class="value">{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.灵气?.当前 ?? 0 }}/{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.灵气?.上限 ?? 0 }}</span>
+                  </div>
+                  <div class="stat vital-sense">
+                    <span class="label">神识</span>
+                    <span class="value">{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.神识?.当前 ?? 0 }}/{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.神识?.上限 ?? 0 }}</span>
+                  </div>
+                  <div class="stat">
+                    <span class="label">声望</span>
+                    <span class="value">{{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.属性?.声望 ?? 0 }}</span>
+                  </div>
+                </div>
+
+                <div class="save-footer">
+                  <span class="location">
+                    <MapPin :size="12" />
+                    {{ normalizeSaveDataV3(selectedCharacter.存档列表['云端修行'].存档数据)?.角色?.位置?.描述 || '初始地' }}
+                  </span>
+                </div>
+
+                <div class="online-actions">
+                  <button type="button" class="cc-btn primary" @click="handleSelect(selectedCharId!, '云端修行', true)">
+                    <Play :size="15" />
+                    <span>{{ $t('进入游戏') }}</span>
+                  </button>
+                  <button v-if="selectedCharacter.存档列表['云端修行']?.云端同步信息?.需要同步" type="button" class="cc-btn">
+                    <RefreshCw :size="15" />
+                    <span>{{ $t('同步云端') }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div v-else class="center-card">
+                <div class="center-emblem" aria-hidden="true"><Cloud :size="22" /></div>
+                <h3>{{ $t('尚未开始修行') }}</h3>
+                <p>{{ $t('开始您的联机修仙之旅，存档将自动同步到云端') }}</p>
+                <button type="button" class="cc-btn primary" @click="handleSelect(selectedCharId!, '云端修行', false)">
+                  <Play :size="15" />
+                  <span>{{ $t('开始游戏') }}</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="grid-footer-right">
-            <!-- 预留底部区域 -->
-          </div>
-        </div>
+        </section>
       </div>
     </main>
 
     <!-- 角色详情弹窗 -->
-    <div v-if="showDetailsModal" class="modal-overlay" @click="closeDetailsModal">
-        <div class="details-modal" @click.stop>
-        <div class="modal-header">
-          <h3>{{ detailsCharacter?.角色?.名字 }} - {{ $t('详情') }}</h3>
-          <button @click="closeDetailsModal" class="btn-close">×</button>
+    <div v-if="showDetailsModal" class="cc-modal-overlay dialog-layer" @click="closeDetailsModal">
+      <div class="cc-modal wide details-modal" role="dialog" aria-modal="true" @click.stop>
+        <div class="cc-modal-head">
+          <h3 class="cc-modal-title">{{ detailsCharacter?.角色?.名字 }}</h3>
+          <button type="button" class="cc-modal-close" :aria-label="$t('关闭')" @click="closeDetailsModal">
+            <X :size="18" />
+          </button>
         </div>
 
-        <div v-if="detailsCharacter" class="modal-content">
+        <div v-if="detailsCharacter" class="cc-modal-body">
           <div class="details-grid">
-            <div class="detail-section">
-              <h4>{{ $t('基础信息') }}</h4>
-              <div class="detail-items">
+            <section class="detail-section">
+              <h4 class="cc-section-title">{{ $t('基础信息') }}</h4>
+              <dl class="detail-items">
                 <div class="detail-item">
-                  <span class="label">{{ $t('道号') }}</span>
-                  <span class="value">{{ detailsCharacter.角色.名字 }}</span>
+                  <dt>{{ $t('道号') }}</dt>
+                  <dd>{{ detailsCharacter.角色.名字 }}</dd>
                 </div>
                 <div class="detail-item">
-                  <span class="label">{{ $t('世界') }}</span>
-                  <span class="value">{{ getFieldName(detailsCharacter.角色.世界) }}</span>
+                  <dt>{{ $t('世界') }}</dt>
+                  <dd>{{ getFieldName(detailsCharacter.角色.世界) }}</dd>
                 </div>
                 <div class="detail-item">
-                  <span class="label">{{ $t('天资') }}</span>
-                  <span class="value">{{ getFieldName(detailsCharacter.角色.天资) }}</span>
+                  <dt>{{ $t('天资') }}</dt>
+                  <dd>{{ getFieldName(detailsCharacter.角色.天资) }}</dd>
                 </div>
                 <div class="detail-item">
-                  <span class="label">{{ $t('出身') }}</span>
-                  <span class="value">{{ getFieldName(detailsCharacter.角色.出生) }}</span>
+                  <dt>{{ $t('出身') }}</dt>
+                  <dd>{{ getFieldName(detailsCharacter.角色.出生) }}</dd>
                 </div>
                 <div class="detail-item">
-                  <span class="label">{{ $t('灵根') }}</span>
-                  <span class="value">{{ getFieldName(detailsCharacter.角色.灵根) }}</span>
+                  <dt>{{ $t('灵根') }}</dt>
+                  <dd>{{ getFieldName(detailsCharacter.角色.灵根) }}</dd>
                 </div>
                 <div class="detail-item">
-                  <span class="label">{{ $t('模式') }}</span>
-                  <span class="value">{{ detailsCharacter.模式 }}</span>
+                  <dt>{{ $t('模式') }}</dt>
+                  <dd>{{ detailsCharacter.模式 }}</dd>
                 </div>
-              </div>
-            </div>
+              </dl>
+            </section>
 
-            <div class="detail-section">
-              <h4>{{ $t('先天六司') }}</h4>
+            <section class="detail-section">
+              <h4 class="cc-section-title">{{ $t('先天六司') }}</h4>
               <div class="attributes-display">
                 <HexagonChart
                   v-if="detailsCharacter.角色.先天六司"
                   :stats="convertToStats(detailsCharacter.角色.先天六司)"
-                  :size="150"
+                  :size="160"
                   :maxValue="10"
                 />
               </div>
-            </div>
+            </section>
 
-            <div class="detail-section">
-              <h4>{{ $t('天赋神通') }}</h4>
-              <div class="talents-list">
-                <div v-if="detailsCharacter.角色.天赋?.length" class="talent-items">
-                  <span
-                    v-for="(talent, index) in detailsCharacter.角色.天赋"
-                    :key="index"
-                    class="talent-tag"
-                    :title="getTalentDescription(talent)"
-                  >
-                    {{ getTalentName(talent) }}
-                  </span>
-                </div>
-                <span v-else class="no-talents">{{ $t('暂无天赋') }}</span>
+            <section class="detail-section wide">
+              <h4 class="cc-section-title">{{ $t('天赋神通') }}</h4>
+              <div v-if="detailsCharacter.角色.天赋?.length" class="talent-items">
+                <span
+                  v-for="(talent, index) in detailsCharacter.角色.天赋"
+                  :key="index"
+                  class="talent-tag"
+                  :title="getTalentDescription(talent)"
+                >
+                  {{ getTalentName(talent) }}
+                </span>
               </div>
-            </div>
+              <span v-else class="no-talents">{{ $t('暂无天赋') }}</span>
+            </section>
           </div>
         </div>
       </div>
@@ -558,7 +483,10 @@ import { useRouter } from 'vue-router';
 import { useCharacterStore } from '@/stores/characterStore';
 import HexagonChart from '@/components/common/HexagonChart.vue';
 import VideoBackground from '@/components/common/VideoBackground.vue';
-import { ArrowLeft, Upload, History, Clock, Star, Wrench } from 'lucide-vue-next';
+import {
+  ArrowLeft, Upload, History, Clock, Wrench, Sparkles, Users, ScrollText, Download, Trash2,
+  PenLine, MapPin, FolderOpen, Loader2, Lock, Cloud, Play, RefreshCw, X,
+} from 'lucide-vue-next';
 import LegacySaveMigrationModal from './LegacySaveMigrationModal.vue';
 import type { CharacterProfile, SaveSlot } from '@/types/game';
 import "@/style.css";
@@ -1480,1552 +1408,834 @@ const handleImportFile = async (event: Event) => {
 </script>
 
 <style scoped>
-/* Unified style tokens for Character Management */
+/* ============================================================
+   续前世因缘 —— 令牌见 styles/xian-tokens.css，通用类见 creation-theme.css
+   ============================================================ */
 .character-management-panel {
-  --cm-radius-sm: 6px;
-  --cm-radius-md: 8px;
-  --cm-radius-lg: 12px;
-  --cm-gap-xs: 0.25rem;
-  --cm-gap-sm: 0.5rem;
-  --cm-gap-md: 0.8rem;
-  --cm-gap-lg: 1rem;
-  --cm-border-width: 1px;
-  --cm-border-strong: 2px;
-  --cm-divider-width: 2px;
-  /* Card sizing tokens */
-  --cm-card-min-h: 92px;
-  --cm-card-padding: 0.9rem;
-  --cm-avatar-size: 36px;
-  --cm-header-gap: 0.75rem;
-  --cm-name-font: 1rem;
-  --cm-meta-font: 0.8rem;
-  --cm-save-count-minw: 36px;
-  --cm-save-count-count-font: 1.05rem;
-  --cm-save-count-label-font: 0.7rem;
-}
-/* 基础样式重置 */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* 自定义对话框样式 */
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(10, 20, 30, 0.6);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  transition: opacity 0.3s ease;
-}
-
-.dialog-box {
-  background: var(--color-surface-transparent);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 2rem;
-  width: 90%;
-  max-width: 450px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  color: var(--color-text);
-  transform: scale(0.95);
-  opacity: 0;
-  animation: dialog-fade-in 0.3s forwards;
-}
-
-@keyframes dialog-fade-in {
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.dialog-title {
-  font-size: 1.5rem;
-  color: var(--color-accent);
-  margin: 0 0 1rem 0;
-  font-weight: 600;
-}
-
-.dialog-message {
-  font-size: 1rem;
-  color: var(--color-text-secondary);
-  margin: 0 0 1.5rem 0;
-  line-height: 1.6;
-}
-
-.dialog-input {
-  width: 100%;
-  padding: 0.8rem 1rem;
-  background: var(--color-background-transparent);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  color: var(--color-text);
-  font-size: 1rem;
-  margin-bottom: 1.5rem;
-  transition:
-    border-color 0.3s,
-    box-shadow 0.3s;
-}
-
-.dialog-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.2);
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-}
-
-.btn-dialog-confirm,
-.btn-dialog-cancel {
-  padding: 0.6rem 1.5rem;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s;
-}
-
-.btn-dialog-confirm {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
-}
-
-.btn-dialog-confirm:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-2px);
-}
-
-.btn-dialog-cancel {
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-
-.btn-dialog-cancel:hover {
-  background: var(--color-background);
-}
-
-/* 主容器样式 */
-.character-management-panel {
-  width: 100%;
-  height: 100%;
-  background: var(--color-background);
-  color: var(--color-text);
+  position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  position: relative;
+  height: 100%;
+  min-height: 0;
+  color: var(--cc-text);
 }
 
 .character-management-panel.fullscreen {
-  background: var(--color-background);
-}
-
-/* 全屏模式头部 */
-.fullscreen-header {
-  position: relative;
-  z-index: 10;
-  padding: 2rem;
-  background: var(--color-surface-transparent);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
 }
 
-.fullscreen-back-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.9rem;
+.dialog-layer {
+  z-index: 3000;
 }
 
-.fullscreen-back-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  border-color: var(--color-primary);
+.small-dialog {
+  width: min(420px, 100%);
 }
 
-.fullscreen-title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
+.dialog-message {
+  white-space: pre-wrap;
 }
 
-.fullscreen-title h1 {
-  font-family: var(--font-family-serif);
-  font-size: 2.5rem;
-  font-weight: 500;
-  letter-spacing: 0.3em;
-  color: var(--color-text);
-  text-shadow: 0 0 20px rgba(var(--color-primary-rgb), 0.4);
-  margin: 0 0 0.5rem 0;
-  padding-left: 0.3em;
-}
-
-.fullscreen-title p {
-  font-size: 1rem;
-  color: var(--color-text-secondary);
-  letter-spacing: 0.1em;
-  opacity: 0.8;
-  margin: 0;
-}
-
-/* 主体内容 */
+/* ---------- 外框 ---------- */
 .main-content {
-  flex: 1;
-  overflow: hidden;
+  position: relative;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .main-content.fullscreen-content {
-  position: relative;
-  flex: 1;
-  overflow: hidden;
+  flex: none;
+  width: 95%;
+  max-width: 1280px;
+  height: 92vh;
+  padding: 1.5rem 1.75rem 1.5rem;
+  background: var(--cc-shell-bg);
+  border: 1px solid var(--cc-shell-border);
+  border-radius: 6px;
+  box-shadow: var(--cc-shell-shadow);
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
+  animation: shell-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* 移动端头部导航 */
-.mobile-header {
+@keyframes shell-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.main-content.fullscreen-content::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.16);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.frame-corner {
   display: none;
-  background: var(--color-surface-transparent);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--color-border);
-  padding: 1rem;
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 0 solid var(--cc-gold);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.fullscreen-content .frame-corner {
+  display: block;
+}
+
+.frame-corner.tl { top: 5px; left: 5px; border-top-width: 2px; border-left-width: 2px; }
+.frame-corner.tr { top: 5px; right: 5px; border-top-width: 2px; border-right-width: 2px; }
+.frame-corner.bl { bottom: 5px; left: 5px; border-bottom-width: 2px; border-left-width: 2px; }
+.frame-corner.br { bottom: 5px; right: 5px; border-bottom-width: 2px; border-right-width: 2px; }
+
+/* ---------- 页头 ---------- */
+.page-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  padding-bottom: 1rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--cc-divider);
+  flex-shrink: 0;
 }
 
-.mobile-menu-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.8rem 1rem;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-surface-rgb), 0.8),
-    rgba(var(--color-background-rgb), 0.6)
-  );
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(var(--color-border-rgb), 0.3);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-  font-weight: 600;
-  position: relative;
-  overflow: hidden;
+.page-header::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cc-gold-rgb), 0.6), transparent);
 }
 
-.mobile-menu-btn:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-surface-rgb), 0.9),
-    rgba(var(--color-background-rgb), 0.7)
-  );
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.2);
+.back-btn {
+  justify-self: start;
 }
 
-.mobile-menu-btn.active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  color: white;
-  border-color: var(--color-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
+.page-title {
+  text-align: center;
 }
 
-.hamburger {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 16px;
-  height: 12px;
-}
-
-.hamburger span {
-  display: block;
-  height: 2px;
-  width: 100%;
-  background: currentColor;
-  border-radius: 1px;
-  transition: transform 0.2s ease;
-}
-
-.mobile-menu-btn.active .hamburger span:nth-child(1) {
-  transform: rotate(45deg) translate(3px, 3px);
-}
-
-.mobile-menu-btn.active .hamburger span:nth-child(2) {
-  opacity: 0;
-}
-
-.mobile-menu-btn.active .hamburger span:nth-child(3) {
-  transform: rotate(-45deg) translate(3px, -3px);
-}
-
-.mobile-title {
-  flex: 1;
-  min-width: 0; /* Allow shrinking and text-overflow to work */
-}
-
-.mobile-title h2 {
+.page-title h1 {
   margin: 0;
-  font-size: 1.2rem;
-  color: var(--color-text);
-  font-weight: 600;
+  font-family: var(--cc-calligraphy);
+  font-size: 2.3rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
+  color: var(--cc-text);
 }
 
-.mobile-title .selected-info {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  margin-top: 0.2rem;
-  /* Fix for vertical text issue on small screens */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+[data-theme='dark'] .page-title h1 {
+  text-shadow: 0 0 24px rgba(var(--cc-accent-rgb), 0.35);
 }
 
-.panel-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1100;
+.page-title p {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.3em;
+  color: var(--cc-text-3);
 }
 
-/* 空状态 */
+/* ---------- 空态 ---------- */
 .empty-state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
   text-align: center;
-  padding: 2rem;
 }
 
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-}
-
-.empty-state h2 {
-  color: var(--color-accent);
-  margin-bottom: 0.5rem;
-}
-
-.empty-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.btn-create,
-.btn-import {
-  padding: 1rem 2rem;
-  color: white;
-  border-radius: 12px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-create {
-  background: linear-gradient(135deg, var(--color-success), var(--color-info));
-  border: 1px solid var(--color-success);
-}
-
-.btn-create:hover {
-  transform: scale(1.05);
-}
-
-.btn-import {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  border: 1px solid var(--color-primary);
-}
-
-.btn-import:hover {
-  transform: scale(1.05);
-}
-
-/* 管理布局 - 3行2列网格 */
-.management-layout {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  height: 100%;
-}
-
-/* 3行2列网格布局 - 简洁版本 */
-.grid-container {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  grid-template-rows: auto 1fr auto;
-  grid-template-areas:
-    'header-left header-right'
-    'content-left content-right'
-    'footer-left footer-right';
-  height: 100%;
-  overflow: hidden;
-  /* 使用单一垂直分割线 */
+.empty-emblem {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 0.75rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.28) 0%, rgba(var(--cc-accent-rgb), 0.05) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.55), 0 0 40px -10px rgba(var(--cc-accent-rgb), 0.6);
+  font-family: var(--cc-calligraphy);
+  font-size: 3rem;
+  line-height: 1;
+  color: var(--cc-accent);
 }
 
-/* 统一的垂直分割线 */
-.grid-container::before {
+.empty-emblem::before {
   content: '';
   position: absolute;
-  left: 320px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--color-primary);
-  z-index: 10;
-}
-
-/* 标题栏 - 简化样式 */
-.grid-header-left,
-.grid-header-right {
-  padding: 0.8rem 1rem;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-.grid-header-left h2,
-.grid-header-right h2 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--color-text);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.header-title-group {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.btn-header-action {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  background: var(--color-surface);
-  flex-shrink: 0;
-}
-
-/* 默认隐藏按钮文字，只显示图标 */
-.btn-header-action span {
-  display: none;
-}
-
-/* 大屏幕显示按钮文字 */
-@media (min-width: 1200px) {
-  .btn-header-action {
-    padding: 0.4rem 0.8rem;
-  }
-  .btn-header-action span {
-    display: inline;
-  }
-}
-
-.btn-header-action.import {
-  color: var(--color-info);
-  border-color: rgba(var(--color-info-rgb), 0.4);
-}
-
-.btn-header-action.import:hover {
-  background: rgba(var(--color-info-rgb), 0.1);
-  border-color: var(--color-info);
-}
-
-.btn-header-action.migrate {
-  color: var(--color-warning);
-  border-color: rgba(var(--color-warning-rgb), 0.4);
-}
-
-.btn-header-action.migrate:hover {
-  background: rgba(var(--color-warning-rgb), 0.1);
-  border-color: var(--color-warning);
-}
-
-.character-count {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  background: var(--color-background);
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-/* 右侧标题栏布局 */
-.header-left-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.selected-char-info {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-primary-rgb), 0.1),
-    rgba(var(--color-accent-rgb), 0.05)
-  );
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-  border: 1px solid rgba(var(--color-primary-rgb), 0.3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: fit-content;
-}
-
-/* 存档操作按钮组 */
-.save-actions-buttons {
-  display: flex;
-  gap: 0.6rem;
-  flex-shrink: 0;
-}
-
-.btn-save-action {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1rem;
-  border: 2px solid;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-surface-rgb), 0.8),
-    rgba(var(--color-background-rgb), 0.6)
-  );
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.btn-save-action.export {
-  color: var(--color-success);
-  border-color: rgba(var(--color-success-rgb), 0.4);
-}
-
-.btn-save-action.export:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--color-success), rgba(var(--color-success-rgb), 0.8));
-  color: white;
-  border-color: var(--color-success);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(var(--color-success-rgb), 0.3);
-}
-
-.btn-save-action.import {
-  color: var(--color-info);
-  border-color: rgba(var(--color-info-rgb), 0.4);
-}
-
-.btn-save-action.import:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--color-info), rgba(var(--color-info-rgb), 0.8));
-  color: white;
-  border-color: var(--color-info);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(var(--color-info-rgb), 0.3);
-}
-
-.btn-save-action.migrate {
-  color: var(--color-warning);
-  border-color: rgba(var(--color-warning-rgb), 0.4);
-}
-
-.btn-save-action.migrate:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--color-warning), rgba(var(--color-warning-rgb), 0.85));
-  color: #1a1a1a;
-  border-color: var(--color-warning);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(var(--color-warning-rgb), 0.3);
-}
-
-.btn-save-action:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  filter: grayscale(0.5);
-}
-
-.btn-save-action:disabled:hover {
-  transform: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* 内容区域 - 简化样式 */
-.grid-content-left,
-.grid-content-right {
-  background: var(--color-background);
-}
-
-/* 底部区域 */
-.grid-footer-left,
-.grid-footer-right {
-  min-height: 0;
-}
-
-/* 角色面板 - 简化 */
-.characters-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-.characters-grid {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem;
-}
-
-/* 角色卡片 - 简化紧凑设计 */
-.character-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 0.6rem;
-  margin-bottom: 0.4rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.character-card:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 1px 4px rgba(var(--color-primary-rgb), 0.2);
-}
-
-.character-card.active {
-  border-color: var(--color-success);
-  background: rgba(var(--color-success-rgb), 0.05);
-}
-
-.character-card.single-mode {
-  border-left: 3px solid var(--color-success);
-}
-
-.character-card.online-mode {
-  border-left: 3px solid var(--color-primary);
-}
-
-/* 卡片头部 - 简化 */
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.char-avatar {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: white;
-  font-size: 1.2rem;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #10b981, #3b82f6);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.char-avatar.联机 {
-  background: linear-gradient(135deg, #3b82f6, #0ea5e9);
-}
-
-.char-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-}
-
-.name-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.char-name {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--color-text);
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: 0.5px;
-}
-
-.mode-badge {
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.mode-badge.single {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.mode-badge.online {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.char-meta {
-  display: flex;
-  gap: 0.3rem;
-  font-size: 0.65rem;
-  color: var(--color-text-secondary);
-}
-
-.save-count {
-  text-align: center;
-  flex-shrink: 0;
-  min-width: 28px;
-}
-
-.save-count .count {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: var(--color-accent);
-  line-height: 1;
-}
-
-.save-count .label {
-  font-size: 0.6rem;
-  color: var(--color-text-secondary);
-  line-height: 1;
-}
-
-/* 卡片操作 - 简化按钮 */
-.card-actions {
-  display: flex;
-  gap: 0.3rem;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.btn-details,
-.btn-export,
-.btn-delete {
-  flex: 1;
-  padding: 0.3rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  background: var(--color-background);
-}
-
-.btn-details {
-  color: var(--color-info);
-  border-color: var(--color-info);
-}
-
-.btn-details:hover {
-  background: var(--color-info);
-  color: white;
-}
-
-.btn-export {
-  color: var(--color-success);
-  border-color: var(--color-success);
-}
-
-.btn-export:hover {
-  background: var(--color-success);
-  color: white;
-}
-
-.btn-delete {
-  color: var(--color-error);
-  border-color: var(--color-error);
-}
-
-.btn-delete:hover {
-  background: var(--color-error);
-  color: white;
-}
-
-/* 右侧存档面板 - 简化 */
-.saves-panel {
-  background: var(--color-background);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* 无选择状态 */
-.no-selection {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-}
-
-.no-selection-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-/* 新增：加载存档样式 */
-.loading-saves {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(var(--color-primary-rgb), 0.2);
-  border-top-color: var(--color-primary);
+  inset: -9px;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.45);
+  animation: ring-spin 24s linear infinite;
 }
 
-@keyframes spin {
+@keyframes ring-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* 存档容器 */
-.saves-container,
-.online-saves-container {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 1rem;
-  height: 0;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--color-primary-rgb), 0.3) transparent;
-}
-
-.saves-container::-webkit-scrollbar,
-.online-saves-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.saves-container::-webkit-scrollbar-track,
-.online-saves-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.saves-container::-webkit-scrollbar-thumb,
-.online-saves-container::-webkit-scrollbar-thumb {
-  background: rgba(var(--color-primary-rgb), 0.3);
-  border-radius: 3px;
-}
-
-.saves-container::-webkit-scrollbar-thumb:hover,
-.online-saves-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--color-primary-rgb), 0.5);
-}
-
-.saves-section {
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: 100%;
-}
-
-/* 上次对话存档区域 */
-.auto-saves-section {
-  margin-bottom: 1.5rem;
-}
-
-.auto-saves-section h3 {
-  margin: 0 0 0.8rem 0;
-  color: var(--color-warning);
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.auto-saves-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-/* 手动存档区域 */
-.manual-saves-section {
-  margin-bottom: 1rem;
-}
-
-.manual-saves-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.8rem;
-}
-
-.manual-saves-header h3 {
+.empty-state h2 {
   margin: 0;
-  color: var(--color-warning);
+  font-family: var(--cc-calligraphy);
+  font-size: 1.9rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--cc-text);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-text-2);
+}
+
+.empty-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.empty-actions .cc-btn {
+  min-width: 140px;
+}
+
+/* ---------- 布局 ---------- */
+.management-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 1.1rem;
+}
+
+.characters-panel,
+.saves-panel {
+  min-height: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--cc-divider);
+  flex-shrink: 0;
+}
+
+.panel-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.panel-head-title h2 {
+  margin: 0;
   font-size: 1rem;
   font-weight: 600;
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+  color: var(--cc-text);
 }
 
-.save-info-text {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  font-style: italic;
+.count-chip {
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: rgba(var(--cc-gold-rgb), 0.15);
+  color: var(--cc-gold);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-.manual-saves-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
-  max-height: 400px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--color-primary-rgb), 0.3) transparent;
-}
-
-.manual-saves-grid::-webkit-scrollbar {
-  width: 6px;
-}
-
-.manual-saves-grid::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.manual-saves-grid::-webkit-scrollbar-thumb {
-  background: rgba(var(--color-primary-rgb), 0.3);
-  border-radius: 3px;
-}
-
-.manual-saves-grid::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--color-primary-rgb), 0.5);
-}
-
-/* 存档卡片 */
-.save-card,
-.online-save-card {
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-surface-rgb), 0.9),
-    rgba(var(--color-background-rgb), 0.7)
-  );
-  backdrop-filter: blur(15px);
-  border: 2px solid rgba(var(--color-border-rgb), 0.6);
-  border-radius: 8px;
-  padding: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--color-text);
-  position: relative;
+.selected-char {
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--cc-text-3);
 }
 
-.save-card::before,
-.online-save-card::before {
+.panel-head-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* ---------- 角色卡 ---------- */
+.characters-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.character-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface-2);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
+}
+
+.character-card::before {
   content: '';
   position: absolute;
-  top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-primary-rgb), 0.06),
-    rgba(var(--color-accent-rgb), 0.03)
-  );
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--cc-gold);
   opacity: 0;
-  transition: opacity 0.3s ease;
-  border-radius: 8px;
+  transition: opacity 0.2s ease;
 }
 
-.save-card:hover::before,
-.online-save-card:hover::before {
+.character-card:hover {
+  background: var(--cc-surface-hover);
+  border-color: rgba(var(--cc-gold-rgb), 0.35);
+}
+
+.character-card.active {
+  background: var(--cc-selected-bg);
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+  box-shadow: var(--cc-glow);
+}
+
+.character-card.active::before {
   opacity: 1;
 }
 
-.save-card:hover,
-.online-save-card:hover {
-  border-color: var(--color-primary);
-  transform: translateY(-2px);
-  box-shadow:
-    0 4px 15px rgba(var(--color-primary-rgb), 0.15),
-    0 2px 8px rgba(0, 0, 0, 0.08);
+.character-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
+
+/* 玉璧头像 */
+.char-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.25) 0%, rgba(var(--cc-accent-rgb), 0.05) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.5);
+  font-family: var(--cc-calligraphy);
+  font-size: 1.45rem;
+  line-height: 1;
+  color: var(--cc-accent);
+}
+
+.char-avatar::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.35);
+  transition: transform 0.6s ease;
+}
+
+.character-card:hover .char-avatar::before,
+.character-card.active .char-avatar::before {
+  transform: rotate(90deg);
+}
+
+.character-card.online-mode .char-avatar {
+  background: radial-gradient(circle at 35% 30%, rgba(96, 165, 250, 0.3) 0%, rgba(96, 165, 250, 0.06) 75%);
+}
+
+.char-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.char-name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--cc-text);
+}
+
+.character-card.active .char-name {
+  color: var(--cc-accent);
+}
+
+.mode-chip {
+  flex-shrink: 0;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+}
+
+.mode-chip.single {
+  background: rgba(var(--cc-gold-rgb), 0.15);
+  color: var(--cc-gold);
+}
+
+.mode-chip.online {
+  background: rgba(var(--cc-accent-rgb), 0.15);
+  color: var(--cc-accent);
+}
+
+.char-meta {
+  display: flex;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--cc-text-3);
+}
+
+.char-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.char-meta .dot {
+  flex-shrink: 0;
+}
+
+.save-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 2.6rem;
+}
+
+.save-count strong {
+  font-size: 1.15rem;
+  line-height: 1.1;
+  color: var(--cc-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.save-count span {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-text-3);
+}
+
+.card-tools {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-top: -0.2rem;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+}
+
+.character-card:hover .card-tools,
+.character-card.active .card-tools,
+.character-card:focus-within .card-tools {
+  max-height: 40px;
+  margin-top: 0;
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .card-tools {
+    max-height: 40px;
+    margin-top: 0;
+    opacity: 1;
+  }
+}
+
+/* ---------- 存档区 ---------- */
+.saves-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.state-text {
+  margin-left: 0.6rem;
+}
+
+.saves-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.saves-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.saves-intro .cc-section-title {
+  margin-bottom: 0.2rem;
+}
+
+.saves-tip {
+  font-size: 0.75rem;
+  color: var(--cc-text-3);
+}
+
+.saves-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.save-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 150px;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-surface-2);
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .save-card.has-data {
-  border-left: 4px solid var(--color-success);
-  border-color: rgba(var(--color-success-rgb), 0.8);
-  position: relative;
+  cursor: pointer;
+}
+
+.save-card.has-data:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.6);
+  box-shadow: var(--cc-glow);
+  transform: translateY(-2px);
+}
+
+.save-card.has-data:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 
 .save-card.auto-save {
-  border-left-color: var(--color-info);
-  border-color: rgba(var(--color-info-rgb), 0.8);
+  border-style: dashed;
 }
 
-.save-icon {
-  display: inline-block;
-  margin-right: 0.5rem;
-  vertical-align: middle;
-  position: relative;
-  top: -1px;
+.save-card:not(.has-data) {
+  border-style: dashed;
+  background: transparent;
 }
 
-.last-save-icon {
-  color: var(--color-primary);
-}
-
-.time-save-icon {
-  color: var(--color-warning);
-}
-
-.save-card.has-data::after {
-  content: '';
-  position: absolute;
-  top: 0.7rem;
-  right: 0.7rem;
-  width: 6px;
-  height: 6px;
-  background: var(--color-success);
-  border-radius: 50%;
-  box-shadow: 0 0 8px rgba(var(--color-success-rgb), 0.6);
-}
-
-/* 存档数据 */
 .save-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.8rem;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .save-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
   margin: 0;
-  font-size: 1rem;
-  color: var(--color-warning);
+  font-size: 0.95rem;
   font-weight: 600;
-  white-space: nowrap;
+  letter-spacing: 0.08em;
+  color: var(--cc-text);
+}
+
+.save-name span {
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  white-space: nowrap;
+}
+
+.save-icon {
+  flex-shrink: 0;
+  color: var(--cc-gold);
+}
+
+.save-tools {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.save-tools .cc-icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.save-tools .cc-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .save-badges {
   display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .realm-badge,
 .age-badge {
-  padding: 2px 6px;
-  border-radius: 8px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  white-space: nowrap;
+  padding: 0.08rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
 }
 
 .realm-badge {
-  background: rgba(var(--color-success-rgb), 0.15);
-  color: var(--color-success);
+  background: rgba(var(--cc-gold-rgb), 0.16);
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.45);
+  color: var(--cc-gold);
 }
 
 .age-badge {
-  background: rgba(var(--color-accent-rgb), 0.15);
-  color: var(--color-accent);
-}
-
-/* 存档统计 */
-.save-stats {
-  margin-bottom: 0.8rem;
+  border: 1px solid var(--cc-border);
+  color: var(--cc-text-2);
 }
 
 .stat-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem 0.8rem;
 }
 
 .stat {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
-  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px dashed var(--cc-divider);
+  font-size: 0.78rem;
 }
 
 .stat .label {
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
+  color: var(--cc-text-3);
 }
 
 .stat .value {
-  color: var(--color-text);
-  font-weight: 600;
-  font-size: 0.8rem;
+  color: var(--cc-text);
+  font-variant-numeric: tabular-nums;
 }
 
-/* 存档底部 */
+.stat.vital-hp .value { color: var(--vital-health); }
+.stat.vital-qi .value { color: var(--vital-lingqi); }
+.stat.vital-sense .value { color: var(--cc-gold); }
+
 .save-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  padding-top: 0.6rem;
-  border-top: 1px solid rgba(var(--color-border-rgb), 0.2);
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  font-size: 0.72rem;
+  color: var(--cc-text-3);
 }
 
-.save-footer .location {
-  white-space: nowrap;
+.location {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+  white-space: nowrap;
 }
 
-.sync-status {
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-weight: 600;
-  font-size: 0.7rem;
+.save-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
-.sync-status.synced {
-  background: rgba(var(--color-success-rgb), 0.15);
-  color: var(--color-success);
-}
-
-/* 空存档 */
 .save-empty {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.3rem;
   text-align: center;
-  color: var(--color-text-secondary);
-  min-height: 100px;
-  padding: 1.5rem;
-}
-
-.save-empty .empty-hint {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  margin: 0.5rem 0 1rem 0;
-  opacity: 0.8;
-}
-
-.loading-saves {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  color: var(--color-text-secondary);
-  gap: 0.75rem;
-}
-
-.loading-saves .loading-spinner {
-  font-size: 1.5rem;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 .empty-slot-icon {
-  font-size: 2rem;
-  margin-bottom: 0.4rem;
+  color: var(--cc-gold);
   opacity: 0.6;
 }
 
 .empty-text {
-  margin-bottom: 0.6rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-text-2);
 }
 
 .empty-desc {
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  opacity: 0.8;
+  font-size: 0.72rem;
+  color: var(--cc-text-3);
 }
 
-.auto-save-desc {
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  display: block;
-  margin-top: 0.3rem;
-}
-
-/* 存档操作按钮 */
-.save-actions {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.btn-export-save,
-.btn-edit-save,
-.btn-delete-save {
-  cursor: pointer;
-  padding: 0.3rem 0.5rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  font-size: 0.7rem;
-  font-weight: 600;
-  border: 1px solid;
-  backdrop-filter: blur(5px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  min-width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-export-save {
-  background: rgba(var(--color-success-rgb), 0.1);
-  border-color: rgba(var(--color-success-rgb), 0.3);
-  color: var(--color-success);
-}
-
-.btn-export-save:hover {
-  background: rgba(var(--color-success-rgb), 0.2);
-  border-color: rgba(var(--color-success-rgb), 0.5);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(var(--color-success-rgb), 0.2);
-}
-
-.btn-edit-save {
-  background: rgba(var(--color-info-rgb), 0.1);
-  border-color: rgba(var(--color-info-rgb), 0.3);
-  color: var(--color-info);
-}
-
-.btn-edit-save:hover {
-  background: rgba(var(--color-info-rgb), 0.2);
-  border-color: rgba(var(--color-info-rgb), 0.5);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(var(--color-info-rgb), 0.2);
-}
-
-.btn-delete-save {
-  background: rgba(var(--color-error-rgb), 0.1);
-  border-color: rgba(var(--color-error-rgb), 0.3);
-  color: var(--color-error);
-}
-
-.btn-delete-save:hover:not(.disabled):not(:disabled) {
-  background: rgba(var(--color-error-rgb), 0.2);
-  border-color: rgba(var(--color-error-rgb), 0.5);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(var(--color-error-rgb), 0.2);
-}
-
-.btn-delete-save.disabled,
-.btn-delete-save:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  background: rgba(128, 128, 128, 0.1) !important;
-  border-color: rgba(128, 128, 128, 0.2) !important;
-  color: #888 !important;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* 按钮样式 */
-.btn-start,
-.btn-play,
-.btn-sync {
-  padding: 0.6rem 1rem;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  color: white;
-  border: 1px solid rgba(var(--color-primary-rgb), 0.5);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.25);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-start:hover,
-.btn-play:hover,
-.btn-sync:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.35);
-}
-
-.btn-start::before,
-.btn-play::before,
-.btn-sync::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-  transition: left 0.4s;
-}
-
-.btn-start:hover::before,
-.btn-play:hover::before,
-.btn-sync:hover::before {
-  left: 100%;
-}
-
-/* 联机模式样式 */
+/* ---------- 联机 ---------- */
 .online-saves-container {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 1rem;
-  height: 0;
-}
-
-.login-prompt {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2rem;
 }
 
-.login-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+.online-card {
+  max-width: 520px;
+  cursor: default;
 }
 
-.btn-login {
-  padding: 0.8rem 1.5rem;
-  background: var(--color-primary);
-  color: white;
-  border: 1px solid var(--color-primary-active);
-  border-radius: 8px;
-  cursor: pointer;
-  margin-top: 1rem;
+.online-card:hover {
+  transform: none;
 }
 
-.online-save-card {
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-surface-rgb), 0.9),
-    rgba(var(--color-background-rgb), 0.7)
-  );
-  backdrop-filter: blur(15px);
-  border: 2px solid rgba(var(--color-border-rgb), 0.6);
-  border-radius: 8px;
-  padding: 0.9rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--color-text);
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.sync-status {
+  flex-shrink: 0;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: rgba(var(--cc-warning-rgb), 0.15);
+  color: var(--cc-warning);
+}
+
+.sync-status.synced {
+  background: rgba(110, 231, 183, 0.14);
+  color: var(--cc-success);
 }
 
 .online-actions {
   display: flex;
   gap: 0.5rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
+  margin-top: 0.4rem;
 }
 
-/* 详情弹窗 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+.center-card {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(4px);
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  text-align: center;
 }
 
-.details-modal {
-  background: var(--color-surface-transparent);
-  backdrop-filter: blur(20px);
-  border-radius: 15px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border: 1px solid var(--color-border);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h3 {
+.center-card h3 {
   margin: 0;
-  color: var(--color-accent);
+  font-family: var(--cc-calligraphy);
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.15em;
 }
 
-.btn-close {
-  background: none;
-  border: 1px solid var(--color-border);
-  font-size: 1.5rem;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 0.1rem;
-  width: 30px;
-  height: 30px;
+.center-card p {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--cc-text-2);
+}
+
+.center-emblem {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.25) 0%, rgba(var(--cc-accent-rgb), 0.05) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.5);
+  color: var(--cc-accent);
 }
 
-.modal-content {
-  padding: 2rem;
-}
-
+/* ---------- 详情弹窗 ---------- */
 .details-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
 }
 
-.detail-section {
-  background: linear-gradient(
-    135deg,
-    rgba(var(--color-primary-rgb), 0.08),
-    rgba(var(--color-accent-rgb), 0.06)
-  );
-  border: 1px solid rgba(var(--color-primary-rgb), 0.15);
-  border-radius: 10px;
-  padding: 1.5rem;
-  backdrop-filter: blur(8px);
-}
-
-.detail-section h4 {
-  margin: 0 0 1rem 0;
-  color: var(--color-warning);
+.detail-section.wide {
+  grid-column: 1 / -1;
 }
 
 .detail-items {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  margin: 0;
 }
 
 .detail-item {
   display: flex;
   justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(var(--color-border-rgb), 0.3);
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--cc-divider);
+  font-size: 0.85rem;
 }
 
-.detail-item .label {
-  color: var(--color-text-secondary);
-  font-weight: 500;
+.detail-item dt {
+  color: var(--cc-text-3);
+  letter-spacing: 0.1em;
 }
 
-.detail-item .value {
-  color: var(--color-text);
-  font-weight: 600;
+.detail-item dd {
+  margin: 0;
+  text-align: right;
+  color: var(--cc-text);
 }
 
 .attributes-display {
@@ -3033,1221 +2243,157 @@ const handleImportFile = async (event: Event) => {
   justify-content: center;
 }
 
-.talents-list {
-  min-height: 100px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
 .talent-items {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .talent-tag {
-  background: rgba(var(--color-accent-rgb), 0.15);
-  color: var(--color-accent);
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.4);
+  border-radius: 999px;
+  background: rgba(var(--cc-gold-rgb), 0.07);
   font-size: 0.8rem;
-  font-weight: 500;
+  color: var(--cc-gold);
+  cursor: help;
 }
 
 .no-talents {
-  color: var(--color-text-secondary);
-  font-style: italic;
-  text-align: center;
+  font-size: 0.82rem;
+  color: var(--cc-text-3);
 }
 
-/* 响应式适配 */
-@media (max-width: 1200px) {
-  .grid-container {
-    grid-template-columns: 300px 1fr;
-  }
+/* ---------- 移动端 ---------- */
+.mobile-header,
+.panel-overlay {
+  display: none;
+}
 
-  /* 调整分割线位置 */
-  .grid-container::before {
-    left: 300px;
-  }
-
-  .manual-saves-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+@media (max-width: 1400px) and (min-width: 769px) {
+  /* 为右上角全局菜单按钮让位 */
+  .page-header {
+    padding-right: 56px;
   }
 }
 
-@media (max-width: 1024px) {
-  .grid-container {
-    grid-template-columns: 280px 1fr;
-  }
-
-  /* 调整分割线位置 */
-  .grid-container::before {
-    left: 280px;
-  }
-
-  .characters-panel {
-    max-width: 260px;
-  }
-
-  .save-card,
-  .online-save-card {
-    padding: 0.8rem;
-  }
-
-  .details-grid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+@media (max-width: 900px) {
+  .management-layout {
+    grid-template-columns: minmax(260px, 1fr) 1.4fr;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .main-content.fullscreen-content {
+    width: 100%;
+    height: 100vh;
+    height: 100svh;
+    padding: 0.9rem 0.85rem;
+    padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .frame-corner {
+    display: none !important;
+  }
+
+  .page-header {
+    grid-template-columns: auto 1fr auto;
+    padding-right: 52px;
+  }
+
+  .page-title {
+    text-align: left;
+  }
+
+  .page-title h1 {
+    font-size: 1.5rem;
+    letter-spacing: 0.12em;
+  }
+
+  .page-title p,
+  .header-spacer {
+    display: none;
+  }
+
   .mobile-header {
     display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    flex-shrink: 0;
   }
 
-  .character-management-panel {
-    height: 100%;
-    overflow: hidden;
+  .mobile-menu-btn.active {
+    color: var(--cc-accent);
+    border-color: rgba(var(--cc-gold-rgb), 0.65);
   }
 
-  .main-content {
-    flex: 1;
+  .mobile-selected {
+    min-width: 0;
     overflow: hidden;
-    min-height: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: var(--cc-text-2);
+  }
+
+  .panel-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(4, 8, 16, 0.5);
   }
 
   .management-layout {
+    display: flex;
     flex-direction: column;
-    height: 100%;
-  }
-
-  .grid-container {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas:
-      'header-right'
-      'content-main'
-      'footer-main';
-    order: 1;
-  }
-
-  /* 移动端隐藏垂直分割线 */
-  .grid-container::before {
-    display: none;
-  }
-
-  .grid-header-left {
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-    /* 手机端隐藏左侧标题栏 */
-    display: none;
-  }
-
-  .grid-header-right {
-    padding: 0.8rem;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.8rem;
-  }
-
-  .header-left-content {
-    gap: 0.3rem;
-  }
-
-  .save-actions-buttons {
-    width: 100%;
-    gap: 0.5rem;
-  }
-
-  .btn-save-action {
-    flex: 1;
-    padding: 0.7rem 0.8rem;
-    font-size: 0.8rem;
-    justify-content: center;
-  }
-
-  .btn-save-action span {
-    display: inline;
-  }
-
-  .grid-content-left,
-  .grid-content-right {
-    grid-area: content-main;
-    position: relative;
-    overflow: hidden;
-    height: 100%;
-  }
-
-  .grid-footer-left,
-  .grid-footer-right {
-    grid-area: footer-main;
-    border-right: none;
   }
 
   .characters-panel {
     position: fixed;
     top: 0;
-    left: 0;
     bottom: 0;
-    width: 85%;
-    max-width: 280px;
-    z-index: 1200;
-    transform: translateX(-100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
-    border: none;
-    background: var(--color-surface);
-    backdrop-filter: blur(20px);
-    margin: 0;
-    padding: 0;
-    border-right: none;
+    left: 0;
+    z-index: 70;
+    width: min(340px, 86vw);
+    border-radius: 0 10px 10px 0;
+    background: var(--cc-solid-bg);
+    box-shadow: 12px 0 32px -12px rgba(0, 0, 0, 0.6);
+    transform: translateX(-102%);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .characters-panel.is-open {
-    transform: translateX(0);
+    transform: none;
   }
 
   .saves-panel {
-    width: 100%;
-    border-left: none;
-  }
-
-  .saves-container,
-  .online-saves-container {
-    padding: 1rem 1.2rem;
     flex: 1;
-    min-height: 0;
-    max-height: none;
   }
 
-  .auto-saves-grid {
+  .saves-grid {
     grid-template-columns: 1fr;
-    gap: 0.8rem;
-  }
-
-  .manual-saves-grid {
-    grid-template-columns: 1fr;
-    gap: 0.8rem;
-    max-height: 300px;
-  }
-
-  .modal-content {
-    padding: 1rem;
-  }
-
-  .details-modal {
-    width: 95%;
-    max-height: 85vh;
-  }
-
-  .dialog-box {
-    width: 95%;
-    max-width: 400px;
-    padding: 1.5rem;
-  }
-
-  .characters-grid {
-    padding: 1rem;
-  }
-
-  .character-card {
-    padding: 1rem;
-    margin-bottom: 0.8rem;
-    transition: all 0.2s ease;
-  }
-
-  .character-card:active {
-    transform: scale(0.98);
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-primary-rgb), 0.05),
-      rgba(var(--color-accent-rgb), 0.03)
-    );
-  }
-
-  .card-header {
-    flex-wrap: wrap;
-    gap: 0.8rem;
-  }
-
-  .char-info {
-    min-width: 120px;
-  }
-
-  .char-meta {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .mobile-header {
-    padding: 0.8rem 1rem;
-  }
-
-  .mobile-menu-btn {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .mobile-title h2 {
-    font-size: 1.1rem;
-  }
-
-  .mobile-title .selected-info {
-    font-size: 0.75rem;
-  }
-
-  .characters-panel {
-    width: 90%;
-    max-width: 300px;
-  }
-
-  .character-card {
-    padding: 0.9rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .character-card::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: rgba(var(--color-primary-rgb), 0.1);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition:
-      width 0.3s ease,
-      height 0.3s ease;
-    pointer-events: none;
-  }
-
-  .character-card:active::after {
-    width: 200px;
-    height: 200px;
-  }
-
-  .save-card,
-  .online-save-card {
-    padding: 1rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .save-card::after,
-  .online-save-card::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: rgba(var(--color-success-rgb), 0.1);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition:
-      width 0.3s ease,
-      height 0.3s ease;
-    pointer-events: none;
-  }
-
-  .save-card:active::after,
-  .online-save-card:active::after {
-    width: 150px;
-    height: 150px;
-  }
-
-  .auto-saves-grid {
-    gap: 0.6rem;
-  }
-
-  .manual-saves-grid {
-    gap: 0.6rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .empty-actions {
-    flex-direction: column;
-  }
-
-  .btn-create,
-  .btn-import {
-    width: 100%;
-  }
-
-  .mobile-header {
-    padding: 0.6rem 0.8rem;
-  }
-
-  .mobile-menu-btn {
-    padding: 0.4rem 0.5rem;
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .mobile-title h2 {
-    font-size: 1rem;
-  }
-
-  .hamburger {
-    width: 14px;
-    height: 10px;
-  }
-
-  .characters-panel {
-    width: 95%;
-    max-width: 280px;
-  }
-
-  .characters-grid {
-    padding: 0.8rem;
-  }
-
-  .character-card {
-    padding: 0.8rem;
-    margin-bottom: 0.8rem;
-    min-height: 80px;
-  }
-
-  .btn-save-action span {
-    font-size: 0.75rem;
-  }
-
-  .card-header {
-    margin-bottom: 0.8rem;
-    gap: 0.6rem;
-  }
-
-  .char-avatar {
-    width: 40px;
-    height: 40px;
-    font-size: 1.1rem;
-  }
-
-  .mode-indicator {
-    width: 16px;
-    height: 16px;
-    font-size: 0.6rem;
-  }
-
-  .char-name {
-    font-size: 1rem;
-  }
-
-  .char-meta {
-    font-size: 0.8rem;
-  }
-
-  .saves-container,
-  .online-saves-container {
-    padding: 0.8rem;
-    flex: 1;
-    min-height: 0;
-    max-height: none;
-  }
-
-  .save-card,
-  .online-save-card {
-    padding: 0.9rem;
-    min-height: 120px;
-  }
-
-  .stat-grid {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
-
-  .save-footer {
-    flex-direction: column;
-    gap: 0.3rem;
-    align-items: flex-start;
-  }
-
-  .dialog-box {
-    width: 95%;
-    padding: 1.2rem;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-
-  .dialog-title {
-    font-size: 1.3rem;
-  }
-
-  .dialog-actions {
-    flex-direction: column-reverse;
-    gap: 0.8rem;
-  }
-
-  .btn-dialog-confirm,
-  .btn-dialog-cancel {
-    width: 100%;
-    padding: 0.8rem;
-    min-height: 44px;
-    font-size: 1rem;
   }
 
   .details-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
   }
 
-  .detail-section {
-    padding: 1rem;
-  }
-
-  .btn-details,
-  .btn-export,
-  .btn-delete {
-    min-height: 36px;
-    font-size: 0.85rem;
-    padding: 0.6rem 0.8rem;
-  }
-
-  .btn-start,
-  .btn-play,
-  .btn-sync {
-    min-height: 40px;
-    padding: 0.7rem 1rem;
-    font-size: 0.85rem;
-  }
-}
-
-@media (max-width: 360px) {
-  .mobile-header {
-    padding: 0.5rem;
-  }
-
-  .mobile-menu-btn {
-    padding: 0.3rem 0.4rem;
-    gap: 0.3rem;
-    min-height: 40px;
-    min-width: 40px;
-  }
-
-  .mobile-title h2 {
-    font-size: 0.95rem;
-  }
-
-  .mobile-title .selected-info {
-    font-size: 0.7rem;
-  }
-
-  .characters-panel {
-    width: 100%;
-    max-width: 260px;
-    min-width: 240px;
-  }
-
-  .character-card {
-    padding: 0.6rem;
-    min-height: 70px;
-  }
-
-  .save-card,
-  .online-save-card {
-    padding: 0.8rem;
-    min-height: 100px;
-  }
-
-  .save-header {
+  .empty-actions {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .save-badges {
-    align-self: stretch;
-    justify-content: flex-start;
-  }
-
-  .dialog-box {
-    width: 98%;
-    padding: 1rem;
-    margin: 0.5rem;
-    max-height: 95vh;
-  }
-
-  .dialog-title {
-    font-size: 1.1rem;
-  }
-
-  .dialog-message {
-    font-size: 0.9rem;
-    line-height: 1.5;
-  }
-
-  .dialog-input {
-    padding: 0.7rem;
-    font-size: 0.9rem;
-  }
-
-  .btn-dialog-confirm,
-  .btn-dialog-cancel {
-    padding: 0.7rem;
-    font-size: 0.9rem;
-    min-height: 40px;
-  }
-
-  .character-management-panel {
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .main-content {
-    flex: 1;
-    overflow: hidden;
-    min-height: 0;
-  }
-
-  .saves-container,
-  .online-saves-container {
-    flex: 1;
-    min-height: 0;
-    padding: 0.6rem;
-    max-height: none;
-  }
-
-  .char-name {
-    font-size: 0.9rem;
-  }
-
-  .char-meta {
-    font-size: 0.75rem;
-  }
-
-  .save-count .count {
-    font-size: 1rem;
-  }
-
-  .save-count .label {
-    font-size: 0.65rem;
-  }
-}
-
-/* Style unification overrides */
-/* Replace absolute divider with contextual borders */
-.grid-container::before {
-  content: none;
-}
-.grid-header-left,
-.grid-content-left,
-.grid-footer-left {
-  border-right: var(--cm-divider-width) solid var(--color-primary);
-  box-sizing: border-box;
-}
-
-/* Ensure left column fills its grid cell at <=1024px (fix misaligned divider) */
-@media (max-width: 1024px) {
-  .grid-content-left.characters-panel {
-    max-width: none;
     width: 100%;
+    max-width: 280px;
   }
 }
 
-/* Consistent radii across controls */
-.dialog-box {
-  border-radius: var(--cm-radius-lg);
-}
-.dialog-input {
-  border-radius: var(--cm-radius-md);
-}
-.btn-dialog-confirm,
-.btn-dialog-cancel {
-  border-radius: var(--cm-radius-md);
-}
-.fullscreen-back-btn {
-  border-radius: var(--cm-radius-md);
-}
-.character-card {
-  border-radius: var(--cm-radius-sm);
-}
-.save-card,
-.online-save-card {
-  border-radius: var(--cm-radius-md);
-}
-.btn-details,
-.btn-delete {
-  border-radius: var(--cm-radius-md);
-}
-.btn-start,
-.btn-play,
-.btn-sync {
-  border-radius: var(--cm-radius-md);
-}
-.btn-login,
-.btn-close {
-  border-radius: var(--cm-radius-md);
-}
-
-/* Desktop card density adjustments: make character list less flat */
-@media (min-width: 769px) {
-  .characters-grid {
-    padding: 0.8rem;
+@media (prefers-reduced-motion: reduce) {
+  .empty-emblem::before,
+  .main-content.fullscreen-content {
+    animation: none;
   }
-  .character-card {
-    min-height: var(--cm-card-min-h);
-    padding: var(--cm-card-padding);
-  }
-  .card-header {
-    gap: var(--cm-header-gap);
-    margin-bottom: 0.6rem;
-  }
-  .char-avatar {
-    width: var(--cm-avatar-size);
-    height: var(--cm-avatar-size);
-    font-size: 0.95rem;
-  }
-  .char-name {
-    font-size: var(--cm-name-font);
-  }
-  .char-meta {
-    font-size: var(--cm-meta-font);
-  }
-  .save-count {
-    min-width: var(--cm-save-count-minw);
-  }
-  .save-count .count {
-    font-size: var(--cm-save-count-count-font);
-  }
-  .save-count .label {
-    font-size: var(--cm-save-count-label-font);
-  }
-}
-
-/* ========== 深色玻璃拟态风格适配 ========== */
-[data-theme='dark'] .character-management-panel {
-  background: rgb(30, 41, 59);
-}
-
-[data-theme='dark'] .fullscreen-header {
-  background: rgba(30, 41, 59, 0.9);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-}
-
-[data-theme='dark'] .fullscreen-back-btn {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .fullscreen-back-btn:hover {
-  background: rgba(51, 65, 85, 0.8);
-  color: #f1f5f9;
-  border-color: rgba(147, 197, 253, 0.3);
-}
-
-[data-theme='dark'] .fullscreen-title h1 {
-  color: #f1f5f9;
-  text-shadow: 0 0 20px rgba(147, 197, 253, 0.4);
-}
-
-[data-theme='dark'] .fullscreen-title p {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .mobile-header {
-  background: rgba(30, 41, 59, 0.9);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-}
-
-[data-theme='dark'] .mobile-menu-btn {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .mobile-menu-btn:hover {
-  background: rgba(51, 65, 85, 0.9);
-  color: #93c5fd;
-  border-color: rgba(147, 197, 253, 0.3);
-}
-
-[data-theme='dark'] .mobile-menu-btn.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
-  color: #ffffff;
-  border-color: rgba(147, 197, 253, 0.5);
-}
-
-[data-theme='dark'] .mobile-title h2 {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .mobile-title .selected-info {
-  color: #94a3b8;
-}
-
-/* 网格布局暗色适配 */
-[data-theme='dark'] .grid-header-left,
-[data-theme='dark'] .grid-header-right {
-  background: rgba(30, 41, 59, 0.8);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme='dark'] .grid-header-left h2,
-[data-theme='dark'] .grid-header-right h2 {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .character-count {
-  background: rgba(15, 23, 42, 0.6);
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .selected-char-info {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(147, 197, 253, 0.3);
-  color: #93c5fd;
-}
-
-[data-theme='dark'] .grid-content-left,
-[data-theme='dark'] .grid-content-right {
-  background: rgb(30, 41, 59);
-}
-
-[data-theme='dark'] .grid-content-left.characters-panel {
-  background: rgba(30, 41, 59, 0.95);
-}
-
-/* 分割线暗色适配 */
-[data-theme='dark'] .grid-header-left,
-[data-theme='dark'] .grid-content-left,
-[data-theme='dark'] .grid-footer-left {
-  border-right-color: rgba(147, 197, 253, 0.3);
-}
-
-/* 角色卡片暗色适配 */
-[data-theme='dark'] .character-card {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme='dark'] .character-card:hover {
-  background: rgba(51, 65, 85, 0.7);
-  border-color: rgba(147, 197, 253, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme='dark'] .character-card.active {
-  background: rgba(30, 58, 138, 0.4);
-  border-color: rgba(147, 197, 253, 0.5);
-}
-
-[data-theme='dark'] .character-card.single-mode {
-  border-left-color: #9ece6a;
-}
-
-[data-theme='dark'] .character-card.online-mode {
-  border-left-color: #93c5fd;
-}
-
-[data-theme='dark'] .char-name {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .char-meta {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .save-count .count {
-  color: #c0caf5;
-}
-
-[data-theme='dark'] .save-count .label {
-  color: #64748b;
-}
-
-[data-theme='dark'] .card-actions {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme='dark'] .btn-details,
-[data-theme='dark'] .btn-export,
-[data-theme='dark'] .btn-delete {
-  background: rgba(30, 41, 59, 0.6);
-}
-
-[data-theme='dark'] .btn-details {
-  color: #77cdfe;
-  border-color: rgba(119, 205, 254, 0.4);
-}
-
-[data-theme='dark'] .btn-details:hover {
-  background: #77cdfe;
-  color: #0f172a;
-}
-
-[data-theme='dark'] .btn-export {
-  color: #9ece6a;
-  border-color: rgba(158, 206, 106, 0.4);
-}
-
-[data-theme='dark'] .btn-export:hover {
-  background: #9ece6a;
-  color: #0f172a;
-}
-
-[data-theme='dark'] .btn-delete {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.4);
-}
-
-[data-theme='dark'] .btn-delete:hover {
-  background: #f87171;
-  color: #0f172a;
-}
-
-/* 存档面板暗色适配 */
-[data-theme='dark'] .saves-panel {
-  background: rgb(30, 41, 59);
-}
-
-[data-theme='dark'] .no-selection {
-  color: #64748b;
-}
-
-[data-theme='dark'] .manual-saves-header h3 {
-  color: #fbbf24;
-}
-
-[data-theme='dark'] .save-info-text {
-  color: #64748b;
-}
-
-/* 存档卡片暗色适配 */
-[data-theme='dark'] .save-card,
-[data-theme='dark'] .online-save-card {
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(15px);
-}
-
-[data-theme='dark'] .save-card::before,
-[data-theme='dark'] .online-save-card::before {
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.08), rgba(192, 202, 245, 0.04));
-}
-
-[data-theme='dark'] .save-card:hover,
-[data-theme='dark'] .online-save-card:hover {
-  border-color: rgba(147, 197, 253, 0.4);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-
-[data-theme='dark'] .save-card.has-data {
-  border-left-color: #9ece6a;
-  border-color: rgba(158, 206, 106, 0.5);
-}
-
-[data-theme='dark'] .save-card.auto-save {
-  border-left-color: #77cdfe;
-  border-color: rgba(119, 205, 254, 0.5);
-}
-
-[data-theme='dark'] .save-card.has-data::after {
-  background: #9ece6a;
-  box-shadow: 0 0 8px rgba(158, 206, 106, 0.6);
-}
-
-[data-theme='dark'] .save-name {
-  color: #fbbf24;
-}
-
-[data-theme='dark'] .realm-badge {
-  background: rgba(158, 206, 106, 0.2);
-  color: #9ece6a;
-}
-
-[data-theme='dark'] .age-badge {
-  background: rgba(192, 202, 245, 0.2);
-  color: #c0caf5;
-}
-
-[data-theme='dark'] .stat .label {
-  color: #64748b;
-}
-
-[data-theme='dark'] .stat .value {
-  color: #e2e8f0;
-}
-
-[data-theme='dark'] .save-footer {
-  border-top-color: rgba(255, 255, 255, 0.08);
-  color: #64748b;
-}
-
-[data-theme='dark'] .sync-status.synced {
-  background: rgba(158, 206, 106, 0.2);
-  color: #9ece6a;
-}
-
-[data-theme='dark'] .save-empty {
-  color: #64748b;
-}
-
-/* 存档操作按钮暗色适配 */
-[data-theme='dark'] .btn-export-save {
-  background: rgba(158, 206, 106, 0.15);
-  border-color: rgba(158, 206, 106, 0.3);
-  color: #9ece6a;
-}
-
-[data-theme='dark'] .btn-export-save:hover {
-  background: rgba(158, 206, 106, 0.25);
-  border-color: rgba(158, 206, 106, 0.5);
-}
-
-[data-theme='dark'] .btn-edit-save {
-  background: rgba(119, 205, 254, 0.15);
-  border-color: rgba(119, 205, 254, 0.3);
-  color: #77cdfe;
-}
-
-[data-theme='dark'] .btn-edit-save:hover {
-  background: rgba(119, 205, 254, 0.25);
-  border-color: rgba(119, 205, 254, 0.5);
-}
-
-[data-theme='dark'] .btn-delete-save {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.3);
-  color: #f87171;
-}
-
-[data-theme='dark'] .btn-delete-save:hover:not(.disabled):not(:disabled) {
-  background: rgba(248, 113, 113, 0.25);
-  border-color: rgba(248, 113, 113, 0.5);
-}
-
-/* 按钮暗色适配 */
-[data-theme='dark'] .btn-start,
-[data-theme='dark'] .btn-play,
-[data-theme='dark'] .btn-sync {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
-  border-color: rgba(147, 197, 253, 0.4);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-[data-theme='dark'] .btn-start:hover,
-[data-theme='dark'] .btn-play:hover,
-[data-theme='dark'] .btn-sync:hover {
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-}
-
-[data-theme='dark'] .btn-header-action {
-  background: rgba(30, 41, 59, 0.6);
-}
-
-[data-theme='dark'] .btn-header-action.import {
-  color: #77cdfe;
-  border-color: rgba(119, 205, 254, 0.4);
-}
-
-[data-theme='dark'] .btn-header-action.import:hover {
-  background: rgba(119, 205, 254, 0.15);
-  border-color: #77cdfe;
-}
-
-[data-theme='dark'] .btn-header-action.migrate {
-  color: #e0af68;
-  border-color: rgba(224, 175, 104, 0.4);
-}
-
-[data-theme='dark'] .btn-header-action.migrate:hover {
-  background: rgba(224, 175, 104, 0.15);
-  border-color: #e0af68;
-}
-
-[data-theme='dark'] .btn-save-action {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(10px);
-}
-
-[data-theme='dark'] .btn-save-action.export {
-  color: #9ece6a;
-  border-color: rgba(158, 206, 106, 0.4);
-}
-
-[data-theme='dark'] .btn-save-action.export:hover:not(:disabled) {
-  background: linear-gradient(135deg, #9ece6a, rgba(158, 206, 106, 0.8));
-  color: #0f172a;
-}
-
-[data-theme='dark'] .btn-save-action.import {
-  color: #77cdfe;
-  border-color: rgba(119, 205, 254, 0.4);
-}
-
-[data-theme='dark'] .btn-save-action.import:hover:not(:disabled) {
-  background: linear-gradient(135deg, #77cdfe, rgba(119, 205, 254, 0.8));
-  color: #0f172a;
-}
-
-[data-theme='dark'] .btn-save-action.migrate {
-  color: var(--color-warning);
-  border-color: rgba(var(--color-warning-rgb), 0.45);
-}
-
-[data-theme='dark'] .btn-save-action.migrate:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--color-warning), rgba(var(--color-warning-rgb), 0.85));
-  color: #0f172a;
-}
-
-/* 对话框暗色适配 */
-[data-theme='dark'] .dialog-overlay {
-  background: rgba(10, 15, 25, 0.7);
-}
-
-[data-theme='dark'] .dialog-box {
-  background: rgba(30, 41, 59, 0.95);
-  border-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-}
-
-[data-theme='dark'] .dialog-title {
-  color: #c0caf5;
-}
-
-[data-theme='dark'] .dialog-message {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .dialog-input {
-  background: rgba(15, 23, 42, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .dialog-input:focus {
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
-}
-
-[data-theme='dark'] .btn-dialog-confirm {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
-  border-color: rgba(147, 197, 253, 0.4);
-}
-
-[data-theme='dark'] .btn-dialog-cancel {
-  background: rgba(51, 65, 85, 0.6);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .btn-dialog-cancel:hover {
-  background: rgba(51, 65, 85, 0.8);
-  color: #f1f5f9;
-}
-
-/* 详情弹窗暗色适配 */
-[data-theme='dark'] .modal-overlay {
-  background: rgba(10, 15, 25, 0.7);
-}
-
-[data-theme='dark'] .details-modal {
-  background: rgba(30, 41, 59, 0.95);
-  border-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-}
-
-[data-theme='dark'] .modal-header {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme='dark'] .modal-header h3 {
-  color: #c0caf5;
-}
-
-[data-theme='dark'] .btn-close {
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #64748b;
-}
-
-[data-theme='dark'] .btn-close:hover {
-  background: rgba(51, 65, 85, 0.6);
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .detail-section {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(147, 197, 253, 0.15);
-}
-
-[data-theme='dark'] .detail-section h4 {
-  color: #fbbf24;
-}
-
-[data-theme='dark'] .detail-item {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-
-[data-theme='dark'] .detail-item .label {
-  color: #64748b;
-}
-
-[data-theme='dark'] .detail-item .value {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .talent-tag {
-  background: rgba(192, 202, 245, 0.2);
-  color: #c0caf5;
-}
-
-[data-theme='dark'] .no-talents {
-  color: #64748b;
-}
-
-/* 空状态暗色适配 */
-[data-theme='dark'] .empty-state h2 {
-  color: #c0caf5;
-}
-
-[data-theme='dark'] .empty-state p {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .btn-create {
-  background: linear-gradient(135deg, #9ece6a, #77cdfe);
-  border-color: rgba(158, 206, 106, 0.5);
-}
-
-[data-theme='dark'] .btn-import {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(192, 202, 245, 0.8));
-  border-color: rgba(147, 197, 253, 0.5);
-}
-
-/* 联机模式暗色适配 */
-[data-theme='dark'] .login-prompt h3 {
-  color: #f1f5f9;
-}
-
-[data-theme='dark'] .login-prompt p {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .btn-login {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
-  border-color: rgba(147, 197, 253, 0.4);
-}
-
-/* 加载状态暗色适配 */
-[data-theme='dark'] .loading-saves p {
-  color: #94a3b8;
-}
-
-[data-theme='dark'] .loading-spinner {
-  border-color: rgba(147, 197, 253, 0.2);
-  border-top-color: #93c5fd;
 }
 </style>

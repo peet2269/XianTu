@@ -18,6 +18,28 @@ export interface RemotePromptConfig {
   lastUpdated?: string;
 }
 
+function normalizeRemotePromptConfig(value: unknown): RemotePromptConfig | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.version !== 'string' || !raw.prompts || typeof raw.prompts !== 'object') return null;
+  const prompts: RemotePromptConfig['prompts'] = {};
+  for (const [key, item] of Object.entries(raw.prompts as Record<string, unknown>)) {
+    if (!item || typeof item !== 'object') continue;
+    const prompt = item as Record<string, unknown>;
+    if (typeof prompt.content !== 'string') continue;
+    prompts[key] = {
+      content: prompt.content,
+      enabled: prompt.enabled !== false,
+      ...(typeof prompt.description === 'string' ? { description: prompt.description } : {}),
+    };
+  }
+  return {
+    prompts,
+    version: raw.version,
+    ...(typeof raw.lastUpdated === 'string' ? { lastUpdated: raw.lastUpdated } : {}),
+  };
+}
+
 // 缓存远程配置
 let cachedRemoteConfig: RemotePromptConfig | null = null;
 let lastFetchTime = 0;
@@ -41,7 +63,13 @@ export async function fetchRemotePromptConfig(): Promise<RemotePromptConfig | nu
   }
 
   try {
-    const config = await request<RemotePromptConfig>('/api/v1/prompts/config', { method: 'GET' });
+    const response = await request<unknown>('/api/v1/prompts/config', {
+      method: 'GET',
+      silent: true,
+      timeoutMs: 5_000,
+    });
+    const config = normalizeRemotePromptConfig(response);
+    if (!config) throw new Error('远程提示词配置格式无效');
     cachedRemoteConfig = config;
     lastFetchTime = now;
     console.log('[提示词配置] 成功获取远程配置:', config.version);
@@ -65,6 +93,7 @@ export function getPromptWithRemoteOverride(key: string, defaultValue: string): 
     if (remotePrompt.enabled !== false) {
       return remotePrompt.content;
     }
+    return '';
   }
 
   // 回退到默认值
@@ -76,6 +105,11 @@ export function getPromptWithRemoteOverride(key: string, defaultValue: string): 
  * @param key 提示词 key
  * @returns 是否启用
  */
+export function getRemotePromptEnabled(key: string): boolean | undefined {
+  const remote = cachedRemoteConfig?.prompts[key];
+  return remote ? remote.enabled !== false : undefined;
+}
+
 export function isPromptEnabled(key: string): boolean {
   // 优先使用远程配置
   if (cachedRemoteConfig?.prompts[key]) {

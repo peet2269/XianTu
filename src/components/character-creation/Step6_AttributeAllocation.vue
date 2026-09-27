@@ -1,46 +1,86 @@
 <template>
   <div class="attribute-allocation-container">
-    <div class="header">
-      <h2>{{ $t('先天六命分配') }}</h2>
-      <div class="points-display">
-        {{ $t('剩余天道点:') }}
-        <span :class="{ negative: store.remainingTalentPoints < 0 }">{{
-          store.remainingTalentPoints
-        }}</span>
+    <div class="alloc-header">
+      <div class="alloc-title">
+        <h2>{{ $t('先天六命分配') }}</h2>
+        <p>{{ $t('每项上限') }} {{ maxValue }} · {{ $t('天道点用尽即止') }}</p>
+      </div>
+      <div class="alloc-actions">
+        <button type="button" class="cc-btn small" @click="resetPoints">
+          <RotateCcw :size="14" />
+          <span>{{ $t('重置') }}</span>
+        </button>
+        <button type="button" class="cc-btn small" @click="randomizePoints">
+          <Dices :size="14" />
+          <span>{{ $t('随机') }}</span>
+        </button>
+        <button type="button" class="cc-btn small" @click="balancePoints">
+          <Scale :size="14" />
+          <span>{{ $t('均衡') }}</span>
+        </button>
       </div>
     </div>
 
-    <div class="attributes-list">
-      <div v-for="(value, key) in store.attributes" :key="key" class="attribute-item">
-        <div class="attribute-info">
-          <span class="attribute-name">{{ attributeNames[key as AttributeKey] }}</span>
-          <p class="attribute-desc">{{ attributeDescriptions[key as AttributeKey] }}</p>
+    <div class="attributes-grid">
+      <div
+        v-for="(value, key) in store.attributes"
+        :key="key"
+        class="attribute-card"
+        :class="{ maxed: value >= maxValue, active: value > minValue }"
+      >
+        <div class="attr-glyph" aria-hidden="true">
+          <img
+            class="attr-icon"
+            :src="attributeIcons[key as AttributeKey]"
+            alt=""
+            draggable="false"
+          />
         </div>
-        <div class="attribute-controls">
-          <button @click="decrement(key as AttributeKey)" :disabled="value <= minValue">-</button>
-          <span class="attribute-value">{{ value }}</span>
-          <button
-            @click="increment(key as AttributeKey)"
-            :disabled="store.remainingTalentPoints <= 0 || value >= maxValue"
-            :class="{ disabled: store.remainingTalentPoints <= 0 || value >= maxValue }"
-          >
-            +
-          </button>
+        <div class="attr-body">
+          <div class="attr-head">
+            <span class="attr-name">{{ $t(attributeNames[key as AttributeKey]) }}</span>
+            <div class="attr-stepper">
+              <button
+                type="button"
+                class="step-btn"
+                :aria-label="$t('减少') + ' ' + attributeNames[key as AttributeKey]"
+                :disabled="value <= minValue"
+                @click="decrement(key as AttributeKey)"
+              >
+                <Minus :size="14" />
+              </button>
+              <span class="attr-value">{{ value }}</span>
+              <button
+                type="button"
+                class="step-btn"
+                :aria-label="$t('增加') + ' ' + attributeNames[key as AttributeKey]"
+                :disabled="store.remainingTalentPoints <= 0 || value >= maxValue"
+                @click="increment(key as AttributeKey)"
+              >
+                <Plus :size="14" />
+              </button>
+            </div>
+          </div>
+          <div class="attr-pips" aria-hidden="true">
+            <span v-for="n in maxValue" :key="n" class="pip" :class="{ on: n <= value }"></span>
+          </div>
+          <p class="attr-desc">{{ $t(attributeDescriptions[key as AttributeKey]) }}</p>
         </div>
       </div>
-    </div>
-
-    <div class="actions">
-      <button @click="resetPoints" class="btn btn-secondary">{{ $t('重置') }}</button>
-      <button @click="randomizePoints" class="btn btn-warning">{{ $t('🎲 随机') }}</button>
-      <button @click="balancePoints" class="btn btn-success">{{ $t('⚖️ 均衡') }}</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { Dices, Minus, Plus, RotateCcw, Scale } from 'lucide-vue-next'
 import { useCharacterCreationStore } from '../../stores/characterCreationStore'
+import rootBoneIcon from '../../assets/attribute-icons/root-bone.png'
+import spiritualityIcon from '../../assets/attribute-icons/spirituality.png'
+import comprehensionIcon from '../../assets/attribute-icons/comprehension.png'
+import fortuneIcon from '../../assets/attribute-icons/fortune.png'
+import charmIcon from '../../assets/attribute-icons/charm.png'
+import temperamentIcon from '../../assets/attribute-icons/temperament.png'
 
 const store = useCharacterCreationStore()
 
@@ -54,6 +94,15 @@ const attributeNames = {
   fortune: '气运',
   charm: '魅力',
   temperament: '心性',
+}
+
+const attributeIcons = {
+  root_bone: rootBoneIcon,
+  spirituality: spiritualityIcon,
+  comprehension: comprehensionIcon,
+  fortune: fortuneIcon,
+  charm: charmIcon,
+  temperament: temperamentIcon,
 }
 
 const attributeDescriptions = {
@@ -148,440 +197,238 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ========== 深色玻璃拟态风格 ========== */
+/* 先天六命：颜色令牌见 styles/creation-theme.css */
 .attribute-allocation-container {
-  height: 100%;
   display: flex;
   flex-direction: column;
-  color: var(--color-text);
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
+  gap: 0.8rem;
+  max-width: 1080px;
+  margin: 0 auto;
 }
 
-.header {
+.alloc-header {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(147, 197, 253, 0.2);
-}
-
-.points-display .negative {
-  color: #f87171 !important;
-}
-
-h2 {
-  margin: 0;
-  color: #93c5fd;
-  font-size: 1.5rem;
-  text-shadow: 0 0 20px rgba(147, 197, 253, 0.3);
-}
-
-.points-display {
-  font-size: 1.2rem;
-  color: #94a3b8;
-}
-
-.points-display span {
-  font-weight: 600;
-  color: #fbbf24;
-  font-size: 1.5rem;
-}
-
-.attributes-list {
-  overflow-y: auto;
-  flex-grow: 1;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(147, 197, 253, 0.3) transparent;
-}
-
-.attributes-list::-webkit-scrollbar { width: 6px; }
-.attributes-list::-webkit-scrollbar-track { background: transparent; }
-.attributes-list::-webkit-scrollbar-thumb { background: rgba(147, 197, 253, 0.3); border-radius: 3px; }
-
-.attribute-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 0.5rem;
-  margin-bottom: 0.5rem;
-  border-radius: 8px;
-  background: rgba(30, 41, 59, 0.4);
-  border: 1px solid transparent;
-  transition: all 0.25s ease;
-}
-
-.attribute-item:hover {
-  background: rgba(51, 65, 85, 0.6);
-  border-color: rgba(147, 197, 253, 0.2);
-}
-
-.attribute-item:last-child {
-  margin-bottom: 0;
-}
-
-.attribute-info {
-  flex-basis: 70%;
-}
-
-.attribute-name {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: #93c5fd;
-}
-
-.attribute-desc {
-  font-size: 0.85rem;
-  color: #94a3b8;
-  margin: 0.3rem 0 0 0;
-  line-height: 1.4;
-}
-
-.attribute-controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.attribute-controls button {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  color: #93c5fd;
-  font-size: 1.5rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.attribute-controls button:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: #93c5fd;
-  color: #bfdbfe;
-}
-
-.attribute-controls button:disabled,
-.attribute-controls button.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  background: rgba(30, 41, 59, 0.3);
-  border-color: rgba(255, 255, 255, 0.06);
-  color: #64748b;
-}
-
-.attribute-value {
-  font-size: 1.4rem;
-  font-weight: 600;
-  min-width: 30px;
-  text-align: center;
-  color: #f1f5f9;
-}
-
-.actions {
-  padding-top: 1rem;
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
   flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
-.actions button {
-  padding: 0.5rem 1.5rem;
-  border: 1px solid rgba(147, 197, 253, 0.3);
-  background: rgba(30, 41, 59, 0.6);
-  color: #f1f5f9;
+.alloc-title h2 {
+  margin: 0;
+  font-family: var(--cc-calligraphy);
+  font-size: 1.9rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--cc-text);
+}
+
+.alloc-title p {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--cc-text-3);
+}
+
+.alloc-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.attributes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 0.85rem;
+}
+
+.attribute-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 112px;
+  padding: 0.8rem 1.05rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-surface);
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.attribute-card:hover {
+  background: var(--cc-surface-2);
+}
+
+.attribute-card.active {
+  border-color: rgba(var(--cc-gold-rgb), 0.35);
+}
+
+.attribute-card.maxed {
+  border-color: rgba(var(--cc-gold-rgb), 0.7);
+  box-shadow: 0 0 20px -8px rgba(var(--cc-gold-rgb), 0.7);
+}
+
+/* 玉璧图标 */
+.attr-glyph {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(var(--cc-accent-rgb), 0.22) 0%, rgba(var(--cc-accent-rgb), 0.05) 75%);
+  box-shadow: 0 0 0 1px rgba(var(--cc-gold-rgb), 0.45);
+  color: var(--cc-accent);
+}
+
+.attr-icon {
+  display: block;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(var(--cc-accent-rgb), 0.18));
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.attribute-card:hover .attr-icon {
+  transform: scale(1.08) rotate(-4deg);
+  filter: drop-shadow(0 2px 3px rgba(var(--cc-accent-rgb), 0.3));
+}
+
+.attr-glyph::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px dashed rgba(var(--cc-gold-rgb), 0.35);
+  transition: transform 0.6s ease;
+}
+
+.attribute-card:hover .attr-glyph::before {
+  transform: rotate(90deg);
+}
+
+.attr-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.attr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.attr-name {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--cc-text);
+}
+
+.attr-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 2px;
+  border: 1px solid var(--cc-border);
   border-radius: 8px;
+  background: var(--cc-inset);
+}
+
+.step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-text-2);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.actions button:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(147, 197, 253, 0.5);
+.step-btn:hover:not(:disabled) {
+  background: var(--cc-surface-hover);
+  color: var(--cc-accent);
 }
 
-.actions .btn-secondary {
-  border-color: rgba(148, 163, 184, 0.4);
-  color: #94a3b8;
+.step-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
-.actions .btn-secondary:hover {
-  background: rgba(148, 163, 184, 0.2);
-  border-color: #94a3b8;
-  color: #f1f5f9;
+.step-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--cc-accent-rgb), 0.45);
 }
 
-.actions .btn-warning {
-  border-color: rgba(251, 191, 36, 0.4);
-  color: #fbbf24;
+.attr-value {
+  min-width: 1.8rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--cc-gold);
+  font-variant-numeric: tabular-nums;
 }
 
-.actions .btn-warning:hover {
-  background: rgba(251, 191, 36, 0.2);
-  border-color: #fbbf24;
-  color: #fef3c7;
+.attr-pips {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
 }
 
-.actions .btn-success {
-  border-color: rgba(52, 211, 153, 0.4);
-  color: #34d399;
+.pip {
+  height: 4px;
+  border-radius: 1px;
+  background: var(--cc-divider);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
 }
 
-.actions .btn-success:hover {
-  background: rgba(52, 211, 153, 0.2);
-  border-color: #34d399;
-  color: #a7f3d0;
+.pip.on {
+  background: linear-gradient(90deg, rgba(var(--cc-gold-rgb), 0.7), var(--cc-gold));
+  box-shadow: 0 0 6px rgba(var(--cc-gold-rgb), 0.45);
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .attribute-allocation-container {
-    padding-bottom: 1rem;
-  }
-
-  .header {
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
-    padding-bottom: 0.75rem;
-    margin-bottom: 1rem;
-  }
-
-  .header h2 {
-    font-size: 1.3rem;
-  }
-
-  .points-display {
-    font-size: 1rem;
-  }
-
-  .points-display span {
-    font-size: 1.2rem;
-  }
-
-  .attributes-list {
-    margin-bottom: 0.5rem;
-  }
-
-  .attribute-item {
-    flex-direction: row;
-    gap: 0.75rem;
-    padding: 0.75rem 0.5rem;
-  }
-
-  .attribute-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .attribute-name {
-    font-size: 0.95rem;
-  }
-
-  .attribute-desc {
-    font-size: 0.75rem;
-    line-height: 1.3;
-  }
-
-  .attribute-controls {
-    justify-content: flex-end;
-    gap: 0.5rem;
-    flex-shrink: 0;
-  }
-
-  .attribute-controls button {
-    width: 32px;
-    height: 32px;
-    font-size: 1.4rem;
-  }
-
-  .attribute-value {
-    font-size: 1.2rem;
-    min-width: 28px;
-  }
-
-  .actions {
-    gap: 0.5rem;
-    padding: 0.75rem 0;
-  }
-
-  .actions button {
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    flex: 1;
-    min-width: 70px;
-  }
+.attr-desc {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--cc-text-2);
 }
 
-@media (max-width: 640px) {
-  .header {
-    gap: 0.5rem;
+@media (max-width: 720px) {
+  .attributes-grid {
+    grid-template-columns: 1fr;
   }
 
-  .header h2 {
-    font-size: 1.2rem;
-  }
-
-  .attribute-item {
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1rem 0.5rem;
-    align-items: center;
-  }
-
-  .attribute-info {
-    flex-basis: auto;
-    text-align: center;
-    width: 100%;
-  }
-
-  .attribute-name {
-    font-size: 1rem;
-    display: block;
-    margin-bottom: 0.25rem;
-  }
-
-  .attribute-controls {
-    justify-content: center;
-    gap: 1rem;
-  }
-
-  .attribute-controls button {
-    width: 38px;
-    height: 38px;
-    font-size: 1.6rem;
-  }
-
-  .attribute-value {
-    font-size: 1.4rem;
-    min-width: 35px;
-  }
-
-  .actions {
-    gap: 0.5rem;
-    padding: 1rem 0 0.5rem;
-  }
-
-  .actions button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .header h2 {
-    font-size: 1.1rem;
-  }
-
-  .points-display {
-    font-size: 0.9rem;
-  }
-
-  .points-display span {
-    font-size: 1.1rem;
-  }
-
-  .attribute-name {
-    font-size: 0.95rem;
-  }
-
-  .attribute-desc {
-    font-size: 0.7rem;
-  }
-
-  .attribute-controls button {
-    width: 36px;
-    height: 36px;
+  .alloc-title h2 {
     font-size: 1.5rem;
   }
 
-  .attribute-value {
-    font-size: 1.3rem;
-    min-width: 32px;
+  .alloc-actions {
+    width: 100%;
   }
 
-  .actions {
-    flex-wrap: wrap;
-    padding: 0.75rem 0;
+  .alloc-actions .cc-btn {
+    flex: 1;
   }
 
-  .actions button {
-    flex: 1 1 calc(33.333% - 0.5rem);
-    min-width: 80px;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.85rem;
+  .attr-glyph {
+    width: 52px;
+    height: 52px;
   }
-}
 
-/* ========== 亮色主题适配 ========== */
-[data-theme="light"] .attribute-allocation-container {
-  background: rgba(248, 250, 252, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .header {
-  border-bottom-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] h2 {
-  color: #2563eb;
-}
-
-[data-theme="light"] .points-display {
-  color: #475569;
-}
-
-[data-theme="light"] .points-display span {
-  color: #d97706;
-}
-
-[data-theme="light"] .attribute-item {
-  background: rgba(255, 255, 255, 0.6);
-}
-
-[data-theme="light"] .attribute-item:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="light"] .attribute-name {
-  color: #2563eb;
-}
-
-[data-theme="light"] .attribute-desc {
-  color: #475569;
-}
-
-[data-theme="light"] .attribute-value {
-  color: #1e293b;
-}
-
-[data-theme="light"] .attribute-controls button {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #2563eb;
-}
-
-[data-theme="light"] .attribute-controls button:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: #3b82f6;
-}
-
-[data-theme="light"] .actions button {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #1e293b;
-}
-
-[data-theme="light"] .actions button:hover {
-  background: rgba(241, 245, 249, 0.95);
-  border-color: rgba(59, 130, 246, 0.5);
+  .attr-icon {
+    width: 46px;
+    height: 46px;
+  }
 }
 </style>

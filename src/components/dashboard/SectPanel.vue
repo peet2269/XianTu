@@ -358,7 +358,8 @@ const characterStore = useCharacterStore();
 const gameStateStore = useGameStateStore();
 const router = useRouter();
 const { t } = useI18n();
-const isOnlineMode = computed(() => characterStore.activeCharacterProfile?.模式 === '联机');
+// 云端修行不再是旧联机世界，宗门基础数据仍可在本地编辑并同步。
+const isOnlineMode = computed(() => false);
 const isLoading = ref(false);
 const selectedSect = ref<WorldFaction | null>(null);
 const searchQuery = ref('');
@@ -442,17 +443,16 @@ const deleteFaction = async (sect: WorldFaction) => {
 
 // 获取世界中的宗门势力数据 - 统一数据源（V3：世界.信息.势力信息）
 const sectSystemData = computed(() => {
-  const data = gameStateStore.getCurrentSaveData();
-
-  if (!data) {
-    return { availableSects: [] };
-  }
-
   let availableSects: WorldFaction[] = [];
   const sectSystem = gameStateStore.sectSystem;
 
-  // 从 世界.信息.势力信息 中获取宗门数据
-  const worldInfo = (data as any)?.世界?.信息 as WorldInfo | undefined;
+  // 优先直接读取 store 中的世界信息；
+  // 不依赖 toSaveData()（其在存档字段不全时会整体返回 null，导致宗门列表被误判为空）
+  let worldInfo = gameStateStore.worldInfo as WorldInfo | undefined;
+  if (!worldInfo?.势力信息) {
+    const data = gameStateStore.getCurrentSaveData();
+    worldInfo = (data as any)?.世界?.信息 as WorldInfo | undefined;
+  }
   if (worldInfo?.势力信息) {
     // 筛选出宗门类型的势力
     const sectFactions = worldInfo.势力信息.filter((faction: WorldFaction) => {
@@ -550,13 +550,13 @@ const playerActualPosition = computed(() => {
 const filteredSects = computed(() => {
   let filtered = [...allSects.value];
 
-  // 搜索过滤
+  // 搜索过滤(AI 生成的势力数据可能缺少名称/类型/描述字段,必须判空,否则整个面板崩溃)
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(sect =>
-      sect.名称.toLowerCase().includes(query) ||
-      sect.类型.toLowerCase().includes(query) ||
-      (sect.描述 && sect.描述.toLowerCase().includes(query))
+      String(sect?.名称 || '').toLowerCase().includes(query) ||
+      String(sect?.类型 || '').toLowerCase().includes(query) ||
+      String(sect?.描述 || '').toLowerCase().includes(query)
     );
   }
 

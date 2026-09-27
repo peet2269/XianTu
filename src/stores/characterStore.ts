@@ -14,7 +14,7 @@ import * as storage from '@/utils/indexedDBManager';
 import { getTavernHelper, clearAllCharacterData, isTavernEnv } from '@/utils/tavern';
 import { ensureSaveDataHasTavernNsfw } from '@/utils/nsfw';
 import { initializeCharacter } from '@/services/characterInitialization';
-import { createCharacter as createCharacterAPI, fetchCharacterProfile, updateCharacterSave, verifyStoredToken } from '@/services/request';
+import { createCharacter as createCharacterAPI, deleteCharacter as deleteCharacterAPI, fetchCharacterProfile, updateCharacterSave, verifyStoredToken } from '@/services/request';
 import { isBackendConfigured } from '@/services/backendConfig';
 import { validateGameData } from '@/utils/dataValidation';
 import { getAIDataRepairSystemPrompt } from '@/utils/prompts/tasks/dataRepairPrompts';
@@ -27,6 +27,9 @@ import { useGameStateStore } from '@/stores/gameStateStore';
 import SaveMigrationModal from '@/components/dashboard/components/SaveMigrationModal.vue';
 import type { World} from '@/types';
 import type { LocalStorageRoot, CharacterProfile, CharacterBaseInfo, SaveSlot, SaveData, StateChangeLog, Realm, NpcProfile, Item } from '@/types/game';
+import { buildCloudUploadPayload, decideCloudLoad, filterSaveDataForCloud, syncInfoAfterLocalChange, syncInfoAfterUpload, type CloudLoadDecision } from '@/services/cloudSaveSync';
+import { buildRawSaveScope, buildSaveScopeId, CLOUD_SLOT_KEY } from '@/utils/saveIdentity';
+import { HttpClientError } from '@/services/httpClient';
 
 // 假设的创角数据包，实际应从创角流程获取
 interface CreationPayload {
@@ -83,45 +86,41 @@ function getOnlineSaveSlot(profile: CharacterProfile): SaveSlot | null {
 }
 
 /**
- * 🔥 过滤存档数据用于云端同步
- * 排除叙事信息（narrativeHistory）以减少数据量
+ * 删除存档对应的本地记忆索引（RAG）。失败不影响存档删除。
  */
-function filterSaveDataForCloud(saveData: SaveData | null): SaveData | null {
-  if (!saveData) return null;
-
-  // 深拷贝以避免修改原始数据
-  const filtered = JSON.parse(JSON.stringify(saveData)) as SaveData;
-
-  // 🔥 移除叙事历史（太大了，且云存档不需要）
-  // - V3: 系统.历史.叙事
-  // - 兼容旧结构: 历史.叙事 / 叙事历史 / 对话历史
-  const anyFiltered = filtered as any;
-  let removed = false;
-
-  if (anyFiltered?.系统?.历史 && typeof anyFiltered.系统.历史 === 'object' && '叙事' in anyFiltered.系统.历史) {
-    delete anyFiltered.系统.历史.叙事;
-    removed = true;
+async function deleteMemoryIndexes(charId: string, slotIds: string[]): Promise<void> {
+  if (slotIds.length === 0) return;
+  try {
+    const { localMemoryIndex } = await import('@/services/localMemoryIndex');
+    for (const slotId of slotIds) {
+      await localMemoryIndex.deleteScope(buildSaveScopeId(charId, slotId), buildRawSaveScope(charId, slotId));
+    }
+  } catch (error) {
+    console.warn('[角色商店] 清理本地记忆索引失败（非致命）:', error);
   }
-  if (anyFiltered?.历史 && typeof anyFiltered.历史 === 'object' && '叙事' in anyFiltered.历史) {
-    delete anyFiltered.历史.叙事;
-    removed = true;
-  }
-  if ('叙事历史' in anyFiltered) {
-    delete anyFiltered.叙事历史;
-    removed = true;
-  }
-  if ('对话历史' in anyFiltered) {
-    delete anyFiltered.对话历史;
-    removed = true;
-  }
-
-  if (removed) {
-    debug.log('角色商店', '✅ 已移除叙事历史用于云端同步');
-  }
-
-  return filtered;
 }
 
+/**
+ * 绑定当前存档的本地记忆索引，并在后台同步长期记忆。
+ * RAG 只是增强，不能阻塞或打断存档加载。
+ */
+function bindMemoryIndexInBackground(charId: string, slotKey: string, saveData: SaveData): void {
+  void (async () => {
+    try {
+      const { vectorMemoryService } = await import('@/services/vectorMemoryService');
+      await vectorMemoryService.init(buildRawSaveScope(charId, slotKey));
+      if (vectorMemoryService.isEnabled()) {
+        const existingMemories = (saveData as any)?.社交?.记忆?.长期记忆 || [];
+        if (existingMemories.length > 0) {
+          debug.log('角色商店', `同步 ${existingMemories.length} 条长期记忆到本地检索索引`);
+          await vectorMemoryService.syncFromLongTermMemories(existingMemories);
+        }
+      }
+    } catch (e) {
+      console.warn('[角色商店] 初始化本地记忆索引失败（非致命）:', e);
+    }
+  })();
+}
 
 export const useCharacterStore = defineStore('characterV3', () => {
   // --- 状态 (State) ---
@@ -132,6 +131,15 @@ export const useCharacterStore = defineStore('characterV3', () => {
   });
   // 新增：用于暂存角色创建时的初始状态变更
   const initialCreationStateChanges = ref<StateChangeLog | null>(null);
+
+  // 切换存档期间（激活存档已变、游戏状态尚未载入新存档）禁止保存，避免把旧状态写进新槽位
+  let isSwitchingSave = false;
+  // 保存串行化：同一时间只执行一次保存，期间的新请求合并为一次后续保存
+  let saveInFlight: Promise<void> | null = null;
+  let saveQueued: Promise<void> | null = null;
+  // 云端上传单飞：上传期间的新请求只标记，结束后以最新本地数据再传一次
+  let cloudUploadInFlight: Promise<void> | null = null;
+  let cloudUploadAgain = false;
 
   // 🔥 异步初始化：从 IndexedDB 加载数据
   const initialized = ref(false);
@@ -423,24 +431,13 @@ export const useCharacterStore = defineStore('characterV3', () => {
 
 
   /**
-   * [架构重构待办] 将当前存档数据保存到本地
-   *
-   * TODO: [架构重构阶段2.1] 此函数需要完全重构
-   * 当前实现：已删除 storageSharding 依赖，直接保存到 IndexedDB
-   *
-   * @see 架构迁移行动计划.md - 阶段 2：修改 characterStore
-   *
-   * @param fullSync 是否进行完整同步（默认 false，仅作参考，当前未使用）
-   * @param changedPaths 变更的字段路径数组（当前未使用）
+   * 保存当前激活存档。
+   * 存档正文统一写入 IndexedDB，根状态只保存列表元数据，避免正文被元数据提交逻辑丢弃。
    */
-  const saveToStorage = async (options?: {
-    fullSync?: boolean;
-    changedPaths?: string[]
-  }): Promise<void> => {
+  const saveToStorage = async (options?: { changedPaths?: string[] }): Promise<void> => {
     const active = rootState.value.当前激活存档;
     const profile = activeCharacterProfile.value;
     const slot = activeSaveSlot.value;
-    const gameStateStore = useGameStateStore();
 
     if (!active || !profile || !slot?.存档数据) {
       debug.warn('角色商店', '[同步] 没有激活的存档数据');
@@ -485,8 +482,9 @@ export const useCharacterStore = defineStore('characterV3', () => {
         debug.warn('角色商店', '[同步] 自动更新年龄失败（非致命）:', error);
       }
 
-      // TODO: [架构重构] 分片存储已废弃，现在直接保存到 IndexedDB
-      debug.log('角色商店', '[同步] 直接保存到 IndexedDB（架构已重构）');
+      // 正文必须先落盘，再提交只含元数据的根状态。
+      await storage.saveSaveData(active.角色ID, active.存档槽位, slot.存档数据);
+      debug.log('角色商店', `[同步] 存档正文已保存到 IndexedDB${options?.changedPaths?.length ? `（${options.changedPaths.length} 个字段）` : ''}`);
 
       // 3. 更新存档槽位的保存时间和元数据
       // 注意：保存时间（创建时间）只在创建时设置，不再修改
@@ -525,7 +523,10 @@ export const useCharacterStore = defineStore('characterV3', () => {
           [active.存档槽位]: { ...slot } // 创建新对象触发响应式
         };
       } else if (profile.模式 === '联机') {
-        rootState.value.角色列表[active.角色ID].存档 = { ...slot }; // 创建新对象触发响应式
+        rootState.value.角色列表[active.角色ID].存档列表 = {
+          ...(profile.存档列表 || {}),
+          [CLOUD_SLOT_KEY]: { ...slot } // 创建新对象触发响应式
+        };
       }
 
       // 强制触发响应式更新
@@ -533,6 +534,15 @@ export const useCharacterStore = defineStore('characterV3', () => {
 
       // 5. 保存到本地存储
       await commitMetadataToStorage();
+
+      if (profile.模式 === '联机') {
+        const onlineSlot = getOnlineSaveSlot(profile);
+        if (onlineSlot) {
+          onlineSlot.云端同步信息 = syncInfoAfterLocalChange(onlineSlot.云端同步信息);
+          await commitMetadataToStorage();
+        }
+        void scheduleCloudUpload(active.角色ID);
+      }
 
       debug.log('角色商店', '[同步] 数据已保存到本地，元数据已更新');
     } catch (error) {
@@ -570,17 +580,6 @@ export const useCharacterStore = defineStore('characterV3', () => {
   const reloadFromStorage = async () => {
     rootState.value = await storage.loadRootData();
     debug.log('角色商店', '已从乾坤宝库重新同步所有数据');
-  };
-
-  /**
-   * [新增] 同步整个根状态到云端（占位符）
-   * @todo 需要实现后端API
-   */
-  const syncRootStateToCloud = async (): Promise<void> => {
-    debug.log('角色商店', 'syncRootStateToCloud called. (Placeholder - no backend implementation yet)');
-    // 在这里实现将 rootState.value 同步到后端的逻辑
-    // 例如: await cloudApi.saveRootState(rootState.value);
-    return Promise.resolve();
   };
 
   /**
@@ -762,7 +761,12 @@ export const useCharacterStore = defineStore('characterV3', () => {
           };
 
           debug.log('角色商店', '准备同步到云端的初始存档数据', saveDataToSync);
-          await updateCharacterSave(charId, saveDataToSync);
+          const uploadResult = await updateCharacterSave(charId, saveDataToSync);
+          const createdSlot = getOnlineSaveSlot(newProfile);
+          if (createdSlot) {
+            createdSlot.云端同步信息 = syncInfoAfterUpload(createdSlot.云端同步信息, (uploadResult as any)?.version);
+            await commitMetadataToStorage();
+          }
           uiStore.updateLoadingText('初始存档已成功同步到云端！');
         } catch (error) {
           debug.warn('角色商店', '同步初始存档数据到云端失败', error);
@@ -799,6 +803,17 @@ export const useCharacterStore = defineStore('characterV3', () => {
 
     const characterName = rootState.value.角色列表[charId]?.角色.名字 || charId;
 
+    // 联机角色删除时同步删除云端实体；云端不存在时继续清理本地缓存。
+    if (rootState.value.角色列表[charId]?.模式 === '联机' && isBackendConfigured()) {
+      try {
+        if (await verifyStoredToken()) await deleteCharacterAPI(charId);
+      } catch (error) {
+        if (!(error instanceof HttpClientError && error.status === 404)) {
+          debug.warn('角色商店', '删除云端角色失败，已保留本地删除流程', error);
+        }
+      }
+    }
+
     // 🔥 [新架构] 如果删除的是当前激活的角色，清理 gameStateStore
     if (rootState.value.当前激活存档?.角色ID === charId) {
       console.log('[角色商店-删除] 删除的是当前激活角色，重置 gameStateStore');
@@ -810,7 +825,9 @@ export const useCharacterStore = defineStore('characterV3', () => {
     // 🔥 [核心修复] 级联删除：清理 IndexedDB 中该角色的所有存档数据
     try {
       console.log('[角色商店-删除] 开始清理 IndexedDB 中的所有存档数据...');
-      const deletedCount = await storage.deleteAllSaveDataForCharacter(charId);
+      const knownSlots = Object.keys(rootState.value.角色列表[charId]?.存档列表 || {});
+      const deletedCount = await storage.deleteAllSaveDataForCharacter(charId, Object.keys(rootState.value.角色列表));
+      await deleteMemoryIndexes(charId, knownSlots);
       console.log(`[角色商店-删除] ✅ 已清理 ${deletedCount} 个存档记录`);
     } catch (error) {
       console.error('[角色商店-删除] 清理 IndexedDB 存档数据失败:', error);
@@ -828,15 +845,6 @@ export const useCharacterStore = defineStore('characterV3', () => {
     await commitMetadataToStorage();
 
     console.log('[角色商店-删除] IndexedDB 保存完成');
-
-    // 🔥 [可选] 同步到云端（仅联机模式需要）
-    try {
-      await syncRootStateToCloud();
-      debug.log('角色商店', '删除角色后已同步到云端');
-    } catch (error) {
-      debug.warn('角色商店', '删除角色后同步云端失败（后端未启动）:', error);
-      // 不显示错误提示，因为单机模式不需要云端同步
-    }
 
     toast.success(`角色【${characterName}】已从本地数据库删除。`);
     console.log('[角色商店-删除] 删除角色完成');
@@ -892,29 +900,76 @@ export const useCharacterStore = defineStore('characterV3', () => {
             const cloudSaveData = cloudSave?.save_data;
 
             if (cloudSaveData) {
-              targetSlot.存档数据 = cloudSaveData as SaveData;
+              const onlineSlotKey = CLOUD_SLOT_KEY;
+              const localSaveData = targetSlot.存档数据 ?? await storage.loadSaveData(charId, onlineSlotKey);
+              const cloudVersion = typeof cloudSave?.version === 'number' ? cloudSave.version : undefined;
+              let decision: CloudLoadDecision | 'cancel' = decideCloudLoad(targetSlot.云端同步信息, !!localSaveData, cloudVersion);
 
-              if (cloudSave?.game_time && typeof cloudSave.game_time === 'string') {
-                targetSlot.游戏内时间 = cloudSave.game_time;
+              if (decision === 'conflict') {
+                decision = await new Promise<'use-cloud' | 'use-local' | 'cancel'>((resolve) => {
+                  const localTime = targetSlot?.云端同步信息?.本地修改时间 || targetSlot?.保存时间 || '未知';
+                  const cloudTime = cloudSave?.last_sync ? String(cloudSave.last_sync) : '未知';
+                  uiStore.showRetryDialog({
+                    title: '云端存档冲突',
+                    message: `本机有尚未上传的进度（${localTime}），云端也有其他设备的新进度（版本 ${cloudVersion ?? '未知'}，${cloudTime}）。请选择要保留的一份，另一份将被覆盖。`,
+                    confirmText: '使用云端进度',
+                    neutralText: '保留本机并上传',
+                    cancelText: '暂不加载',
+                    onConfirm: () => resolve('use-cloud'),
+                    onNeutral: () => resolve('use-local'),
+                    onCancel: () => resolve('cancel'),
+                  });
+                });
+                if (decision === 'cancel') {
+                  toast.info('已取消加载，本机与云端存档均未改动');
+                  return false;
+                }
               }
-              if (cloudSave?.world_map && typeof cloudSave.world_map === 'object') {
-                (targetSlot as any).世界地图 = cloudSave.world_map;
-              }
-
-              await storage.saveSaveData(charId, slotKey, targetSlot.存档数据);
 
               const currentOnlineSlot = getOnlineSaveSlot(profile);
-              if (currentOnlineSlot) {
-                currentOnlineSlot.云端同步信息 = {
-                  最后同步: cloudSave?.last_sync ? String(cloudSave.last_sync) : new Date().toISOString(),
-                  版本: typeof cloudSave?.version === 'number' ? cloudSave.version : (currentOnlineSlot.云端同步信息?.版本 ?? 1),
-                  需要同步: false,
-                  后端创建失败: false,
-                };
-                await commitMetadataToStorage();
-              }
+              if (decision === 'use-cloud') {
+                targetSlot.存档数据 = cloudSaveData as SaveData;
 
-              debug.log('角色商店', '联机存档已从云端拉取并缓存到本地');
+                if (cloudSave?.game_time && typeof cloudSave.game_time === 'string') {
+                  targetSlot.游戏内时间 = cloudSave.game_time;
+                }
+                if (cloudSave?.world_map && typeof cloudSave.world_map === 'object') {
+                  (targetSlot as any).世界地图 = cloudSave.world_map;
+                }
+
+                // 云端存档不含叙事历史，保留本机已有的叙事，避免拉取后剧情回顾清空
+                const localNarrative = (localSaveData as any)?.系统?.历史?.叙事;
+                if (Array.isArray(localNarrative) && localNarrative.length > 0 && !(cloudSaveData as any)?.系统?.历史?.叙事) {
+                  (cloudSaveData as any).系统 = (cloudSaveData as any).系统 || {};
+                  (cloudSaveData as any).系统.历史 = { ...((cloudSaveData as any).系统.历史 || {}), 叙事: localNarrative };
+                }
+
+                await storage.saveSaveData(charId, onlineSlotKey, targetSlot.存档数据);
+
+                if (currentOnlineSlot) {
+                  currentOnlineSlot.云端同步信息 = {
+                    最后同步: cloudSave?.last_sync ? String(cloudSave.last_sync) : new Date().toISOString(),
+                    版本: cloudVersion ?? (currentOnlineSlot.云端同步信息?.版本 ?? 1),
+                    需要同步: false,
+                    后端创建失败: false,
+                  };
+                  await commitMetadataToStorage();
+                }
+                debug.log('角色商店', '联机存档已从云端拉取并缓存到本地');
+              } else {
+                // 保留本机：以云端当前版本为基线，标记待上传，进入游戏后第一次保存即覆盖云端
+                if (!targetSlot.存档数据 && localSaveData) targetSlot.存档数据 = localSaveData;
+                if (currentOnlineSlot) {
+                  currentOnlineSlot.云端同步信息 = {
+                    ...syncInfoAfterLocalChange(currentOnlineSlot.云端同步信息),
+                    版本: cloudVersion ?? (currentOnlineSlot.云端同步信息?.版本 ?? 1),
+                    冲突: undefined,
+                  };
+                  await commitMetadataToStorage();
+                }
+                debug.log('角色商店', '联机存档保留本机进度，后台上传覆盖云端');
+                void scheduleCloudUpload(charId);
+              }
             }
           } catch (error) {
             debug.warn('角色商店', '联机存档云端拉取失败，回退本地缓存', error);
@@ -1029,8 +1084,13 @@ export const useCharacterStore = defineStore('characterV3', () => {
 
         uiStore.updateLoadingText('天机重置完毕，正在加载存档...');
 
-        // 2. 设置激活存档
+        // 2. 设置激活存档（切换期间禁止保存，直到新存档载入 gameStateStore）
         debug.log('角色商店', '设置当前激活存档');
+      if (saveInFlight) {
+        await saveInFlight.catch(() => undefined);
+      }
+      isSwitchingSave = true;
+      try {
       rootState.value.当前激活存档 = { 角色ID: charId, 存档槽位: slotKey };
       await commitMetadataToStorage(); // 立即保存激活状态
 
@@ -1043,25 +1103,11 @@ export const useCharacterStore = defineStore('characterV3', () => {
         gameStateStore.loadFromSaveData(patched);
         debug.log('角色商店', '✅ 存档数据已加载到 gameStateStore');
 
-        // 🔥 初始化向量记忆服务并导入现有长期记忆
-        try {
-          const { vectorMemoryService } = await import('@/services/vectorMemoryService');
-          const { narrativeRagService } = await import('@/services/narrativeRagService');
-          const saveSlotId = `${charId}_${slotKey}`;
-          await vectorMemoryService.init(saveSlotId);
-          await narrativeRagService.init(saveSlotId);
-
-          // 如果启用了长期检索，将当前存档的长期记忆同步成本地向量索引
-          if (vectorMemoryService.isEnabled()) {
-            const existingMemories = (targetSlot.存档数据 as any).社交?.记忆?.长期记忆 || [];
-            if (existingMemories.length > 0) {
-              debug.log('角色商店', `同步 ${existingMemories.length} 条长期记忆到本地检索索引`);
-              await vectorMemoryService.syncFromLongTermMemories(existingMemories);
-            }
-          }
-        } catch (e) {
-          console.warn('[角色商店] 初始化向量记忆服务失败（非致命）:', e);
-        }
+        // 绑定本存档的本地记忆索引（后台执行，失败不影响加载）
+        bindMemoryIndexInBackground(charId, slotKey, patched);
+      }
+      } finally {
+        isSwitchingSave = false;
       }
 
       debug.log('角色商店', '加载完成');
@@ -1355,9 +1401,32 @@ export const useCharacterStore = defineStore('characterV3', () => {
    * [核心改造] 保存当前游戏进度到激活的存档槽
    * 使用分片加载替代完整SaveData
    */
-  const saveCurrentGame = async (options?: { notifyIfNoActive?: boolean }) => {
+  const saveCurrentGame = (options?: { notifyIfNoActive?: boolean }): Promise<void> => {
+    if (!saveInFlight) {
+      saveInFlight = saveCurrentGameNow(options).finally(() => {
+        saveInFlight = null;
+      });
+      return saveInFlight;
+    }
+    // 已有保存在执行：合并为一次后续保存，保证调用方拿到的是“调用之后”的最新状态
+    if (!saveQueued) {
+      saveQueued = saveInFlight
+        .catch(() => undefined)
+        .then(() => {
+          saveQueued = null;
+          return saveCurrentGame(options);
+        });
+    }
+    return saveQueued;
+  };
+
+  const saveCurrentGameNow = async (options?: { notifyIfNoActive?: boolean }) => {
     if (!initialized.value) {
       await initializeStore();
+    }
+    if (isSwitchingSave) {
+      debug.warn('角色商店', '正在切换存档，跳过本次保存（避免把旧状态写入新槽位）');
+      return;
     }
     const active = rootState.value.当前激活存档;
     const profile = activeCharacterProfile.value;
@@ -1456,70 +1525,14 @@ export const useCharacterStore = defineStore('characterV3', () => {
       }
       await commitMetadataToStorage();
 
-      // 6. 云端同步（联机模式）
+      // 6. 云端同步（联机模式）：先标记待同步，再在后台上传，不阻塞本地保存
       if (profile.模式 === '联机') {
-        // 🔥 检查是否后端创建失败，如果是则先尝试重新创建角色
-        const currentOnlineSlot = getOnlineSaveSlot(profile);
-        const backendCreationFailed = (currentOnlineSlot?.云端同步信息 as any)?.后端创建失败;
-        if (backendCreationFailed) {
-          try {
-            debug.log('角色商店', '检测到后端创建失败标记，尝试重新创建角色...');
-            const characterSubmissionData = {
-              char_id: active.角色ID,
-              base_info: profile.角色,
-            };
-            await createCharacterAPI(characterSubmissionData);
-            // 创建成功，清除失败标记
-            if (currentOnlineSlot?.云端同步信息) {
-              (currentOnlineSlot.云端同步信息 as any).后端创建失败 = false;
-            }
-            debug.log('角色商店', '✅ 后端角色重新创建成功');
-          } catch (error) {
-            debug.warn('角色商店', '后端角色重新创建失败，跳过云端同步', error);
-            // 保持失败标记，下次再试
-            return;
-          }
-        }
-
-        try {
-          const worldMapToSync = (slot as any).世界地图 ?? {};
-          const gameTimeToSync = slot.游戏内时间 ?? null;
-
-          // 🔥 过滤叙事信息，减少数据量
-          const saveDataForCloud = filterSaveDataForCloud(currentSaveData);
-          const result = await updateCharacterSave(active.角色ID, {
-            save_data: saveDataForCloud,
-            world_map: worldMapToSync,
-            game_time: gameTimeToSync
-          });
-
-          const syncOnlineSlot = getOnlineSaveSlot(profile);
-          const nextVersion =
-            typeof (result as any)?.version === 'number'
-              ? (result as any).version
-              : (syncOnlineSlot?.云端同步信息?.版本 ?? 1) + 1;
-
-          if (syncOnlineSlot) {
-            syncOnlineSlot.云端同步信息 = {
-              最后同步: new Date().toISOString(),
-              版本: nextVersion,
-              需要同步: false,
-            };
-          }
-
+        const onlineSlot = getOnlineSaveSlot(profile);
+        if (onlineSlot) {
+          onlineSlot.云端同步信息 = syncInfoAfterLocalChange(onlineSlot.云端同步信息);
           await commitMetadataToStorage();
-        } catch (error) {
-          debug.warn('角色商店', '云端同步失败（联机模式）', error);
-          const errorOnlineSlot = getOnlineSaveSlot(profile);
-          if (errorOnlineSlot) {
-            errorOnlineSlot.云端同步信息 = {
-              最后同步: errorOnlineSlot.云端同步信息?.最后同步 || new Date().toISOString(),
-              版本: errorOnlineSlot.云端同步信息?.版本 || 1,
-              需要同步: true,
-            };
-            await commitMetadataToStorage();
-          }
         }
+        void scheduleCloudUpload(active.角色ID);
       }
 
       debug.log('角色商店', `存档【${slot.存档名}】元数据已更新`);
@@ -1528,6 +1541,96 @@ export const useCharacterStore = defineStore('characterV3', () => {
       debug.error('角色商店', '存档保存过程出错', error);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       toast.error(`存档保存失败：${errorMessage}`, { id: saveId });
+    }
+  };
+
+  /**
+   * 上传联机存档到云端（单飞 + 合并）。
+   * 每次都从 IndexedDB 读取最新本地存档，冲突未解决时不上传。
+   */
+  const scheduleCloudUpload = (charId: string): Promise<void> => {
+    if (cloudUploadInFlight) {
+      cloudUploadAgain = true;
+      return cloudUploadInFlight;
+    }
+    cloudUploadInFlight = (async () => {
+      try {
+        do {
+          cloudUploadAgain = false;
+          await uploadCloudSaveOnce(charId);
+        } while (cloudUploadAgain);
+      } finally {
+        cloudUploadInFlight = null;
+      }
+    })();
+    return cloudUploadInFlight;
+  };
+
+  const uploadCloudSaveOnce = async (charId: string): Promise<void> => {
+    const profile = rootState.value.角色列表[charId];
+    if (!profile || profile.模式 !== '联机' || !isBackendConfigured()) return;
+    const slot = getOnlineSaveSlot(profile);
+    if (!slot) return;
+    if (slot.云端同步信息?.冲突) {
+      debug.warn('角色商店', '云端存档存在未处理的冲突，暂停自动上传，重新加载存档时处理');
+      return;
+    }
+
+    // 后端创建失败时先重试创建角色
+    if ((slot.云端同步信息 as any)?.后端创建失败) {
+      try {
+        debug.log('角色商店', '检测到后端创建失败标记，尝试重新创建角色...');
+        await createCharacterAPI({ char_id: charId, base_info: profile.角色 });
+        (slot.云端同步信息 as any).后端创建失败 = false;
+        debug.log('角色商店', '✅ 后端角色重新创建成功');
+      } catch (error) {
+        debug.warn('角色商店', '后端角色重新创建失败，跳过云端同步', error);
+        return;
+      }
+    }
+
+    const saveData = await storage.loadSaveData(charId, CLOUD_SLOT_KEY);
+    if (!saveData) return;
+
+    try {
+      const result = await updateCharacterSave(charId, buildCloudUploadPayload(saveData, slot as any));
+      const latestSlot = getOnlineSaveSlot(profile);
+      if (result?.conflict) {
+        if (latestSlot) {
+          latestSlot.云端同步信息 = {
+            ...(latestSlot.云端同步信息 || { 最后同步: '', 版本: 0, 需要同步: true }),
+            需要同步: true,
+            冲突: true,
+          };
+          await commitMetadataToStorage();
+        }
+        debug.warn('角色商店', '服务端返回云端存档冲突，已暂停自动上传');
+        return;
+      }
+      if (latestSlot) {
+        const next = syncInfoAfterUpload(latestSlot.云端同步信息, (result as any)?.version);
+        // 上传期间又有本地修改：保持待同步，等待下一轮上传
+        if (cloudUploadAgain) next.需要同步 = true;
+        latestSlot.云端同步信息 = next;
+      }
+      await commitMetadataToStorage();
+    } catch (error) {
+      // 服务端若按 base_version 做乐观锁校验，409 表示云端已被其他设备更新。
+      // 这类错误不能继续自动重试，否则会把另一台设备的进度静默覆盖。
+      if (error instanceof HttpClientError && error.status === 409) {
+        const latestSlot = getOnlineSaveSlot(profile);
+        if (latestSlot) {
+          latestSlot.云端同步信息 = {
+            ...(latestSlot.云端同步信息 || { 最后同步: '', 版本: 0, 需要同步: true }),
+            需要同步: true,
+            冲突: true,
+          };
+          await commitMetadataToStorage();
+        }
+        debug.warn('角色商店', '云端存档版本冲突，已暂停自动上传，等待玩家选择保留哪一份');
+        return;
+      }
+      debug.warn('角色商店', '云端同步失败（联机模式），已保留待同步标记', error);
     }
   };
 
@@ -1588,6 +1691,7 @@ export const useCharacterStore = defineStore('characterV3', () => {
       console.log(`[角色商店-删除存档] 从 IndexedDB 删除存档: ${charId}/${slotKey}`);
       await storage.deleteSaveData(charId, slotKey);
       console.log('[角色商店-删除存档] ✅ IndexedDB 存档数据已删除');
+      await deleteMemoryIndexes(charId, [slotKey]);
     } catch (error) {
       console.error('[角色商店-删除存档] 删除 IndexedDB 存档数据失败:', error);
       toast.warning('清理存档数据时出现错误');
@@ -1606,14 +1710,6 @@ export const useCharacterStore = defineStore('characterV3', () => {
     await commitMetadataToStorage();
 
     console.log('[角色商店-删除存档] IndexedDB 保存完成');
-
-    // 🔥 同步到云端
-    try {
-      await syncRootStateToCloud();
-      debug.log('角色商店', '删除存档后已同步到云端');
-    } catch (error) {
-      debug.error('角色商店', '删除存档后同步云端失败', error);
-    }
 
     toast.success('存档已删除');
     console.log('[角色商店-删除存档] 删除存档完成');
@@ -1877,6 +1973,24 @@ export const useCharacterStore = defineStore('characterV3', () => {
       return;
     }
 
+    // 先把存档数据和本地记忆索引迁到新槽位，否则重命名后加载会找不到存档数据
+    try {
+      const data = oldSave.存档数据 ?? await storage.loadSaveData(charId, oldSlotKey);
+      if (data) {
+        await storage.saveSaveData(charId, newSaveName, data);
+      }
+      const { localMemoryIndex } = await import('@/services/localMemoryIndex');
+      await localMemoryIndex.moveScope(
+        buildSaveScopeId(charId, oldSlotKey),
+        buildSaveScopeId(charId, newSaveName),
+        buildRawSaveScope(charId, oldSlotKey),
+      ).catch((error) => console.warn('[角色商店] 迁移本地记忆索引失败（非致命）:', error));
+    } catch (error) {
+      debug.error('角色商店', '重命名存档时迁移存档数据失败', error);
+      toast.error('重命名失败：无法迁移存档数据');
+      return;
+    }
+
     // 创建新的存档槽位
     profile.存档列表[newSaveName] = {
       ...oldSave,
@@ -1893,6 +2007,11 @@ export const useCharacterStore = defineStore('characterV3', () => {
     delete profile.存档列表[oldSlotKey];
 
     await commitMetadataToStorage();
+    try {
+      await storage.deleteSaveData(charId, oldSlotKey);
+    } catch (error) {
+      debug.warn('角色商店', '删除旧槽位存档数据失败（新槽位已可用）', error);
+    }
     toast.success(`存档已重命名为【${newSaveName}】`);
   };
 
@@ -1948,9 +2067,7 @@ export const useCharacterStore = defineStore('characterV3', () => {
     // 强制触发 rootState 的响应式更新
     triggerRef(rootState);
 
-    await commitMetadataToStorage();
-
-    // 🔥 增量保存到 IndexedDB
+    // 统一由 saveToStorage 负责正文、元数据和联机同步，避免先提交元数据导致正文丢失。
     if (changedPaths.length > 0) {
       await saveToStorage({ changedPaths });
       debug.log('角色商店', `✅ 角色数据已更新并增量同步 ${changedPaths.length} 个字段`, changedPaths);
@@ -2207,6 +2324,11 @@ export const useCharacterStore = defineStore('characterV3', () => {
     // 🔥 修复：同步到gameStateStore，确保UI立即更新
     const gameStateStore = useGameStateStore();
     await gameStateStore.loadFromSaveData(rolledBackData);
+
+    // 回退后删除已不存在的叙事向量，避免回退掉的剧情被检索注入（后台执行）
+    void import('@/services/narrativeRagService')
+      .then(({ narrativeRagService }) => narrativeRagService.reconcile(rolledBackData))
+      .catch((error) => console.warn('[角色商店] 回退后清理叙事索引失败（非致命）:', error));
 
     // 🔥 强制触发UI更新
     const uiStore = useUIStore();
@@ -2501,7 +2623,7 @@ const equipTechnique = async (itemId: string) => {
     const currentProgress = item.修炼进度 || 0;
     debug.log('角色商店', `[技能解锁检查] 功法: ${item.名称}, 进度: ${currentProgress}%, 技能数: ${item.功法技能.length}`);
     item.功法技能.forEach((skill: any) => {
-      const unlockThreshold = skill.熟练度要求 || 0;
+      const unlockThreshold = (skill.熟练度要求 ?? (skill as any).解锁需要熟练度 ?? 0);
       debug.log('角色商店', `  检查技能: ${skill.技能名称}, 阈值: ${unlockThreshold}%, 当前进度: ${currentProgress}%, 应解锁: ${currentProgress >= unlockThreshold}`);
       if (currentProgress >= unlockThreshold && !item.已解锁技能!.includes(skill.技能名称)) {
         item.已解锁技能!.push(skill.技能名称);
@@ -2545,7 +2667,7 @@ const equipTechnique = async (itemId: string) => {
     const currentProgress = itemInStore.修炼进度 || 0;
     if (itemInStore.功法技能 && Array.isArray(itemInStore.功法技能)) {
       itemInStore.功法技能.forEach((skill: any) => {
-        const unlockThreshold = skill.熟练度要求 || 0;
+        const unlockThreshold = (skill.熟练度要求 ?? (skill as any).解锁需要熟练度 ?? 0);
         if (currentProgress >= unlockThreshold && !itemInStore.已解锁技能!.includes(skill.技能名称)) {
           itemInStore.已解锁技能!.push(skill.技能名称);
           debug.log('角色商店', `[二次确认] 解锁技能: ${skill.技能名称}`);

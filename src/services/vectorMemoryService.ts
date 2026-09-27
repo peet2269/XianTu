@@ -5,21 +5,28 @@
  * 支持标签提取、向量化、相似度检索
  *
  * 特点：
- * - 纯前端实现，使用 IndexedDB 存储
+ * - 纯前端实现，存储统一在 LocalMemoryIndex（services/localMemoryIndex.ts）的 fact 分区
  * - 使用 API 管理里分配给 Embedding 的共享 API
  * - 支持标签过滤 + 向量相似度混合检索
  * - 保留全量发送模式作为备选
  */
 
-import { openDB, type IDBPDatabase } from 'idb';
 import type { APIProvider } from '@/services/aiService';
 import { isTavernEnv } from '@/utils/tavern';
 import {
   createEmbeddings,
-  normalizeBaseUrl,
   normalizeToUnitVector,
+  resolveEmbeddingConfig,
   type EmbeddingRequestConfig,
 } from '@/services/embeddingService';
+import {
+  hashContent,
+  localMemoryIndex,
+  type MemoryRecord,
+  type MemoryRecordInput,
+  type RecallLog,
+} from '@/services/localMemoryIndex';
+import { bindMemoryScope, getBoundMemoryScope, resolveMemoryScope } from '@/services/memoryIndexContext';
 
 // ============ 类型定义 ============
 
@@ -27,7 +34,8 @@ export interface VectorMemoryEntry {
   id: string;
   content: string;
   tags: string[];
-  vector: number[];
+  /** 向量已量化存储在本地索引中，检索结果不再携带原始向量 */
+  vector?: number[];
   vectorType?: 'tfidf' | 'embedding';
   embeddingModel?: string;
   timestamp: number;
@@ -173,24 +181,49 @@ export function inferCategory(content: string, tags: string[]): VectorMemoryEntr
 
 // ============ 向量记忆服务类 ============
 
-function fnv1a32(input: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
+const FACT_KIND = 'fact' as const;
 
 function stableMemoryId(content: string): string {
-  const normalized = (content || '').trim().replace(/\s+/g, ' ');
-  return `mem_${fnv1a32(normalized)}`;
+  return `mem_${hashContent(content)}`;
 }
 
+function toEntry(record: MemoryRecord): VectorMemoryEntry {
+  const extra = record.extra || {};
+  return {
+    id: record.id,
+    content: record.content,
+    tags: extra.tags || [],
+    vectorType: 'embedding',
+    embeddingModel: record.model,
+    timestamp: record.timestamp,
+    importance: extra.importance ?? 5,
+    category: (extra.category as VectorMemoryEntry['category']) || 'other',
+    metadata: extra.npcs ? { npcs: extra.npcs } : undefined,
+  };
+}
+
+function buildFactInput(content: string, vector: number[], model: string, importance: number): MemoryRecordInput {
+  const tags = extractTags(content);
+  return {
+    id: stableMemoryId(content),
+    content,
+    model,
+    vector,
+    extra: {
+      tags,
+      category: inferCategory(content, tags),
+      importance,
+      npcs: tags.filter(t => !CULTIVATION_KEYWORDS.has(t)).slice(0, 5),
+    },
+  };
+}
+
+/**
+ * 长期记忆检索（LocalMemoryIndex 的 fact 分区）
+ * 对外接口与旧版保持一致；存储已统一到 services/localMemoryIndex.ts。
+ */
 class VectorMemoryService {
-  private db: IDBPDatabase | null = null;
   private config: VectorMemoryConfig;
-  private saveSlot: string = '';
 
   constructor() {
     this.config = { ...DEFAULT_CONFIG };
@@ -198,24 +231,11 @@ class VectorMemoryService {
   }
 
   /**
-   * 初始化数据库
+   * 绑定到指定存档的本地索引
+   * @param saveSlot `${角色ID}_${存档槽位}`，见 utils/saveIdentity.ts
    */
   async init(saveSlot: string): Promise<void> {
-    this.saveSlot = saveSlot;
-    const dbName = `vector-memory-${saveSlot}`;
-
-    this.db = await openDB(dbName, 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('memories')) {
-          const store = db.createObjectStore('memories', { keyPath: 'id' });
-          store.createIndex('tags', 'tags', { multiEntry: true });
-          store.createIndex('category', 'category');
-          store.createIndex('timestamp', 'timestamp');
-        }
-      },
-    });
-
-    console.log(`[向量记忆] 初始化完成: ${dbName}`);
+    await bindMemoryScope(saveSlot);
   }
 
   /**
@@ -258,48 +278,11 @@ class VectorMemoryService {
    * 是否允许自动写入索引：长期检索和叙事检索共用 API 管理里的 Embedding 配置
    */
   canAutoIndex(): boolean {
-    return !!this.db && !!this.getEmbeddingRequestConfig();
+    return !!getBoundMemoryScope() && !!this.getEmbeddingRequestConfig();
   }
 
   private getEmbeddingRequestConfig(): EmbeddingRequestConfig | null {
-    try {
-      // 动态导入 store 避免循环依赖
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { useAPIManagementStore } = require('@/stores/apiManagementStore');
-      const apiStore = useAPIManagementStore();
-
-      // 🔥 首先检查 embedding 功能是否在 API 管理中启用
-      if (!apiStore.isFunctionEnabled('embedding')) {
-        return null;
-      }
-
-      // 如果配置了特定的 API ID，使用该 API；否则使用 'embedding' 类型分配的 API
-      let cfg;
-      if (this.config.embeddingApiId) {
-        cfg = apiStore.apiConfigs.find((api: any) => api.id === this.config.embeddingApiId && api.enabled);
-      } else {
-        cfg = apiStore.getAPIForType('embedding');
-      }
-
-      if (!cfg || cfg.enabled === false) return null;
-
-      // 如果返回的是 default API，说明没有专门配置 embedding API，不应使用
-      if (cfg.id === 'default') return null;
-
-      const baseUrl = normalizeBaseUrl(cfg.url);
-      const apiKey = (cfg.apiKey || '').trim();
-      const model = (cfg.model || '').trim();
-      if (!baseUrl || !apiKey || !model) return null;
-
-      return {
-        provider: cfg.provider as APIProvider,
-        url: baseUrl,
-        apiKey,
-        model,
-      };
-    } catch {
-      return null;
-    }
+    return resolveEmbeddingConfig(this.config.embeddingApiId);
   }
 
   getEmbeddingStatus(): { available: boolean; provider?: APIProvider; model?: string; reason?: string } {
@@ -316,26 +299,15 @@ class VectorMemoryService {
     };
   }
 
-  private async embedText(text: string): Promise<{ vector: number[]; model: string } | null> {
-    const cfg = this.getEmbeddingRequestConfig();
-    if (!cfg) return null;
-    try {
-      const [vec] = await createEmbeddings(cfg, [text]);
-      return { vector: normalizeToUnitVector(vec), model: cfg.model };
-    } catch (e) {
-      console.warn('[长期检索] Embedding 生成失败，跳过向量写入/检索:', e);
-      return null;
-    }
-  }
-
   private async embedBatch(texts: string[]): Promise<{ vectors: number[][]; model: string } | null> {
     const cfg = this.getEmbeddingRequestConfig();
     if (!cfg) return null;
     try {
       const vecs = await createEmbeddings(cfg, texts);
+      if (vecs.length !== texts.length) return null;
       return { vectors: vecs.map(v => normalizeToUnitVector(v)), model: cfg.model };
     } catch (e) {
-      console.warn('[长期检索] Embedding 批量生成失败，跳过向量写入:', e);
+      console.warn('[长期检索] Embedding 生成失败，跳过向量写入/检索:', e);
       return null;
     }
   }
@@ -344,37 +316,22 @@ class VectorMemoryService {
    * 添加记忆到向量库
    */
   async addMemory(content: string, importance: number = 5): Promise<VectorMemoryEntry | null> {
-    if (!this.db) {
-      console.warn('[向量记忆] 数据库未初始化');
+    const scope = await resolveMemoryScope();
+    if (!scope) {
+      console.warn('[向量记忆] 没有激活存档，跳过写入');
       return null;
     }
 
     const trimmed = (content || '').trim();
     if (!trimmed) return null;
 
-    const tags = extractTags(content);
-    const category = inferCategory(content, tags);
-    const embedded = await this.embedText(trimmed);
+    const embedded = await this.embedBatch([trimmed]);
     if (!embedded) return null;
 
-    const entry: VectorMemoryEntry = {
-      id: stableMemoryId(trimmed),
-      content: trimmed,
-      tags,
-      vector: embedded.vector,
-      vectorType: 'embedding',
-      embeddingModel: embedded.model,
-      timestamp: Date.now(),
-      importance,
-      category,
-      metadata: {
-        npcs: tags.filter(t => !CULTIVATION_KEYWORDS.has(t)).slice(0, 5),
-      },
-    };
-
-    await this.db.put('memories', entry);
-    console.log(`[向量记忆] 添加记忆: ${content.substring(0, 50)}... 标签: ${tags.join(', ')}`);
-    return entry;
+    const input = buildFactInput(trimmed, embedded.vectors[0], embedded.model, importance);
+    await localMemoryIndex.put(scope, FACT_KIND, [input]);
+    const record = localMemoryIndex.get(scope, FACT_KIND, input.id);
+    return record ? toEntry(record) : null;
   }
 
   /**
@@ -389,140 +346,101 @@ class VectorMemoryService {
       onProgress?: (done: number, total: number) => void;
     },
   ): Promise<{ imported: number; vectorType: 'embedding'; embeddingModel?: string }> {
-    if (!this.db) throw new Error('向量库未初始化');
+    const scope = await resolveMemoryScope();
+    if (!scope) throw new Error('向量库未初始化');
     if (!this.getEmbeddingRequestConfig()) throw new Error('未配置独立 Embedding API，无法生成长期检索索引');
-    const list = (memories || []).map(m => (m || '').trim()).filter(Boolean);
-    const total = list.length;
-    const importance = options?.importance ?? 7;
-    const batchSize = Math.max(1, Math.min(64, options?.batchSize ?? 24));
 
-    await this.clear();
+    return localMemoryIndex.withLock(scope, FACT_KIND, async () => {
+      const list = [...new Set((memories || []).map(m => (m || '').trim()).filter(Boolean))];
+      const total = list.length;
+      const importance = options?.importance ?? 7;
+      const batchSize = Math.max(1, Math.min(64, options?.batchSize ?? 24));
 
-    let imported = 0;
-    let usedEmbeddingModel: string | undefined;
+      await localMemoryIndex.clear(scope, FACT_KIND);
 
-    for (let i = 0; i < list.length; i += batchSize) {
-      const chunk = list.slice(i, i + batchSize);
-      const embedded = await this.embedBatch(chunk);
-      if (!embedded || embedded.vectors.length !== chunk.length) {
-        throw new Error('Embedding 生成失败，长期检索索引未写入完整');
+      let imported = 0;
+      let usedEmbeddingModel: string | undefined;
+      for (let i = 0; i < list.length; i += batchSize) {
+        const chunk = list.slice(i, i + batchSize);
+        const embedded = await this.embedBatch(chunk);
+        if (!embedded) throw new Error('Embedding 生成失败，长期检索索引未写入完整');
+        usedEmbeddingModel = embedded.model;
+        imported += await localMemoryIndex.put(
+          scope,
+          FACT_KIND,
+          chunk.map((content, j) => buildFactInput(content, embedded.vectors[j], embedded.model, importance)),
+        );
+        options?.onProgress?.(Math.min(i + chunk.length, total), total);
       }
 
-      usedEmbeddingModel = embedded.model;
-      for (let j = 0; j < chunk.length; j++) {
-        const content = chunk[j];
-        const tags = extractTags(content);
-        const category = inferCategory(content, tags);
-        const entry: VectorMemoryEntry = {
-          id: stableMemoryId(content),
-          content,
-          tags,
-          vector: embedded.vectors[j],
-          vectorType: 'embedding',
-          embeddingModel: embedded.model,
-          timestamp: Date.now(),
-          importance,
-          category,
-          metadata: { npcs: tags.filter(t => !CULTIVATION_KEYWORDS.has(t)).slice(0, 5) },
-        };
-        await this.db.put('memories', entry);
-        imported++;
-      }
-
-      options?.onProgress?.(Math.min(i + chunk.length, total), total);
-    }
-
-    console.log(`[长期检索] 重建完成：${imported}/${total} 条，Embedding=${usedEmbeddingModel || 'unknown'}`);
-    return { imported, vectorType: 'embedding', embeddingModel: usedEmbeddingModel };
+      console.log(`[长期检索] 重建完成：${imported}/${total} 条，Embedding=${usedEmbeddingModel || 'unknown'}`);
+      return { imported, vectorType: 'embedding' as const, embeddingModel: usedEmbeddingModel };
+    });
   }
 
   /**
    * 批量导入长期记忆
    */
   async importLongTermMemories(memories: string[]): Promise<number> {
-    let count = 0;
-    for (const memory of memories) {
-      if (memory && memory.trim()) {
-        const added = await this.addMemory(memory, 7); // 长期记忆重要性较高
-        if (added) count++;
-      }
-    }
-    console.log(`[向量记忆] 导入 ${count} 条长期记忆`);
-    return count;
+    const { added } = await this.syncFromLongTermMemories(memories, { removeMissing: false });
+    console.log(`[向量记忆] 导入 ${added} 条长期记忆`);
+    return added;
   }
 
   /**
-   * 将当前存档的长期记忆同步成本地向量索引。
-   * - 新增/变更的长期记忆会写入 IndexedDB
+   * 将当前存档的长期记忆增量同步成本地向量索引。
+   * - 只为新增、或由其他 Embedding 模型生成的条目调用 Embedding
    * - 已从存档删除的长期记忆会从索引移除
-   * - 旧的本地 TF-IDF 条目会被忽略，不参与同步计数
    */
   async syncFromLongTermMemories(
     memories: string[],
     options?: {
       importance?: number;
       batchSize?: number;
+      removeMissing?: boolean;
       onProgress?: (done: number, total: number) => void;
     },
   ): Promise<{ added: number; removed: number; total: number }> {
-    if (!this.db) throw new Error('向量库未初始化');
-    if (!this.getEmbeddingRequestConfig()) throw new Error('未配置独立 Embedding API，无法同步长期检索索引');
+    const scope = await resolveMemoryScope();
+    if (!scope) throw new Error('向量库未初始化');
+    const cfg = this.getEmbeddingRequestConfig();
+    if (!cfg) throw new Error('未配置独立 Embedding API，无法同步长期检索索引');
 
-    const list = [...new Set((memories || []).map(m => (m || '').trim()).filter(Boolean))];
-    const expectedIds = new Set(list.map(content => stableMemoryId(content)));
-    const existing = await this.db.getAll('memories') as VectorMemoryEntry[];
+    return localMemoryIndex.withLock(scope, FACT_KIND, async () => {
+      const list = [...new Set((memories || []).map(m => (m || '').trim()).filter(Boolean))];
+      const expectedIds = new Set(list.map(content => stableMemoryId(content)));
 
-    let removed = 0;
-    for (const entry of existing) {
-      if (entry.vectorType !== 'embedding' || !expectedIds.has(entry.id)) {
-        await this.db.delete('memories', entry.id);
-        removed++;
-      }
-    }
-
-    const existingEmbeddingIds = new Set(
-      existing
-        .filter(entry => entry.vectorType === 'embedding' && expectedIds.has(entry.id))
-        .map(entry => entry.id),
-    );
-    const pending = list.filter(content => !existingEmbeddingIds.has(stableMemoryId(content)));
-    const batchSize = Math.max(1, Math.min(64, options?.batchSize ?? 24));
-    const importance = options?.importance ?? 7;
-    let added = 0;
-
-    for (let i = 0; i < pending.length; i += batchSize) {
-      const chunk = pending.slice(i, i + batchSize);
-      const embedded = await this.embedBatch(chunk);
-      if (!embedded || embedded.vectors.length !== chunk.length) {
-        throw new Error('Embedding 生成失败，长期检索索引未写入完整');
+      let removed = 0;
+      if (options?.removeMissing !== false) {
+        const stale = localMemoryIndex.list(scope, FACT_KIND).filter(r => !expectedIds.has(r.id)).map(r => r.id);
+        removed = await localMemoryIndex.remove(scope, FACT_KIND, stale);
       }
 
-      for (let j = 0; j < chunk.length; j++) {
-        const content = chunk[j];
-        const tags = extractTags(content);
-        const category = inferCategory(content, tags);
-        const entry: VectorMemoryEntry = {
-          id: stableMemoryId(content),
-          content,
-          tags,
-          vector: embedded.vectors[j],
-          vectorType: 'embedding',
-          embeddingModel: embedded.model,
-          timestamp: Date.now(),
-          importance,
-          category,
-          metadata: { npcs: tags.filter(t => !CULTIVATION_KEYWORDS.has(t)).slice(0, 5) },
-        };
-        await this.db.put('memories', entry);
-        added++;
-      }
-      options?.onProgress?.(Math.min(i + chunk.length, pending.length), pending.length);
-    }
+      const pending = list.filter(content => {
+        const existing = localMemoryIndex.get(scope, FACT_KIND, stableMemoryId(content));
+        return !existing || existing.model !== cfg.model;
+      });
+      const batchSize = Math.max(1, Math.min(64, options?.batchSize ?? 24));
+      const importance = options?.importance ?? 7;
+      let added = 0;
 
-    if (added || removed) {
-      console.log(`[长期检索] 索引同步完成：新增 ${added} 条，移除 ${removed} 条，总数 ${list.length}`);
-    }
-    return { added, removed, total: list.length };
+      for (let i = 0; i < pending.length; i += batchSize) {
+        const chunk = pending.slice(i, i + batchSize);
+        const embedded = await this.embedBatch(chunk);
+        if (!embedded) throw new Error('Embedding 生成失败，长期检索索引未写入完整');
+        added += await localMemoryIndex.put(
+          scope,
+          FACT_KIND,
+          chunk.map((content, j) => buildFactInput(content, embedded.vectors[j], embedded.model, importance)),
+        );
+        options?.onProgress?.(Math.min(i + chunk.length, pending.length), pending.length);
+      }
+
+      if (added || removed) {
+        console.log(`[长期检索] 索引同步完成：新增 ${added} 条，移除 ${removed} 条，总数 ${list.length}`);
+      }
+      return { added, removed, total: list.length };
+    });
   }
 
   /**
@@ -533,22 +451,14 @@ class VectorMemoryService {
     involvedNpcs?: string[];
     recentEvents?: string[];
   }): Promise<MemorySearchResult[]> {
-    if (!this.db || !this.isEnabled()) {
-      return [];
-    }
+    if (!this.isEnabled()) return [];
+    const scope = await resolveMemoryScope();
+    if (!scope) return [];
+    if (localMemoryIndex.list(scope, FACT_KIND).length === 0) return [];
 
     const queryTags = extractTags(query);
-
-    // 添加上下文标签
-    if (context?.involvedNpcs) {
-      queryTags.push(...context.involvedNpcs);
-    }
-    if (context?.currentLocation) {
-      queryTags.push(context.currentLocation);
-    }
-
-    const allMemories = await this.db.getAll('memories') as VectorMemoryEntry[];
-    const results: MemorySearchResult[] = [];
+    if (context?.involvedNpcs) queryTags.push(...context.involvedNpcs);
+    if (context?.currentLocation) queryTags.push(context.currentLocation);
 
     const queryTextForEmbedding = [
       query,
@@ -556,49 +466,39 @@ class VectorMemoryService {
       ...(context?.recentEvents || []).slice(0, 3).map(e => `事件: ${e}`),
     ].filter(Boolean).join('\n');
 
-    const embeddedQuery = await this.embedText(queryTextForEmbedding);
-    const embeddingModel = embeddedQuery?.model;
-    const embeddingQueryVector = embeddedQuery?.vector;
-    if (!embeddingQueryVector) return [];
+    const embeddedQuery = await this.embedBatch([queryTextForEmbedding]);
+    if (!embeddedQuery) return [];
 
-    const scored: MemorySearchResult[] = [];
-
-    for (const entry of allMemories) {
-      const entryVectorType = (entry.vectorType || 'tfidf') as 'embedding' | 'tfidf';
-      if (entryVectorType !== 'embedding') continue;
-      if (embeddingModel && entry.embeddingModel && entry.embeddingModel !== embeddingModel) continue;
-      if (entry.vector.length !== embeddingQueryVector.length) continue;
-
-      // 计算标签匹配分数
+    const hits = localMemoryIndex.search(scope, FACT_KIND, embeddedQuery.vectors[0], embeddedQuery.model);
+    const scored = hits.map(hit => {
+      const entry = toEntry(hit.record);
       const matchedTags = entry.tags.filter(t => queryTags.includes(t));
       const tagScore = matchedTags.length / Math.max(queryTags.length, 1);
+      const score = tagScore * this.config.tagWeight + hit.score * this.config.vectorWeight;
+      return { hit, result: { entry, score, matchedTags } as MemorySearchResult };
+    });
 
-      // 计算向量相似度
-      let vectorScore = 0;
-      for (let i = 0; i < embeddingQueryVector.length; i++) vectorScore += embeddingQueryVector[i] * entry.vector[i];
-
-      // 综合分数
-      const score = tagScore * this.config.tagWeight + vectorScore * this.config.vectorWeight;
-
-      scored.push({ entry, score, matchedTags });
-    }
-
-    // 按分数排序，取前 N 条
-    scored.sort((a, b) => b.score - a.score);
-
-    const filtered = scored.filter(r => r.score >= this.config.minSimilarity);
+    scored.sort((a, b) => b.result.score - a.result.score);
+    // 长期记忆检索会替代全量长期记忆发送，因此没有条目过阈值时仍取最相近的 TopK
+    const filtered = scored.filter(r => r.result.score >= this.config.minSimilarity);
     const picked = (filtered.length > 0 ? filtered : scored).slice(0, this.config.maxRetrieveCount);
-    results.push(...picked);
-    return results;
+
+    localMemoryIndex.recordRecall(
+      scope,
+      FACT_KIND,
+      query,
+      picked.map(p => ({ record: p.hit.record, score: p.result.score })),
+    );
+    return picked.map(p => p.result);
   }
 
   /**
-   * 获取所有记忆（用于全量发送模式）
+   * 获取当前存档的全部长期检索条目
    */
   async getAllMemories(): Promise<VectorMemoryEntry[]> {
-    if (!this.db) return [];
-    const memories = await this.db.getAll('memories') as VectorMemoryEntry[];
-    return memories.filter(mem => mem.vectorType === 'embedding');
+    const scope = await resolveMemoryScope();
+    if (!scope) return [];
+    return localMemoryIndex.list(scope, FACT_KIND).map(toEntry);
   }
 
   /**
@@ -610,28 +510,20 @@ class VectorMemoryService {
     topTags: { tag: string; count: number }[];
     byVectorType: Record<string, number>;
     byEmbeddingModel: Record<string, number>;
+    /** 与当前 Embedding 模型一致、可参与检索的条目数 */
+    usable: number;
   }> {
-    if (!this.db) {
-      return { total: 0, byCategory: {}, topTags: [], byVectorType: {}, byEmbeddingModel: {} };
+    const scope = await resolveMemoryScope();
+    if (!scope) {
+      return { total: 0, byCategory: {}, topTags: [], byVectorType: {}, byEmbeddingModel: {}, usable: 0 };
     }
 
-    const memories = (await this.db.getAll('memories') as VectorMemoryEntry[])
-      .filter(mem => mem.vectorType === 'embedding');
+    const memories = localMemoryIndex.list(scope, FACT_KIND).map(toEntry);
     const byCategory: Record<string, number> = {};
     const tagCounts: Record<string, number> = {};
-    const byVectorType: Record<string, number> = {};
-    const byEmbeddingModel: Record<string, number> = {};
-
     for (const mem of memories) {
       byCategory[mem.category] = (byCategory[mem.category] || 0) + 1;
-      const vt = mem.vectorType || 'tfidf';
-      byVectorType[vt] = (byVectorType[vt] || 0) + 1;
-      if (vt === 'embedding' && mem.embeddingModel) {
-        byEmbeddingModel[mem.embeddingModel] = (byEmbeddingModel[mem.embeddingModel] || 0) + 1;
-      }
-      for (const tag of mem.tags) {
-        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-      }
+      for (const tag of mem.tags) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
     }
 
     const topTags = Object.entries(tagCounts)
@@ -639,22 +531,30 @@ class VectorMemoryService {
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
 
+    const stats = localMemoryIndex.stats(scope, FACT_KIND, this.getEmbeddingRequestConfig()?.model);
     return {
-      total: memories.length,
+      total: stats.total,
       byCategory,
       topTags,
-      byVectorType,
-      byEmbeddingModel,
+      byVectorType: stats.total ? { embedding: stats.total } : {},
+      byEmbeddingModel: stats.byModel,
+      usable: stats.usable,
     };
   }
 
   /**
-   * 清空向量库
+   * 清空当前存档的长期检索索引
    */
   async clear(): Promise<void> {
-    if (!this.db) return;
-    await this.db.clear('memories');
+    const scope = await resolveMemoryScope();
+    if (!scope) return;
+    await localMemoryIndex.clear(scope, FACT_KIND);
     console.log('[向量记忆] 已清空向量库');
+  }
+
+  /** 最近一次长期记忆召回（供记忆中心展示） */
+  getLastRecall(): RecallLog | null {
+    return localMemoryIndex.getLastRecall(FACT_KIND, getBoundMemoryScope() ?? undefined);
   }
 
   /**

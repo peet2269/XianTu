@@ -3,11 +3,13 @@
  * 负责角色创建生成和完整初始化流程，包括AI动态生成。
  */
 
+import { createStreamRelay } from '@/utils/tavernStreamRelay';
+import { applyHehuanSectEasterEgg } from './hehuanEasterEgg';
 import { useUIStore } from '@/stores/uiStore';
 import { useCharacterCreationStore } from '@/stores/characterCreationStore';
 import { useGameStateStore } from '@/stores/gameStateStore';
 import { toast } from '@/utils/toast';
-import type { CharacterBaseInfo, SaveData, PlayerStatus, WorldInfo, Continent, NpcProfile } from '@/types/game';
+import type { CharacterBaseInfo, SaveData, PlayerStatus, WorldInfo, Continent } from '@/types/game';
 import type { World, Origin, SpiritRoot } from '@/types';
 import type { GM_Response, TavernCommand } from '@/types/AIGameMaster';
 import { AIBidirectionalSystem } from '@/utils/AIBidirectionalSystem';
@@ -40,6 +42,29 @@ function isRandomSpiritRoot(spiritRoot: string | object): boolean {
  * @param errorMessage 错误信息
  * @returns 用户是否选择重试
  */
+// #region 取消开局生成
+/** App.vue 靠这句话识别「用户主动取消」，不要改动文案 */
+export const CREATION_CANCELLED_MESSAGE = '用户选择终止角色创建';
+let creationCancelled = false;
+
+/** 用户在加载遮罩上点了取消：打断当前请求，并让后续重试全部停下 */
+export function requestCreationCancel(): void {
+  creationCancelled = true;
+  void import('@/services/aiService').then(({ aiService }) => aiService.cancelAllRequests());
+}
+
+/** 每次开始（或整体重试）创建前调用 */
+export function resetCreationCancel(): void {
+  creationCancelled = false;
+}
+
+export const isCreationCancelled = (): boolean => creationCancelled;
+
+function throwIfCreationCancelled(): void {
+  if (creationCancelled) throw new Error(CREATION_CANCELLED_MESSAGE);
+}
+// #endregion
+
 async function askUserForRetry(taskName: string, errorMessage: string): Promise<boolean> {
   return new Promise((resolve) => {
     const uiStore = useUIStore();
@@ -72,9 +97,11 @@ async function robustAICall<T>(
 
   while (true) {
     attempt++;
+    throwIfCreationCancelled();
     try {
       if (attempt > 1) {
-        uiStore.updateLoadingText(`${progressMessage} (第 ${attempt - 1} 次重试)`);
+        uiStore.resetLoadingStream();
+        uiStore.setLoadingStageDetail(`响应未通过校验，第 ${attempt - 1} 次重试`);
       }
       console.log(`[robustAICall] 正在尝试: ${progressMessage}, 第 ${attempt} 次`);
       const response = await aiFunction();
@@ -87,6 +114,7 @@ async function robustAICall<T>(
       throw new Error(`AI响应格式无效或未通过验证`);
 
     } catch (error) {
+      throwIfCreationCancelled();
       lastError = error instanceof Error ? error : new Error(String(error));
       console.warn(`[AI调用重试] 第 ${attempt} 次尝试失败:`, lastError.message);
 
@@ -310,7 +338,10 @@ function prepareInitialData(baseInfo: CharacterBaseInfo, age: number): { saveDat
 async function generateWorld(baseInfo: CharacterBaseInfo, world: World): Promise<WorldInfo> {
   console.log('[初始化流程] 2. 生成世界数据');
   const uiStore = useUIStore();
-  uiStore.updateLoadingText('🌍 世界生成: 准备配置...');
+  uiStore.enterLoadingStage('world', '准备世界参数');
+  uiStore.setLoadingStreamKind('world');
+  // 独立 API 走回调、酒馆默认 API 走事件：两路都接，锁定先到的一路
+  const worldRelay = createStreamRelay((chunk) => uiStore.appendLoadingStream(chunk, 'world'));
 
   const characterCreationStore = useCharacterCreationStore();
   const userWorldConfig = characterCreationStore.worldGenerationConfig;
@@ -339,6 +370,11 @@ async function generateWorld(baseInfo: CharacterBaseInfo, world: World): Promise
   const factionCount = shouldGenerateFactions ? (userWorldConfig.majorFactionsCount || 5) : 0;
   const locationCount = shouldGenerateFactions ? (userWorldConfig.totalLocations || 12) : 0;
   const secretRealmsCount = shouldGenerateFactions ? (userWorldConfig.secretRealmsCount || 5) : 0;
+  uiStore.setWorldGenTargets({
+    continents: userWorldConfig.continentCount || 4,
+    factions: factionCount,
+    locations: locationCount,
+  });
 
   if (userWorldConfig.generateOnlyContinents) {
     console.log('[世界生成] ✅ 开启"仅生成大陆"模式，势力、地点和秘境将在局内动态生成');
@@ -359,24 +395,41 @@ async function generateWorld(baseInfo: CharacterBaseInfo, world: World): Promise
     characterBackground: extractName(baseInfo.出生),
     mapConfig: (userWorldConfig as any).mapConfig,
     useStreaming: characterCreationStore.useStreamingStart,
-    onStreamChunk: (chunk: string) => {
-      // 实时更新UI显示世界生成进度
-      uiStore.updateLoadingText(`🌍 世界生成中...\n\n${chunk.substring(0, 150)}...`);
+    // 遮罩实时预览：从流式 JSON 中抽取已生成的大陆 / 势力 / 地点
+    onStreamChunk: worldRelay.direct,
+    shouldAbort: isCreationCancelled,
+    onRetry: (attempt: number, reason: string) => {
+      worldRelay.resetSource();
+      uiStore.resetLoadingStream();
+      const shortReason = reason.length > 40 ? `${reason.slice(0, 40)}…` : reason;
+      uiStore.setLoadingStageDetail(`第 ${attempt} 次重试${shortReason ? `（${shortReason}）` : ''}`);
     }
   };
 
   console.log('[初始化流程] 开始调用世界生成器...');
-  uiStore.updateLoadingText('🌍 世界生成: 调用AI生成世界架构...');
+  uiStore.setLoadingStageDetail(userWorldConfig.generateOnlyContinents ? 'AI 正在勾勒大陆格局' : 'AI 正在构筑大陆、势力与地点');
   const enhancedWorldGenerator = new EnhancedWorldGenerator(enhancedConfig);
 
   const startTime = Date.now();
-  const worldGenerationResult = await enhancedWorldGenerator.generateValidatedWorld();
+  let worldGenerationResult: Awaited<ReturnType<typeof enhancedWorldGenerator.generateValidatedWorld>>;
+  try {
+    worldGenerationResult = await enhancedWorldGenerator.generateValidatedWorld();
+  } finally {
+    worldRelay.dispose();
+  }
+  throwIfCreationCancelled();
   const elapsed = Date.now() - startTime;
   console.log(`[初始化流程] 世界生成器返回,耗时: ${elapsed}ms`);
 
   if (worldGenerationResult.success && worldGenerationResult.worldInfo) {
     console.log('[初始化流程] 世界生成成功');
-    uiStore.updateLoadingText('🌍 世界生成: 完成');
+    const info = worldGenerationResult.worldInfo;
+    const summary = [
+      `${info.大陆信息?.length ?? 0} 片大陆`,
+      shouldGenerateFactions ? `${info.势力信息?.length ?? 0} 个势力` : '',
+      shouldGenerateFactions ? `${info.地点信息?.length ?? 0} 处地点` : '',
+    ].filter(Boolean).join(' · ');
+    uiStore.setLoadingStageDetail(summary);
     return worldGenerationResult.worldInfo;
   } else {
     throw new Error(`世界生成失败：${worldGenerationResult.errors?.join(', ') || '未知错误'}`);
@@ -391,18 +444,16 @@ async function generateWorld(baseInfo: CharacterBaseInfo, world: World): Promise
  * @param age - 开局年龄
  * @param useStreaming - 是否使用流式传输（默认true）
  * @param generateMode - 生成模式：generate（标准）或 generateRaw（纯净）
- * @param splitResponseGeneration - 是否使用分步生成（默认true）
+ * @param splitResponseGeneration - 是否使用分步生成（默认false，一次性生成）
  * @returns 包含开场剧情和AI指令的响应
  */
-async function generateOpeningScene(saveData: SaveData, baseInfo: CharacterBaseInfo, world: World, age: number, useStreaming: boolean = true, generateMode: 'generate' | 'generateRaw' = 'generate', splitResponseGeneration: boolean = true) {
+async function generateOpeningScene(saveData: SaveData, baseInfo: CharacterBaseInfo, world: World, age: number, useStreaming: boolean = true, generateMode: 'generate' | 'generateRaw' = 'generate', splitResponseGeneration: boolean = false) {
   console.log('[初始化流程] 3. 生成开场剧情');
   const uiStore = useUIStore();
   const tavernEnv = isTavernEnv();
   const nsfwEnabled = tavernEnv && Boolean((saveData as any).系统?.配置?.nsfwMode);
-  const loadingHeaderHtml = nsfwEnabled
-    ? '天道正在为你书写命运之章...<br/><span style="font-size: 0.85em; opacity: 0.8;">（法身数据生成中…）</span>'
-    : '天道正在为你书写命运之章...';
-  uiStore.updateLoadingText(loadingHeaderHtml);
+  uiStore.enterLoadingStage('story', nsfwEnabled ? '整理设定（含法身数据）' : '整理角色设定');
+  uiStore.setLoadingStreamKind('story'); // 清掉上一步（世界）的预览
 
   // 🔥 现在baseInfo中的字段已经是完整对象了
   const characterCreationStore = useCharacterCreationStore();
@@ -476,22 +527,41 @@ ${selectionsSummary}
   console.log(`[初始化] 可用大陆列表:`, worldContext.availableContinents.map((c: any) => c.名称));
   console.log(`[初始化] 可用地点数量:`, worldContext.availableLocations?.length || 0);
 
-  let fullStreamingText = '';
-  const onStreamChunk = (chunk: string) => {
-    fullStreamingText += chunk;
-    // 只显示最后300个字符，避免遮挡loading界面
-    const displayWindow = fullStreamingText.length > 300
-      ? '...' + fullStreamingText.slice(-300)
-      : fullStreamingText;
-    // 使用 pre-wrap 样式保持换行
-    uiStore.updateLoadingText(`${loadingHeaderHtml}<br/><br/><div style="text-align: left; font-size: 0.9em; opacity: 0.8; white-space: pre-wrap;">${displayWindow}</div>`);
+  // 分步生成：第 1 步正文归「书写开篇」，第 2 步指令归独立的「推演指令」步骤（App.vue 仅在分步时加入该步骤）
+  let streamPhase: 'story' | 'commands' = 'story';
+  let storyChars = 0;
+  let oneShotCommandsStarted = false;
+  const activeStageKey = () => uiStore.loadingStages.find((stage) => stage.status === 'active')?.key;
+
+  // AI 进度文案 → 遮罩上的步骤细节
+  const describeProgress = (status: string): string => {
+    if (status.includes('第1步')) return '撰写开局正文';
+    if (status.includes('第2步') && status.includes('重试')) return '上次输出无效，重新生成';
+    if (status.includes('思维链')) return '梳理剧情并生成指令';
+    if (status.includes('第2步')) return '生成状态、物品、位置等指令';
+    if (status.includes('优化') || status.includes('润色')) return '润色正文';
+    if (status.includes('请求AI')) return '请求 AI 撰写开局';
+    return status.replace(/[….]+$/, '');
+  };
+
+  const handleOpeningChunk = (chunk: string) => {
+    if (streamPhase === 'story') storyChars += chunk.length;
+    uiStore.appendLoadingStream(chunk, streamPhase);
+    // 新一轮流式（如整体重试后）从头开始
+    if (uiStore.loadingStream.length <= chunk.length) oneShotCommandsStarted = false;
+    // 一次性生成：JSON 写到指令部分时更新步骤说明（遮罩预览会同时切到指令列表）
+    if (!splitResponseGeneration && !oneShotCommandsStarted && uiStore.loadingStream.includes('"tavern_commands"')) {
+      oneShotCommandsStarted = true;
+      uiStore.setLoadingStageDetail('正文已写完，正在生成指令');
+    }
   };
 
   const initialMessageResponse = await robustAICall(
 async () => {
   console.log('[初始化] ===== 开始生成开场剧情 =====');
   const startTime = Date.now();
-  let receivedChars = 0; // 追踪接收的字符数
+  // 独立 API 走 onStreamChunk、酒馆默认 API 走流式事件：两路都接，锁定先到的一路
+  const openingRelay = createStreamRelay(handleOpeningChunk);
   try {
     // 🔥 [新架构] 使用 AIBidirectionalSystem 生成初始消息
     const aiSystem = AIBidirectionalSystem;
@@ -499,16 +569,27 @@ async () => {
       useStreaming,
       generateMode,
       splitResponseGeneration,
-      onStreamChunk: (chunk: string) => {
-        receivedChars += chunk.length;
-        onStreamChunk(chunk);
-      },
+      isCancelled: isCreationCancelled,
+      onStreamChunk: openingRelay.direct,
       onProgressUpdate: (status: string) => {
-        // 分步生成时更新进度提示
-        const statusWithChars = receivedChars > 0
-          ? `${status}（已接收 ${receivedChars} 字符）`
-          : status;
-        uiStore.updateLoadingText(`${loadingHeaderHtml}<br/><span style="font-size: 0.9em; opacity: 0.8;">${statusWithChars}</span>`);
+        // 每个进度节点都是一次新请求的开始，重新判定流式来源
+        openingRelay.resetSource();
+        if (status.includes('第2步')) {
+          // 进入第 2 步（或其重试）：切到「推演指令」步骤，预览换成指令视图
+          if (streamPhase !== 'commands') {
+            if (storyChars > 0) uiStore.setLoadingStageDetail(`正文约 ${storyChars.toLocaleString()} 字`, 'story');
+            uiStore.enterLoadingStage('commands');
+          }
+          streamPhase = 'commands';
+          uiStore.setLoadingStreamKind('commands');
+        } else if (status.includes('第1步')) {
+          // 首次进入或整体重试：回到「书写开篇」
+          streamPhase = 'story';
+          storyChars = 0;
+          oneShotCommandsStarted = false;
+          if (activeStageKey() !== 'story') uiStore.enterLoadingStage('story');
+        }
+        uiStore.setLoadingStageDetail(describeProgress(status));
       }
     });
 
@@ -520,6 +601,8 @@ async () => {
   } catch (error) {
     console.error(`[初始化] ❌ AI生成失败:`, error);
     throw error;
+  } finally {
+    openingRelay.dispose();
   }
 },
     (response: GM_Response) => {
@@ -631,13 +714,25 @@ async () => {
   // =================================================================
 
 
+  throwIfCreationCancelled();
+  const openingCommands = (initialMessageResponse as GM_Response).tavern_commands ?? [];
+  const openingTextLength = (initialMessageResponse as GM_Response).text?.length ?? 0;
+  if (uiStore.loadingStages.some((stage) => stage.key === 'commands')) {
+    uiStore.setLoadingStageDetail(`正文 ${openingTextLength.toLocaleString()} 字`, 'story');
+    uiStore.setLoadingStageDetail(`${openingCommands.length} 条指令`, 'commands');
+  } else {
+    uiStore.setLoadingStageDetail(`正文 ${openingTextLength.toLocaleString()} 字 · 指令 ${openingCommands.length} 条`, 'story');
+  }
+  uiStore.enterLoadingStage('apply', `执行 ${openingCommands.length} 条剧情指令`);
+  // 遮罩预览：列出本次开局要执行的全部指令（替换掉流式时的半截内容），一直保留到进入游戏
+  uiStore.setLoadingStreamKind('commands');
+  uiStore.appendLoadingStream(JSON.stringify({ tavern_commands: openingCommands }), 'commands');
   const aiSystem = AIBidirectionalSystem;
   const { saveData: saveDataAfterCommands, stateChanges } = await aiSystem.processGmResponse(initialMessageResponse as GM_Response, saveData, true);
 
   // 🔥 [关键修复] 用AI生成的具体内容替换"随机"选项
   const creationStore = useCharacterCreationStore();
 
-  // [Roo] 强制TS重新评估类型
   // 如果用户选择了随机灵根，用AI生成的具体灵根替换
   if (creationStore.selectedSpiritRoot?.name === '随机灵根' && (saveDataAfterCommands as any).角色?.身份?.灵根) {
     const aiSpiritRoot = (saveDataAfterCommands as any).角色.身份.灵根;
@@ -788,7 +883,7 @@ function deriveBaseFieldsFromDetails(baseInfo: CharacterBaseInfo): CharacterBase
 async function finalizeAndSyncData(saveData: SaveData, baseInfo: CharacterBaseInfo, world: World, age: number): Promise<SaveData> {
   console.log('[初始化流程] 4. 合并、验证并同步最终数据');
   const uiStore = useUIStore();
-  uiStore.updateLoadingText(`正在同步数据，即将进入${baseInfo.名字}的修仙世界...`);
+  uiStore.enterLoadingStage('save', '合并数据并校验存档');
 
   // 1. 合并AI生成的数据和用户选择的原始数据，并保护核心字段
   const mergedBaseInfo: CharacterBaseInfo = {
@@ -1063,7 +1158,7 @@ async function finalizeAndSyncData(saveData: SaveData, baseInfo: CharacterBaseIn
   // 新架构不再使用酒馆变量存储游戏状态
   // 数据已经在 Pinia Store 中，会自动保存到 IndexedDB
   console.log('[初始化流程] ✅ 角色创建完成（新架构跳过酒馆同步）');
-  uiStore.updateLoadingText('✅ 角色创建完成！');
+  uiStore.setLoadingStageDetail('存档校验通过');
 
   console.log('[初始化流程] finalizeAndSyncData即将返回 V3 saveData');
   return repairedMigrated as any;
@@ -1081,12 +1176,12 @@ export async function initializeCharacter(
   age: number,
   useStreaming: boolean = true,
   generateMode: 'generate' | 'generateRaw' = 'generate',
-  splitResponseGeneration: boolean = true
+  splitResponseGeneration: boolean = false
 ): Promise<SaveData> {
   console.log('[初始化流程] ===== initializeCharacter 入口 =====');
   console.log('[初始化流程] 分步生成模式:', splitResponseGeneration);
 
-  // [Roo] 补丁：修复从创角store到基础信息的种族字段映射问题
+  // 兼容：创角 store 中的种族字段未同步到 baseInfo 时补上
   const creationStore = useCharacterCreationStore();
   if (!baseInfo.种族 && creationStore.characterPayload.race) {
     console.log(`[初始化流程] 补丁：从 store 同步种族信息: ${creationStore.characterPayload.race}`);
@@ -1095,6 +1190,7 @@ export async function initializeCharacter(
 
   console.log('[初始化流程] 接收到的 baseInfo.先天六司:', baseInfo.先天六司);
   try {
+    throwIfCreationCancelled();
     // 步骤 1: 准备初始数据
     const { saveData: initialSaveData, processedBaseInfo } = prepareInitialData(baseInfo, age);
 
@@ -1103,111 +1199,8 @@ export async function initializeCharacter(
     if (!(initialSaveData as any).世界) (initialSaveData as any).世界 = { 信息: {}, 状态: {} };
     (initialSaveData as any).世界.信息 = worldInfo;
 
-    // 🔥 [彩蛋] 合欢宗圣女 - 灰夫人
-    // - 无论是否酒馆环境：补齐合欢宗“圣女”字段，保证宗门信息完整
-    // - 仅酒馆环境：注入灰夫人NPC（包含NSFW信息）
-    const hehuanSect = worldInfo.势力信息.find((f: any) => f.名称?.includes('合欢') || f.name?.includes('合欢'));
-    if (hehuanSect) {
-      const sectName = hehuanSect.名称 || (hehuanSect as any).name || '合欢宗';
-
-      // 1) 补齐宗门领导层与“圣女”职位（兼容 leadership / 领导层 两套字段）
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const existingLeadership = ((hehuanSect as any).领导层 || (hehuanSect as any).leadership) as any;
-      const nextLeadership =
-        existingLeadership && typeof existingLeadership === 'object'
-          ? { ...existingLeadership }
-          : ({} as any);
-
-      if (!nextLeadership.宗主) nextLeadership.宗主 = '合欢老魔';
-      if (!nextLeadership.最强修为) nextLeadership.最强修为 = nextLeadership.宗主修为 || '化神期';
-
-      if (!nextLeadership.圣女) {
-        nextLeadership.圣女 = '灰夫人(合欢圣女)';
-        console.log('[角色初始化] ✅ 已补齐合欢宗领导层：圣女=灰夫人(合欢圣女)');
-      }
-
-      (hehuanSect as any).领导层 = nextLeadership;
-      (hehuanSect as any).leadership = nextLeadership;
-
-      // 2) 酒馆环境才注入NPC数据
-      if (isTavernEnv()) {
-        console.log('[角色初始化] 🎲 触发合欢宗彩蛋：生成灰夫人NPC');
-
-        // 获取游戏时间，默认1000年
-        const currentYear = (initialSaveData as any).元数据?.时间?.年 ?? 1000;
-
-        const greyLady: NpcProfile = {
-          名字: "灰夫人(合欢圣女)",
-          性别: "女",
-          出生日期: { 年: currentYear - 200, 月: 1, 日: 1 }, // 金丹圆满约200岁
-          种族: "人族",
-          出生: "合欢宗",
-          外貌描述: "身材极度丰满，拥有夸张的丰乳肥臀，腰肢纤细如蛇。面容妖媚，眼神含春，举手投足间散发着惊人的魅惑力。身着轻薄纱衣，曼妙身姿若隐若现。",
-          性格特征: ["平易近人", "开放", "双性恋", "M体质", "S体质", "痴女(潜在)"],
-          境界: { 名称: "金丹", 阶段: "圆满", 当前进度: 0, 下一级所需: 100, 突破描述: "阴阳调和，丹破婴生" },
-          灵根: { name: "天阴灵根", tier: "天品" } as any,
-          天赋: [{ name: "合欢圣体", description: "天生媚骨，极适合双修，采补效果翻倍" }] as any,
-          先天六司: { 根骨: 8, 灵性: 9, 悟性: 8, 气运: 7, 魅力: 10, 心性: 5 },
-          属性: {
-            气血: { 当前: 5000, 上限: 5000 }, // 金丹圆满
-            灵气: { 当前: 8000, 上限: 8000 },
-            神识: { 当前: 3000, 上限: 3000 },
-            寿元上限: 500 // 金丹期寿命约500年
-          },
-          与玩家关系: "陌生人", // 初始关系
-          好感度: 10, // 初始好感略高
-          当前位置: { 描述: `${sectName}驻地` },
-          势力归属: sectName,
-          人格底线: [], // 暂无底线
-          记忆: [
-            "我是合欢宗的圣女，人称灰夫人。",
-            "我的真实姓名是一个秘密，只有真正征服我的人才能知道。",
-            "我渴望体验世间极致的快乐与痛苦，无论是给予还是接受。"
-          ],
-          当前外貌状态: "衣衫半解，媚眼如丝",
-          当前内心想法: "观察着周围的人，寻找能让我感兴趣的猎物",
-          背包: { 灵石: { 下品: 5000, 中品: 500, 上品: 50, 极品: 0 }, 物品: {} },
-          实时关注: true, // 关键：让AI主动关注此NPC
-          私密信息: {
-            是否为处女: true,
-            身体部位: [
-              { 部位名称: "后庭", 特征描述: "九曲回廊，紧致幽深，内壁褶皱繁复，仿佛能吞噬一切", 敏感度: 80, 开发度: 0, 特殊印记: "未开发", 反应描述: "稍有触碰便轻颤，呼吸凌乱", 偏好刺激: "缓慢深入与节奏变化", 禁忌: "粗暴扩张" },
-              { 部位名称: "阴道", 特征描述: "春水玉壶，名器天成，常年湿润，紧致如初", 敏感度: 90, 开发度: 0, 特殊印记: "白虎", 反应描述: "情绪一动便春水泛滥", 偏好刺激: "前戏充足与温热指探", 禁忌: "敷衍草率" },
-              { 部位名称: "腰部", 特征描述: "七寸盘蛇，柔若无骨，可做出任何高难度姿势", 敏感度: 70, 开发度: 0 },
-              { 部位名称: "手", 特征描述: "纤手观音，指若削葱，灵活多变，擅长挑逗", 敏感度: 60, 开发度: 0 },
-              { 部位名称: "足", 特征描述: "玲珑鸳鸯，弓足如玉，脚趾圆润可爱，足弓优美", 敏感度: 85, 开发度: 0 },
-              { 部位名称: "嘴", 特征描述: "如意鱼唇，樱桃小口，舌头灵活，深喉天赋异禀", 敏感度: 75, 开发度: 0 },
-              { 部位名称: "胸部", 特征描述: "乳燕玉峰，波涛汹涌，乳晕粉嫩，乳头敏感易硬", 敏感度: 95, 开发度: 0 },
-            ],
-            性格倾向: "开放且顺从(待调教)",
-            性取向: "双性恋",
-            性经验等级: "资深",
-            亲密节奏: "快慢随心，重视前戏与情绪引导",
-            亲密需求: "渴望征服与被征服的拉扯感",
-            安全偏好: "边界沟通+安全词+禁术防护",
-            避孕措施: "避孕丹/隔绝阵",
-            性癖好: ["BDSM", "足交", "乳交", "捆绑", "调教", "采补", "角色扮演", "支配", "被支配", "露出", "放尿", "凌辱", "刑具"],
-            亲密偏好: ["前戏充分", "情话引导", "视觉挑逗", "角色扮演", "掌控节奏"],
-            禁忌清单: ["毫无沟通", "粗暴撕扯", "当众羞辱"],
-            性渴望程度: 80,
-            当前性状态: "渴望",
-            体液分泌状态: "充沛",
-            性交总次数: 128,
-            性伴侣名单: [],
-            最近一次性行为时间: "无",
-            生育状态: { 是否可孕: true, 当前状态: "未怀孕" },
-            特殊体质: ["合欢圣体", "名器合集"]
-          }
-        };
-
-        // 3. 注入存档
-        if (!(initialSaveData as any).社交) (initialSaveData as any).社交 = { 关系: {}, 事件: {}, 记忆: {} };
-        if (!(initialSaveData as any).社交.关系) (initialSaveData as any).社交.关系 = {};
-        if (!(initialSaveData as any).社交.关系[greyLady.名字]) {
-          (initialSaveData as any).社交.关系[greyLady.名字] = greyLady;
-        }
-      }
-    }
+    // 彩蛋：合欢宗补齐圣女职位（酒馆端额外注入灰夫人 NPC），见 hehuanEasterEgg.ts
+    applyHehuanSectEasterEgg(worldInfo, initialSaveData);
 
     // 步骤 2.5: 🔥 [新架构] 跳过世界保存到酒馆
     // 世界已经在 saveData 中，AI会在prompt中接收到完整状态
@@ -1252,7 +1245,8 @@ export async function initializeCharacter(
     };
     console.log('[初始化流程] 核心属性校准完成，境界:', mergedRealmStep3);
 
-    // 步骤 4: 最终化并同步数据
+    // 步骤 4: 最终化并同步数据（此后开始写入，不再响应取消）
+    throwIfCreationCancelled();
     console.log('[初始化流程] 准备最终化并同步数据...');
     const completedSaveData = await finalizeAndSyncData(finalSaveData, baseInfo, world, age);
     console.log('[初始化流程] 最终化完成');

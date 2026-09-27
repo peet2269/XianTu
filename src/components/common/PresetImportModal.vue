@@ -1,102 +1,110 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-container">
-      <!-- Header -->
-      <div class="modal-header">
-        <h2 class="modal-title">📥 导入预设</h2>
-        <button class="modal-close" @click="closeModal">×</button>
+  <div v-if="visible" class="cc-modal-overlay sub-overlay" @click.self="closeModal">
+    <div class="cc-modal solid" role="dialog" aria-modal="true" aria-labelledby="preset-import-title">
+      <div class="cc-modal-head">
+        <h2 id="preset-import-title" class="cc-modal-title">导入预设</h2>
+        <button type="button" class="cc-modal-close" title="关闭" aria-label="关闭" :disabled="isImporting" @click="closeModal">
+          <X :size="18" />
+        </button>
       </div>
 
-      <!-- Content -->
-      <div class="modal-content">
-        <!-- 文件选择区域 -->
-        <div class="upload-area" :class="{ 'drag-over': isDragOver }" @drop.prevent="handleDrop" @dragover.prevent="isDragOver = true" @dragleave.prevent="isDragOver = false">
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept=".json,application/json"
-            @change="handleFileSelect"
-            class="file-input"
-          />
-          <div class="upload-content">
-            <div class="upload-icon">📁</div>
-            <p class="upload-text">拖放JSON文件到此处，或点击选择文件</p>
-            <button class="btn-select" @click="triggerFileInput">选择文件</button>
-            <p class="upload-hint">仅支持通过本应用导出的预设JSON文件</p>
-          </div>
+      <div class="cc-modal-body">
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".json,application/json"
+          class="file-input"
+          @change="handleFileSelect"
+        />
+
+        <!-- 未选文件：拖放 / 点击区域 -->
+        <div
+          v-if="!selectedFile"
+          class="drop-zone"
+          :class="{ 'drag-over': isDragOver }"
+          role="button"
+          tabindex="0"
+          @click="triggerFileInput"
+          @keydown.enter.prevent="triggerFileInput"
+          @keydown.space.prevent="triggerFileInput"
+          @drop.prevent="handleDrop"
+          @dragover.prevent="isDragOver = true"
+          @dragleave.prevent="isDragOver = false"
+        >
+          <FileUp :size="30" class="drop-icon" />
+          <p class="drop-text">拖放 JSON 文件到此处，或点击选择</p>
+          <p class="drop-hint">仅支持本应用导出的预设文件，最大 10MB</p>
         </div>
 
-        <!-- 已选择文件信息 -->
-        <div v-if="selectedFile" class="file-info">
-          <div class="file-header">
-            <span class="file-icon">📄</span>
-            <span class="file-name">{{ selectedFile.name }}</span>
-            <span class="file-size">{{ formatFileSize(selectedFile.size) }}</span>
-            <button class="btn-remove" @click="removeFile">×</button>
-          </div>
+        <!-- 已选文件 -->
+        <div v-else class="file-card">
+          <FileJson :size="20" class="file-icon" />
+          <span class="file-name" :title="selectedFile.name">{{ selectedFile.name }}</span>
+          <span class="file-size">{{ formatFileSize(selectedFile.size) }}</span>
+          <button
+            type="button"
+            class="cc-icon-btn danger"
+            title="移除文件"
+            aria-label="移除文件"
+            :disabled="isImporting"
+            @click="removeFile"
+          >
+            <X :size="14" />
+          </button>
         </div>
 
-        <!-- 导入选项 -->
-        <div v-if="selectedFile" class="import-options">
-          <label class="option-label">
-            <input
-              type="radio"
-              v-model="importMode"
-              value="merge"
-              class="radio-input"
-            />
-            <span class="option-text">
-              <span class="option-title">合并模式</span>
-              <span class="option-desc">将导入的预设添加到现有预设中（推荐）</span>
-            </span>
-          </label>
-
-          <label class="option-label">
-            <input
-              type="radio"
-              v-model="importMode"
-              value="replace"
-              class="radio-input"
-            />
-            <span class="option-text">
-              <span class="option-title">替换模式</span>
-              <span class="option-desc warning">将清除所有现有预设，仅保留导入的预设</span>
-            </span>
-          </label>
+        <!-- 导入方式 -->
+        <div v-if="selectedFile && !importResult" class="cc-field">
+          <span class="cc-field-label">导入方式</span>
+          <div class="mode-list" role="radiogroup">
+            <label class="mode-option" :class="{ selected: importMode === 'merge' }">
+              <input v-model="importMode" type="radio" name="preset-import-mode" value="merge" />
+              <span class="mode-check" aria-hidden="true"><Check :size="12" /></span>
+              <span class="mode-text">
+                <span class="mode-title">合并（推荐）</span>
+                <span class="mode-desc">导入的预设追加到现有预设之后，原有预设保留</span>
+              </span>
+            </label>
+            <label class="mode-option danger" :class="{ selected: importMode === 'replace' }">
+              <input v-model="importMode" type="radio" name="preset-import-mode" value="replace" />
+              <span class="mode-check" aria-hidden="true"><Check :size="12" /></span>
+              <span class="mode-text">
+                <span class="mode-title">替换</span>
+                <span class="mode-desc">先删除全部现有预设，只保留导入的预设，不可撤销</span>
+              </span>
+            </label>
+          </div>
         </div>
 
         <!-- 导入结果 -->
-        <div v-if="importResult" class="import-result" :class="importResult.type">
-          <div class="result-icon">
-            {{ importResult.type === 'success' ? '✅' : importResult.type === 'warning' ? '⚠️' : '❌' }}
-          </div>
-          <div class="result-content">
+        <div v-if="importResult" class="result" :class="importResult.type" role="status">
+          <CheckCircle v-if="importResult.type === 'success'" :size="18" />
+          <AlertTriangle v-else-if="importResult.type === 'warning'" :size="18" />
+          <XCircle v-else :size="18" />
+          <div class="result-body">
             <p class="result-message">{{ importResult.message }}</p>
-            <div v-if="importResult.details" class="result-details">
-              <span v-if="importResult.details.success > 0" class="detail-item success">
-                成功导入: {{ importResult.details.success }} 个
-              </span>
-              <span v-if="importResult.details.failed > 0" class="detail-item error">
-                导入失败: {{ importResult.details.failed }} 个
-              </span>
+            <div v-if="importResult.details" class="cc-stat-row">
+              <span v-if="importResult.details.success > 0" class="cc-stat">成功 <strong>{{ importResult.details.success }}</strong></span>
+              <span v-if="importResult.details.failed > 0" class="cc-stat failed">失败 <strong>{{ importResult.details.failed }}</strong></span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Footer -->
-      <div class="modal-footer">
-        <button class="btn btn-cancel" @click="closeModal">
+      <div class="cc-modal-foot">
+        <button type="button" class="cc-btn" :disabled="isImporting" @click="closeModal">
           {{ importResult ? '关闭' : '取消' }}
         </button>
         <button
           v-if="!importResult"
-          class="btn btn-confirm"
-          @click="handleImport"
+          type="button"
+          class="cc-btn primary"
           :disabled="!selectedFile || isImporting"
+          @click="handleImport"
         >
-          <span v-if="isImporting">⏳ 导入中...</span>
-          <span v-else>📤 开始导入</span>
+          <Loader2 v-if="isImporting" :size="15" class="cc-spin" />
+          <Download v-else :size="15" />
+          <span>{{ isImporting ? '导入中…' : importMode === 'replace' ? '替换导入' : '开始导入' }}</span>
         </button>
       </div>
     </div>
@@ -105,6 +113,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { AlertTriangle, Check, CheckCircle, Download, FileJson, FileUp, Loader2, X, XCircle } from 'lucide-vue-next';
 import { importPresets } from '@/utils/presetManager';
 import { toast } from '@/utils/toast';
 
@@ -269,403 +278,244 @@ async function handleImport() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-.modal-container {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--color-text);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.modal-close:hover {
-  background: rgba(var(--color-primary-rgb), 0.1);
-  color: var(--color-text);
-}
-
-.modal-content {
-  flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
-/* Upload Area */
-.upload-area {
-  border: 2px dashed var(--color-border);
-  border-radius: 12px;
-  padding: 2rem;
-  text-align: center;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  background: var(--color-surface-light);
-}
-
-.upload-area:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface-lighter);
-}
-
-.upload-area.drag-over {
-  border-color: var(--color-primary);
-  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-accent-rgb), 0.1));
-  transform: scale(1.02);
+/* 导入预设 —— 外壳用 creation-theme.css 的 cc-modal */
+.sub-overlay {
+  z-index: 1010;
 }
 
 .file-input {
   display: none;
 }
 
-.upload-content {
+.drop-zone {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-}
-
-.upload-icon {
-  font-size: 3rem;
-  opacity: 0.6;
-}
-
-.upload-text {
-  margin: 0;
-  color: var(--color-text);
-  font-size: 1rem;
-}
-
-.btn-select {
-  padding: 0.6rem 1.5rem;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.btn-select:hover {
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
-  transform: translateY(-2px);
-}
-
-.upload-hint {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-  opacity: 0.7;
-}
-
-/* File Info */
-.file-info {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: var(--color-surface-lighter);
-  border: 1px solid var(--color-border);
+  gap: 0.55rem;
+  padding: 2rem 1.25rem;
+  border: 1px dashed var(--cc-border-strong);
   border-radius: 8px;
+  background: var(--cc-inset);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.file-header {
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: rgba(var(--cc-gold-rgb), 0.75);
+  background: var(--cc-surface-hover);
+}
+
+.drop-zone.drag-over {
+  box-shadow: var(--cc-glow);
+}
+
+.drop-zone:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
+
+.drop-icon {
+  color: var(--cc-gold);
+}
+
+.drop-text {
+  margin: 0;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  color: var(--cc-text);
+}
+
+.drop-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+}
+
+.file-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--cc-border);
+  border-left: 3px solid var(--cc-gold);
+  border-radius: 6px;
+  background: var(--cc-surface);
 }
 
 .file-icon {
-  font-size: 1.5rem;
+  flex-shrink: 0;
+  color: var(--cc-gold);
 }
 
 .file-name {
   flex: 1;
-  font-weight: 500;
-  color: var(--color-text);
-  word-break: break-all;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  color: var(--cc-text);
 }
 
 .file-size {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.btn-remove {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font-size: 1.2rem;
-  padding: 0.25rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.btn-remove:hover {
-  background-color: rgba(var(--color-danger-rgb), 0.1);
-  color: var(--color-danger);
-}
-
-/* Import Options */
-.import-options {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
-.option-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.option-label:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface-lighter);
-}
-
-.radio-input {
-  margin-top: 0.2rem;
-  cursor: pointer;
-}
-
-.option-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-}
-
-.option-title {
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.option-desc {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-.option-desc.warning {
-  color: var(--color-warning);
-}
-
-/* Import Result */
-.import-result {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  border-radius: 8px;
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
-}
-
-.import-result.success {
-  background: rgba(var(--color-success-rgb), 0.1);
-  border: 1px solid rgba(var(--color-success-rgb), 0.3);
-}
-
-.import-result.warning {
-  background: rgba(var(--color-warning-rgb), 0.1);
-  border: 1px solid rgba(var(--color-warning-rgb), 0.3);
-}
-
-.import-result.error {
-  background: rgba(var(--color-danger-rgb), 0.1);
-  border: 1px solid rgba(var(--color-danger-rgb), 0.3);
-}
-
-.result-icon {
-  font-size: 1.5rem;
   flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.result-content {
-  flex: 1;
-}
-
-.result-message {
-  margin: 0 0 0.5rem 0;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.result-details {
+/* 导入方式：单选卡片 */
+.mode-list {
   display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.detail-item {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-}
-
-.detail-item.success {
-  background: rgba(var(--color-success-rgb), 0.2);
-  color: var(--color-success);
-}
-
-.detail-item.error {
-  background: rgba(var(--color-danger-rgb), 0.2);
-  color: var(--color-danger);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface-light);
-}
-
-.btn {
-  padding: 0.7rem 1.5rem;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.btn-cancel {
-  background: var(--color-surface-lighter);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+.mode-option {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
 }
 
-.btn-cancel:hover:not(:disabled) {
-  background: rgba(var(--color-text-rgb), 0.05);
-  border-color: var(--color-text-secondary);
+.mode-option:hover {
+  background: var(--cc-surface-hover);
 }
 
-.btn-confirm {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  color: #fff;
-  border: none;
-  min-width: 120px;
+.mode-option.selected {
+  background: var(--cc-selected-bg);
+  border-color: rgba(var(--cc-gold-rgb), 0.5);
+  box-shadow: var(--cc-glow);
 }
 
-.btn-confirm:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.4);
-  transform: translateY(-2px);
+.mode-option.danger.selected {
+  border-color: rgba(var(--cc-danger-rgb), 0.55);
 }
 
-.btn-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
+.mode-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .modal-container {
-    width: 95%;
-    max-width: 100%;
-    border-radius: 8px;
-  }
+.mode-option:has(input:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
+}
 
-  .modal-header {
-    padding: 1rem;
-  }
+.mode-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.1rem;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 50%;
+  color: transparent;
+}
 
-  .modal-title {
-    font-size: 1.1rem;
-  }
+.mode-option.selected .mode-check {
+  border-color: var(--cc-seal);
+  background: var(--cc-seal);
+  color: var(--cc-seal-text);
+}
 
-  .modal-content {
-    padding: 1rem;
-  }
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
 
-  .upload-area {
-    padding: 1.5rem;
-  }
+.mode-title {
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: var(--cc-text);
+}
 
-  .modal-footer {
-    padding: 1rem;
-    flex-direction: column-reverse;
-    gap: 0.75rem;
-  }
+.mode-option.selected .mode-title {
+  color: var(--cc-accent);
+}
 
-  .btn {
-    width: 100%;
-    padding: 0.8rem 1rem;
-  }
+.mode-option.danger.selected .mode-title,
+.mode-option.danger .mode-desc {
+  color: var(--cc-danger);
+}
+
+.mode-desc {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--cc-text-3);
+}
+
+/* 结果 */
+.result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+}
+
+.result > svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.result.success {
+  border-color: color-mix(in srgb, var(--cc-success) 45%, transparent);
+  background: color-mix(in srgb, var(--cc-success) 8%, transparent);
+  color: var(--cc-success);
+}
+
+.result.warning {
+  border-color: rgba(var(--cc-warning-rgb), 0.45);
+  background: rgba(var(--cc-warning-rgb), 0.08);
+  color: var(--cc-warning);
+}
+
+.result.error {
+  border-color: rgba(var(--cc-danger-rgb), 0.45);
+  background: rgba(var(--cc-danger-rgb), 0.08);
+  color: var(--cc-danger);
+}
+
+.result-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-message {
+  margin: 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  color: var(--cc-text);
+}
+
+.result .cc-stat-row {
+  margin-top: 0.6rem;
+}
+
+.cc-stat.failed {
+  border-color: rgba(var(--cc-danger-rgb), 0.45);
+  background: rgba(var(--cc-danger-rgb), 0.08);
+}
+
+.cc-stat.failed strong {
+  color: var(--cc-danger);
+}
+
+.cc-modal :is(.cc-btn, .cc-icon-btn, .cc-modal-close):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--cc-accent-rgb), 0.3);
 }
 </style>

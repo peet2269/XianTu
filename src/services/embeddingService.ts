@@ -8,6 +8,9 @@ export interface EmbeddingRequestConfig {
   model: string;
 }
 
+/** Embedding 请求超时：RAG 只是增强，不能无限期阻塞主剧情请求 */
+export const EMBEDDING_TIMEOUT_MS = 20_000;
+
 export function normalizeBaseUrl(url: string): string {
   return (url || '').toString().trim().replace(/\/v1\/?$/, '').replace(/\/+$/, '');
 }
@@ -55,6 +58,33 @@ function buildDashScopeEmbeddingsEndpoint(urlOrBase: string): string {
   }
 }
 
+/**
+ * 读取 API 管理中分配给 Embedding 的独立 API。
+ * 未分配（回落到 default）或缺少地址/Key/模型时返回 null。
+ * @param apiIdOverride 指定使用某个 API 配置（可选）
+ */
+export function resolveEmbeddingConfig(apiIdOverride?: string): EmbeddingRequestConfig | null {
+  try {
+    // 动态获取 store，避免 store ↔ service 循环依赖
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAPIManagementStore } = require('@/stores/apiManagementStore');
+    const apiStore = useAPIManagementStore();
+    const cfg = apiIdOverride
+      ? apiStore.apiConfigs.find((api: any) => api.id === apiIdOverride && api.enabled)
+      : apiStore.getAPIForType('embedding');
+    if (!cfg || cfg.enabled === false || cfg.id === 'default') return null;
+
+    const url = normalizeBaseUrl(cfg.url);
+    const apiKey = (cfg.apiKey || '').trim();
+    const model = (cfg.model || '').trim();
+    if (!url || !apiKey || !model) return null;
+
+    return { provider: cfg.provider as APIProvider, url, apiKey, model };
+  } catch {
+    return null;
+  }
+}
+
 export function normalizeToUnitVector(vec: number[]): number[] {
   const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));
   if (!norm) return vec;
@@ -88,6 +118,7 @@ export async function createEmbeddings(
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: EMBEDDING_TIMEOUT_MS,
       },
     );
 
@@ -121,6 +152,7 @@ export async function createEmbeddings(
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: EMBEDDING_TIMEOUT_MS,
       },
     );
 
@@ -151,6 +183,7 @@ export async function createEmbeddings(
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: EMBEDDING_TIMEOUT_MS,
       },
     );
 
