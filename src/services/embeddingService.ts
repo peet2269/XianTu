@@ -35,6 +35,75 @@ function isSiliconFlowHost(url: string): boolean {
   }
 }
 
+/** bge-large / bce 上限 512 token，超长文本也会被拒成 20015。中文大约一字一 token。 */
+function siliconFlowMaxChars(model: string): number {
+  const m = model.toLowerCase();
+  if (m.includes('bge-large') || m.includes('bce-embedding')) return 480;
+  if (m.includes('bge-m3')) return 6000;
+  if (m.includes('qwen') && m.includes('embedding')) return 8000;
+  return 2000;
+}
+
+function prepareSiliconFlowInputs(inputs: string[], model: string): string[] {
+  const max = siliconFlowMaxChars(model);
+  return inputs.map((raw) => {
+    const text = (raw || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    return text || '空';
+  });
+}
+
+function isSiliconFlowInvalidParam(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response?.status !== 400) return false;
+  const code = (error.response.data as { code?: number | string } | undefined)?.code;
+  return String(code ?? '') === '20015';
+}
+
+function readOpenAIEmbeddings(data: unknown, expected: number): number[][] {
+  if (!Array.isArray(data) || data.length !== expected) {
+    throw new Error('Embedding 响应格式异常（SiliconFlow）');
+  }
+  const sorted = [...data].sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0));
+  return sorted.map((d: any) => {
+    const embedding = d?.embedding;
+    if (!Array.isArray(embedding)) throw new Error('Embedding 响应缺少 embedding（SiliconFlow）');
+    return embedding as number[];
+  });
+}
+
+/**
+ * bge-large-zh 把单条文本包成数组、或带上 encoding_format，都会回 400 / 20015。
+ * 单条用字符串；批量被拒时再逐条重试。
+ */
+async function requestSiliconFlowEmbeddings(
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  input: string | string[],
+): Promise<number[][]> {
+  const expected = Array.isArray(input) ? input.length : 1;
+  const bodies: Array<Record<string, unknown>> = [
+    { model, input },
+    { model, input, encoding_format: 'float' },
+  ];
+  let lastError: unknown;
+  for (const body of bodies) {
+    try {
+      const resp = await axios.post(endpoint, body, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: EMBEDDING_TIMEOUT_MS,
+      });
+      return readOpenAIEmbeddings(resp.data?.data, expected);
+    } catch (error) {
+      lastError = error;
+      if (!isSiliconFlowInvalidParam(error)) throw error;
+    }
+  }
+  throw lastError;
+}
+
 function buildDashScopeEmbeddingsEndpoint(urlOrBase: string): string {
   const trimmed = (urlOrBase || '').trim().replace(/\/+$/, '');
   const fullPath = '/api/v1/services/embeddings/text-embedding/text-embedding';
@@ -152,36 +221,22 @@ export async function createEmbeddings(
     });
   }
 
-  // 硅基流动（SiliconFlow）Embedding：使用 OpenAI 兼容格式
+  // 硅基流动（SiliconFlow）Embedding：bge-large 只接受字符串 input，不接受单元素数组
   if (isSiliconFlowHost(baseUrl) || provider === 'siliconflow-embedding') {
-    const resp = await axios.post(
-      `${baseUrl}/v1/embeddings`,
-      {
-        model,
-        input: inputs,
-        encoding_format: 'float',
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: EMBEDDING_TIMEOUT_MS,
-      },
-    );
-
-    const data = resp.data?.data;
-    if (!Array.isArray(data) || data.length !== inputs.length) {
-      throw new Error('Embedding 响应格式异常（SiliconFlow）');
+    const texts = prepareSiliconFlowInputs(inputs, model);
+    const endpoint = `${baseUrl}/v1/embeddings`;
+    if (texts.length === 1) return requestSiliconFlowEmbeddings(endpoint, apiKey, model, texts[0]);
+    try {
+      return await requestSiliconFlowEmbeddings(endpoint, apiKey, model, texts);
+    } catch (error) {
+      if (!isSiliconFlowInvalidParam(error)) throw error;
+      const vectors: number[][] = [];
+      for (const text of texts) {
+        const [vec] = await requestSiliconFlowEmbeddings(endpoint, apiKey, model, text);
+        vectors.push(vec);
+      }
+      return vectors;
     }
-
-    // 按 index 排序确保顺序正确
-    const sorted = [...data].sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0));
-    return sorted.map((d: any) => {
-      const embedding = d?.embedding;
-      if (!Array.isArray(embedding)) throw new Error('Embedding 响应缺少 embedding（SiliconFlow）');
-      return embedding as number[];
-    });
   }
 
   if (provider === 'openai' || provider === 'deepseek' || provider === 'custom') {
