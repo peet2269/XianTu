@@ -173,16 +173,19 @@ export function statusModifier(attributes: unknown, effects: unknown): number {
   return Math.min(20, Math.max(-20, mod))
 }
 
-/** 难度跟着该类型基础值走，不再使用固定的 10/35/50。普通线就是基础值本身，幸运点决定过不过。 */
+/**
+ * 难度跟着该类型基础值走，不再使用固定的 10/20/35/50。
+ * 幸运大约在 -10～+15，档位必须落在这个跨度里，否则吃力以上永远失败。
+ */
 export function difficultyBands(base: number): Record<'极易' | '简单' | '普通' | '困难' | '艰难' | '极难', number> {
   const atLeastOne = (n: number) => Math.max(1, n)
   return {
     极易: atLeastOne(base - 15),
     简单: atLeastOne(base - 8),
     普通: atLeastOne(base),
-    困难: base + 12,
-    艰难: base + 22,
-    极难: base + 35,
+    困难: base + 4,
+    艰难: base + 8,
+    极难: base + 12,
   }
 }
 
@@ -256,27 +259,31 @@ function environmentForType(type: string, round: JudgementRound): number {
   return 0
 }
 
-/** 贴在玩家操作旁边。同数值的类型合并成一行，模型照抄判定值和寻常难度。 */
+/** 贴在玩家操作旁边。同数值的类型合并成一行。正常行事用简单，够到所选难度就必须写成功。 */
 export function formatJudgementBlock(round: JudgementRound): string {
-  const groups = new Map<string, { types: string[]; base: number; env: number; value: number; result: string }>()
+  const groups = new Map<string, { types: string[]; base: number; env: number; value: number; easy: string; normal: string }>()
   for (const type of PROMPT_TYPES) {
     const line = round.分项[type]
     const env = environmentForType(type, round)
     const value = line.基础 + round.幸运点 + env + round.状态修正
-    const difficulty = Math.max(1, line.基础)
-    const result = computeJudgementResult(value, difficulty)
-    const key = `${line.基础}|${env}|${value}|${result}`
+    const bands = difficultyBands(line.基础)
+    const easy = computeJudgementResult(value, bands.简单)
+    const normal = computeJudgementResult(value, bands.普通)
+    const key = `${line.基础}|${env}|${value}|${easy}|${normal}`
     const group = groups.get(key)
     if (group) group.types.push(type)
-    else groups.set(key, { types: [type], base: line.基础, env, value, result })
+    else groups.set(key, { types: [type], base: line.基础, env, value, easy, normal })
   }
   const lines = [...groups.values()].map((group) => {
-    return `- ${group.types.join('、')}: 判定值${group.value}，寻常难度${Math.max(1, group.base)}，结果${group.result}（基础${group.base}，环境${signed(group.env)}）`
+    const bands = difficultyBands(group.base)
+    return `- ${group.types.join('、')}: 判定值${group.value}，基础${group.base}，环境${signed(group.env)}。简单难度${bands.简单}→${group.easy}，普通难度${bands.普通}→${group.normal}`
   })
-  return `# 本回合判定（已掷好，照抄，禁止重算）
+  return `# 本回合判定（数值已掷好，禁止重算，禁止改结果）
 幸运${signed(round.幸运点)}，状态${signed(round.状态修正)}。判定值 = 基础 + 幸运 + 环境 + 状态。〔〕里必须写上幸运。
-本境界寻常行动：直接用下面的判定值和寻常难度，不要改成 10/20/35/50。吃力把难度 +12，越一级 +22，越两级 +35。
+本境界正常行事（修炼、赶路、打听、对等交手、炼制当前境界能接触的物品）用简单难度。普通只用于明确偏难但仍在本境界内的事。
+判定值 ≥ 所选难度就必须写成功、大成功或完美，禁止改成失败。只有越级、条件不足的强行突破、硬闯才用困难及以上。
+困难=基础+4，越一级=基础+8，越两级=基础+12。禁止使用 10/20/35/50/70/90 这类固定难度。
 境界：${round.境界名}。凡人没有初期/中期/后期。
 ${lines.join('\n')}
-有明确对手时：基础改为该类型属性加权 + 境界差加成，寻常难度改为新基础，判定值再加幸运、环境、状态。境界差 3 及以上免判。`
+有明确对手时：基础改为该类型属性加权 + 境界差加成，难度档位按新基础重算，判定值再加幸运、环境、状态。境界差 3 及以上免判。`
 }
