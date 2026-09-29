@@ -888,6 +888,26 @@ export interface PlayerBodyPart {
   特征描述: string;
 }
 
+/** 酒馆端风华仪容。写可见的容貌、体态、衣着与气质，不写性行为。 */
+export interface SplendorProfile {
+  品题?: string;
+  评分?: number;
+  概述?: string;
+  眉眼?: string;
+  发型?: string;
+  面部?: string;
+  感官?: string;
+  三围?: { 胸围?: number; 腰围?: number; 臀围?: number };
+  罩杯?: string;
+  气质?: Partial<Record<'清纯' | '妖媚' | '性感' | '端庄' | '冷艳' | '灵动', number>>;
+  衣着?: Array<string | { 名称?: string; 描述?: string }>;
+  穿搭?: string;
+  身材体态?: string;
+  肤色?: string;
+  发色?: string;
+  瞳色?: string;
+}
+
 /** 玩家身体详细数据 (NSFW/Tavern Only) */
 export interface BodyStats {
   // 基础体格
@@ -920,6 +940,8 @@ export interface BodyStats {
 
   // 其他
   其它?: Record<string, any>;
+  罩杯?: string;
+  仪容?: SplendorProfile;
 }
 
 /** 统一的私密信息模块 (NSFW) */
@@ -1016,6 +1038,7 @@ export interface NpcProfile {
   };
 
   // === 可选模块 ===
+  仪容?: SplendorProfile; // 酒馆端风华，与私密信息分开
   私密信息?: PrivacyProfile; // 仅NSFW模式下存在
   实时关注: boolean; // 标记为关注的NPC会在AI回合中主动更新
 

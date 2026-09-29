@@ -98,7 +98,13 @@ export async function assembleSystemPrompt(
         `- nsfwGenderFilter: ${nsfwGenderFilter}`,
         '- 当 nsfwMode=true 且 NPC性别符合过滤条件时，创建NPC必须生成完整私密信息(PrivacyProfile)',
         '- 若 NPC 已存在但私密信息缺失，需用 set 写入 社交.关系.{NPC名}.私密信息 完整对象',
-        '- 当 nsfwMode=false 或 性别不匹配 时，禁止生成私密信息'
+        '- 当 nsfwMode=false 或 性别不匹配 时，禁止生成私密信息',
+        '',
+        '# 风华仪容（酒馆端，与私密信息分开）',
+        '- 新NPC建档时同时 set 社交.关系.{NPC名}.仪容',
+        '- 玩家开局把仪容写在 角色.身体.仪容；三围仍写在 角色.身体.三围',
+        '- 只写可见的眉眼、发型、面容、感官、体态、衣着和六维气质',
+        '- 性行为、敏感与开发度不要写入仪容',
       ].join('\n')
     );
   }

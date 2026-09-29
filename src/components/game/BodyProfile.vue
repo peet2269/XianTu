@@ -9,6 +9,8 @@
         </div>
       </div>
 
+      <SplendorProfile v-if="splendor.structured || splendor.summary" :view="splendor" />
+
       <div v-if="features.length" class="bp-chips">
         <span v-for="tag in features" :key="tag" class="gm-chip">{{ tag }}</span>
       </div>
@@ -45,8 +47,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import SplendorProfile from '@/components/game/SplendorProfile.vue';
+import { splendorFromBody } from '@/utils/splendor';
 
 const props = defineProps<{ body: Record<string, any> | null; nsfw: boolean }>();
+
+const splendor = computed(() => splendorFromBody(props.body));
 
 const text = (v: unknown) => (typeof v === 'string' && v.trim() && v !== '待AI生成' ? v.trim() : '');
 const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : []);
@@ -54,15 +60,10 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : n
 
 const figure = computed(() => {
   const b = props.body || {};
-  const three = b.三围 || {};
   const rows: { label: string; value: string | number; unit: string }[] = [];
   if (num(b.身高) !== null) rows.push({ label: '身高', value: b.身高, unit: 'cm' });
   if (num(b.体重) !== null) rows.push({ label: '体重', value: b.体重, unit: 'kg' });
   if (num(b.体脂率) !== null) rows.push({ label: '体脂率', value: b.体脂率, unit: '%' });
-  if (props.nsfw && num(three.胸围) !== null && num(three.腰围) !== null && num(three.臀围) !== null) {
-    rows.push({ label: '三围', value: `${three.胸围}-${three.腰围}-${three.臀围}`, unit: '' });
-  }
-  if (props.nsfw && text(b.罩杯)) rows.push({ label: '罩杯', value: b.罩杯, unit: '' });
   return rows;
 });
 
@@ -90,7 +91,15 @@ const development = computed(() => {
 const marks = computed(() => list(props.body?.纹身与印记));
 
 const hasAny = computed(
-  () => figure.value.length + features.value.length + descriptions.value.length + sensitive.value.length + development.value.length + marks.value.length > 0,
+  () =>
+    figure.value.length +
+      features.value.length +
+      descriptions.value.length +
+      sensitive.value.length +
+      development.value.length +
+      marks.value.length >
+      0 ||
+    splendor.value.structured,
 );
 </script>
 

@@ -128,6 +128,11 @@
               </section>
             </template>
 
+            <!-- 风华：仅酒馆 -->
+            <template v-else-if="tab === 'splendor'">
+              <SplendorProfile :view="npcSplendor" />
+            </template>
+
             <!-- 属性 -->
             <template v-else-if="tab === 'attrs'">
               <dl class="gm-kv nd-kv">
@@ -284,6 +289,8 @@ import PageTabs from '@/components/game/PageTabs.vue';
 import VitalRow from '@/components/game/VitalRow.vue';
 import RadarChart from '@/components/game/RadarChart.vue';
 import QualityText from '@/components/game/QualityText.vue';
+import SplendorProfile from '@/components/game/SplendorProfile.vue';
+import { splendorFromNpc } from '@/utils/splendor';
 
 defineOptions({ name: 'NpcsPage' });
 
@@ -397,8 +404,11 @@ const currencies = computed(() => {
     .map((k) => ({ name: `${k}灵石`, amount: toNumber(stones[k]) }));
 });
 
+const npcSplendor = computed(() => splendorFromNpc(selected.value));
+
 const detailTabs = computed(() => [
   { key: 'overview', label: '概况' },
+  { key: 'splendor', label: '风华', hidden: !inTavern.value },
   { key: 'attrs', label: '属性' },
   { key: 'memory', label: '记忆', count: memories.value.length || null },
   { key: 'bag', label: '背包', count: npcItems.value.length || null },
@@ -408,6 +418,7 @@ const detailTabs = computed(() => [
 watch(selectedName, () => {
   memPage.value = 1;
   if (tab.value === 'private' && !showPrivate.value) tab.value = 'overview';
+  if (tab.value === 'splendor' && !inTavern.value) tab.value = 'overview';
 });
 
 // ─── 展示辅助 ───
