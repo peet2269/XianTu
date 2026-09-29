@@ -924,8 +924,13 @@ const MODEL_PRESETS: Record<APIProvider, ModelPreset[]> = {
     { id: 'doubao-seed-2-1-lite-260915', name: '豆包 Seed 2.1 Lite', context: '1M 上下文', maxOutput: '256K', maxTokens: 32000, description: '高吞吐低成本，适合辅助功能', json: true },
   ],
   'siliconflow-embedding': [
-    { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', context: '多语种向量', maxOutput: 'Embedding', maxTokens: 1024, description: '推荐的叙事检索向量模型' },
-    { id: 'BAAI/bge-large-zh-v1.5', name: 'BAAI/bge-large-zh-v1.5', context: '中文向量', maxOutput: 'Embedding', maxTokens: 1024, description: '中文语义检索模型' },
+    { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', context: '8192 token', maxOutput: '1024 维', maxTokens: 1024, description: '多语种向量，适合叙事检索' },
+    { id: 'Pro/BAAI/bge-m3', name: 'Pro/BAAI/bge-m3', context: '8192 token', maxOutput: '1024 维', maxTokens: 1024, description: 'bge-m3 的 Pro 线路' },
+    { id: 'BAAI/bge-large-zh-v1.5', name: 'BAAI/bge-large-zh-v1.5', context: '512 token', maxOutput: '1024 维', maxTokens: 1024, description: '中文向量。超过约 480 字会被接口拒绝' },
+    { id: 'BAAI/bge-large-en-v1.5', name: 'BAAI/bge-large-en-v1.5', context: '512 token', maxOutput: '1024 维', maxTokens: 1024, description: '英文向量，长度上限与中文版相同' },
+    { id: 'Qwen/Qwen3-Embedding-0.6B', name: 'Qwen3-Embedding-0.6B', context: '32768 token', maxOutput: '1024 维', maxTokens: 1024, description: '默认 1024 维。dimensions 只能用文档列出的档位' },
+    { id: 'Qwen/Qwen3-Embedding-4B', name: 'Qwen3-Embedding-4B', context: '32768 token', maxOutput: '2560 维', maxTokens: 1024, description: '默认 2560 维' },
+    { id: 'Qwen/Qwen3-Embedding-8B', name: 'Qwen3-Embedding-8B', context: '32768 token', maxOutput: '最高 4096 维', maxTokens: 1024, description: 'Qwen3 向量。不传 dimensions 时用模型默认维度' },
   ],
   custom: [],
 };

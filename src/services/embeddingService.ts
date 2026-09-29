@@ -35,12 +35,20 @@ function isSiliconFlowHost(url: string): boolean {
   }
 }
 
-/** bge-large / bce 上限 512 token，超长文本也会被拒成 20015。中文大约一字一 token。 */
+/**
+ * 硅基流动 Create Embeddings（/v1/embeddings）：
+ * input 为字符串或字符串数组，数组最多 32 条；encoding_format 为 float 或 base64。
+ * dimensions 只有 Qwen/Qwen3 的指定档位能用，BAAI 模型带上它会 400 / 20015。
+ * 超限文本同样是 20015。实测 bge-large 中文 480 字可通过，512 字会被拒。
+ * messages、temperature、max_tokens 打到这个接口也是 20015。
+ */
+const SILICONFLOW_BATCH = 32;
+
 function siliconFlowMaxChars(model: string): number {
   const m = model.toLowerCase();
   if (m.includes('bge-large') || m.includes('bce-embedding')) return 480;
   if (m.includes('bge-m3')) return 6000;
-  if (m.includes('qwen') && m.includes('embedding')) return 8000;
+  if (m.includes('qwen') && m.includes('embedding')) return 12000;
   return 2000;
 }
 
@@ -50,12 +58,6 @@ function prepareSiliconFlowInputs(inputs: string[], model: string): string[] {
     const text = (raw || '').replace(/\s+/g, ' ').trim().slice(0, max);
     return text || '空';
   });
-}
-
-function isSiliconFlowInvalidParam(error: unknown): boolean {
-  if (!axios.isAxiosError(error) || error.response?.status !== 400) return false;
-  const code = (error.response.data as { code?: number | string } | undefined)?.code;
-  return String(code ?? '') === '20015';
 }
 
 function readOpenAIEmbeddings(data: unknown, expected: number): number[][] {
@@ -70,10 +72,6 @@ function readOpenAIEmbeddings(data: unknown, expected: number): number[][] {
   });
 }
 
-/**
- * bge-large-zh 把单条文本包成数组、或带上 encoding_format，都会回 400 / 20015。
- * 单条用字符串；批量被拒时再逐条重试。
- */
 async function requestSiliconFlowEmbeddings(
   endpoint: string,
   apiKey: string,
@@ -81,27 +79,18 @@ async function requestSiliconFlowEmbeddings(
   input: string | string[],
 ): Promise<number[][]> {
   const expected = Array.isArray(input) ? input.length : 1;
-  const bodies: Array<Record<string, unknown>> = [
-    { model, input },
+  const resp = await axios.post(
+    endpoint,
     { model, input, encoding_format: 'float' },
-  ];
-  let lastError: unknown;
-  for (const body of bodies) {
-    try {
-      const resp = await axios.post(endpoint, body, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: EMBEDDING_TIMEOUT_MS,
-      });
-      return readOpenAIEmbeddings(resp.data?.data, expected);
-    } catch (error) {
-      lastError = error;
-      if (!isSiliconFlowInvalidParam(error)) throw error;
-    }
-  }
-  throw lastError;
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: EMBEDDING_TIMEOUT_MS,
+    },
+  );
+  return readOpenAIEmbeddings(resp.data?.data, expected);
 }
 
 function buildDashScopeEmbeddingsEndpoint(urlOrBase: string): string {
@@ -221,22 +210,16 @@ export async function createEmbeddings(
     });
   }
 
-  // 硅基流动（SiliconFlow）Embedding：bge-large 只接受字符串 input，不接受单元素数组
   if (isSiliconFlowHost(baseUrl) || provider === 'siliconflow-embedding') {
     const texts = prepareSiliconFlowInputs(inputs, model);
     const endpoint = `${baseUrl}/v1/embeddings`;
-    if (texts.length === 1) return requestSiliconFlowEmbeddings(endpoint, apiKey, model, texts[0]);
-    try {
-      return await requestSiliconFlowEmbeddings(endpoint, apiKey, model, texts);
-    } catch (error) {
-      if (!isSiliconFlowInvalidParam(error)) throw error;
-      const vectors: number[][] = [];
-      for (const text of texts) {
-        const [vec] = await requestSiliconFlowEmbeddings(endpoint, apiKey, model, text);
-        vectors.push(vec);
-      }
-      return vectors;
+    const vectors: number[][] = [];
+    for (let i = 0; i < texts.length; i += SILICONFLOW_BATCH) {
+      const chunk = texts.slice(i, i + SILICONFLOW_BATCH);
+      const input = chunk.length === 1 ? chunk[0] : chunk;
+      vectors.push(...await requestSiliconFlowEmbeddings(endpoint, apiKey, model, input));
     }
+    return vectors;
   }
 
   if (provider === 'openai' || provider === 'deepseek' || provider === 'custom') {
@@ -282,7 +265,11 @@ export async function testEmbeddingConnection(config: EmbeddingRequestConfig): P
       if (error.response) {
         const data = error.response.data;
         const body = typeof data === 'string' ? data : JSON.stringify(data);
-        throw new Error(`API错误 ${error.response.status}: ${body}`);
+        const code = typeof data === 'object' && data ? (data as { code?: number | string }).code : undefined;
+        const hint = String(code ?? '') === '20015'
+          ? '。硅基流动把超长文本、BAAI 模型上的 dimensions，以及对话字段都报成这个错误'
+          : '';
+        throw new Error(`API错误 ${error.response.status}: ${body}${hint}`);
       }
       if (error.code === 'ECONNABORTED') throw new Error('请求超时');
       throw new Error('网络错误：无法连接到 API 服务器');

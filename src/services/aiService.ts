@@ -399,7 +399,6 @@ class AIService {
             'Pro/BAAI/bge-m3',
             'BAAI/bge-large-zh-v1.5',
             'BAAI/bge-large-en-v1.5',
-            'netease-youdao/bce-embedding-base_v1',
             'Qwen/Qwen3-Embedding-8B',
             'Qwen/Qwen3-Embedding-4B',
             'Qwen/Qwen3-Embedding-0.6B'
@@ -1197,6 +1196,9 @@ class AIService {
     responseFormat?: 'json_object'
   ): Promise<string> {
     const { provider, url, apiKey, model, temperature, maxTokens, thinkingLevel = 'default' } = api;
+    if (provider === 'siliconflow-embedding') {
+      throw new Error('这是向量模型，不能用对话接口测试。请重新打开页面后再测一次连接。');
+    }
     const safeMaxTokens = this.clampMaxTokensForContext(provider, model, messages, maxTokens || 16000);
 
     // 不同提供商使用不同的API路径

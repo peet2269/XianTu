@@ -121,6 +121,7 @@ export default (env, argv) => {
       new HtmlWebpackPlugin({
         template: './index.html',
         inject: 'body',
+        hash: isProduction,
         templateParameters: {
           vueScript: isProduction
             ? 'https://unpkg.com/vue@3/dist/vue.global.prod.js'
