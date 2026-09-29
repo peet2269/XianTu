@@ -27,10 +27,11 @@
   --gm-life: #5fbfa9;
   --gm-cultivation: #a891f2;
 
-  --gm-text-env: #7cc3c0;
-  --gm-text-dialogue: #e2b86e;
-  --gm-text-psy: #a9a1d8;
-  --gm-text-quote: #e39a64;
+  /* 夜读：青偏冷且略沉，金更亮，紫偏蓝紫，引用改成赭红以免贴着对话金。对比按最亮底 #1a2240 计，均高于 4.5:1 */
+  --gm-text-env: #3ec4bc;
+  --gm-text-dialogue: #e4b04a;
+  --gm-text-psy: #c0a6ee;
+  --gm-text-quote: #e5927e;
 
   --q-fan: #aab3c4;
   --q-huang: #cfa95f;
@@ -62,10 +63,11 @@
   --gm-life: #2f7d6f;
   --gm-cultivation: #5b3fa0;
 
-  --gm-text-env: #1d5e5b;
-  --gm-text-dialogue: #6e4c18;
-  --gm-text-psy: #4b4178;
-  --gm-text-quote: #833f1b;
+  /* 宣纸：石青偏蓝、泥金更深、藤紫偏红紫、引用用朱砂。对比按最暗纸色 #e3ebe7 计，均高于 4.5:1 */
+  --gm-text-env: #0c5e62;
+  --gm-text-dialogue: #7a4f0a;
+  --gm-text-psy: #64348a;
+  --gm-text-quote: #8e3a24;
 
   --q-fan: #62594a;
   --q-huang: #8a6412;
@@ -335,6 +337,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -344,10 +349,13 @@
   --tone: var(--cc-gold);
 
   position: relative;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 0.8rem;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 52px;
   padding: 0.55rem 0.85rem;
   border: 1px solid transparent;
@@ -990,6 +998,8 @@ button.gm-chip:hover {
   color: var(--cc-text);
   font: inherit;
   font-size: 14px;
+  /* font: inherit 会带进父级的大行高（正文 1.9），单行控件里文字会偏上 */
+  line-height: 1.3;
   transition: border-color 0.2s ease;
 }
 
@@ -1010,10 +1020,23 @@ textarea.gm-field {
 }
 
 select.gm-field {
+  display: inline-flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
   padding-right: 2rem;
+  border-color: var(--cc-border-strong);
   background: var(--cc-inset) var(--cc-caret) no-repeat right 0.7rem center;
   appearance: none;
   cursor: pointer;
+}
+
+select.gm-field:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.55);
+}
+
+select.gm-field:open {
+  border-color: rgba(var(--cc-gold-rgb), 0.7);
 }
 
 .gm-field.invalid {

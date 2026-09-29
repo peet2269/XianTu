@@ -1455,7 +1455,7 @@ const handleImportFile = async (event: Event) => {
   flex: none;
   width: 95%;
   max-width: 1280px;
-  height: 92vh;
+  height: calc(var(--app-vh) * 0.92);
   padding: 1.5rem 1.75rem 1.5rem;
   background: var(--cc-shell-bg);
   border: 1px solid var(--cc-shell-border);
@@ -2286,8 +2286,8 @@ const handleImportFile = async (event: Event) => {
 @media (max-width: 768px) {
   .main-content.fullscreen-content {
     width: 100%;
-    height: 100vh;
-    height: 100svh;
+    height: var(--app-vh);
+    height: var(--app-svh);
     padding: 0.9rem 0.85rem;
     padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
     border-radius: 0;
@@ -2359,7 +2359,7 @@ const handleImportFile = async (event: Event) => {
     bottom: 0;
     left: 0;
     z-index: 70;
-    width: min(340px, 86vw);
+    width: min(340px, calc(86vw / var(--ui-scale)));
     border-radius: 0 10px 10px 0;
     background: var(--cc-solid-bg);
     box-shadow: 12px 0 32px -12px rgba(0, 0, 0, 0.6);

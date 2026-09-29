@@ -1,42 +1,33 @@
 <template>
-  <div class="save-migration">
-    <div class="migration-header">
-      <h4>检测到旧版存档结构</h4>
-      <p>此存档不符合 V3（5领域：元数据/角色/社交/世界/系统），必须迁移后才能加载。</p>
-    </div>
-
-    <div class="migration-meta">
-      <div class="meta-item">
-        <span class="label">角色ID</span>
-        <span class="value">{{ characterId }}</span>
+  <div class="migration">
+    <header class="m-head">
+      <span class="m-seal" aria-hidden="true">档</span>
+      <div>
+        <h4>检测到旧版存档结构</h4>
+        <p>此存档不符合 V3（五领域：元数据 / 角色 / 社交 / 世界 / 系统），必须迁移后才能加载。</p>
       </div>
-      <div class="meta-item">
-        <span class="label">存档槽位</span>
-        <span class="value">{{ saveSlot }}</span>
+    </header>
+
+    <dl class="gm-kv m-kv">
+      <dt>角色 ID</dt><dd>{{ characterId }}</dd>
+      <dt>存档槽位</dt><dd>{{ saveSlot }}</dd>
+    </dl>
+
+    <section>
+      <h5 class="gm-label">检测到的旧字段</h5>
+      <div class="m-tags">
+        <span v-for="k in legacyKeysFound" :key="k" class="gm-chip">{{ k }}</span>
       </div>
-    </div>
+    </section>
 
-    <div class="migration-reasons">
-      <div class="reason-title">检测到的旧字段</div>
-      <div class="reason-list">
-        <span v-for="k in legacyKeysFound" :key="k" class="tag">{{ k }}</span>
-      </div>
-    </div>
+    <p class="m-hint">操作会先在 IndexedDB 创建一份隐藏备份（不出现在存档列表），再把当前槽位覆盖写回为 V3 新结构。</p>
 
-    <div class="migration-hint">
-      <div>操作会自动：</div>
-      <ul>
-        <li>先在 IndexedDB 创建一份隐藏备份（不出现在存档列表）</li>
-        <li>覆盖写回当前槽位为 V3 新结构存档</li>
-      </ul>
-    </div>
-
-    <div class="migration-actions">
-      <button class="primary" :disabled="busy" @click="confirmMigration">
+    <footer class="m-actions">
+      <button type="button" class="cc-btn" :disabled="busy" @click="cancelMigration">取消</button>
+      <button type="button" class="cc-btn primary" :disabled="busy" @click="confirmMigration">
         {{ busy ? '正在迁移…' : '备份并迁移' }}
       </button>
-      <button class="secondary" :disabled="busy" @click="cancelMigration">取消</button>
-    </div>
+    </footer>
   </div>
 </template>
 
@@ -80,119 +71,113 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.save-migration {
+.migration {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  color: var(--color-text);
+  gap: 1rem;
+  color: var(--cc-text);
 }
 
-.migration-header h4 {
-  margin: 0 0 6px 0;
-  font-size: 1.05rem;
+.m-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
 }
 
-.migration-header p {
+.m-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1.5px solid var(--cc-seal);
+  border-radius: 4px;
+  color: var(--cc-seal);
+  font-family: var(--cc-calligraphy);
+  font-size: 22px;
+  transform: rotate(-4deg);
+}
+
+.m-head h4 {
+  margin: 0 0 0.3rem;
+  font-family: var(--cc-calligraphy);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+
+.m-head p {
   margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--cc-text-2);
 }
 
-.migration-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
+section .gm-label {
+  margin-bottom: 0.5rem;
 }
 
-.meta-item {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.m-kv {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--gm-line);
+  border-radius: 6px;
+  background: var(--cc-inset);
 }
 
-.meta-item .label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
-
-.meta-item .value {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-text);
+.m-kv dd {
   word-break: break-all;
 }
 
-.migration-reasons {
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  border-radius: 8px;
-  padding: 10px;
+.m-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--cc-text-2);
 }
 
-.reason-title {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
+.m-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  line-height: 1.6;
 }
 
-.reason-list {
+.m-list li::before {
+  content: '';
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cc-warning);
+  transform: translateY(-2px);
+}
+
+.m-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.35rem;
 }
 
-.tag {
-  font-size: 0.75rem;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(var(--color-warning-rgb), 0.35);
-  background: rgba(var(--color-warning-rgb), 0.08);
-  color: var(--color-text);
+.m-hint {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 2px solid rgba(var(--cc-gold-rgb), 0.6);
+  background: rgba(var(--cc-gold-rgb), 0.06);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--cc-text-2);
 }
 
-.migration-hint {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-.migration-hint ul {
-  margin: 6px 0 0 18px;
-}
-
-.migration-actions {
+.m-actions {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-}
-
-.migration-actions button {
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.migration-actions .primary {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: white;
-}
-
-.migration-actions .primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.migration-actions .secondary {
-  background: transparent;
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 </style>

@@ -67,7 +67,7 @@ const toggleDetails = () => {
 <style scoped>
 .error-boundary {
   width: 100%;
-  height: 100vh;
+  height: var(--app-vh);
   display: flex;
   align-items: center;
   justify-content: center;

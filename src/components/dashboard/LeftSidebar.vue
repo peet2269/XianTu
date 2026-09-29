@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { Package, User, Users, BookOpen, Zap, Brain, Map, Save, Settings, Home, Bell, Database, Clock, FileText, Plug, Heart, Shield, Hammer, X } from 'lucide-vue-next';
+import { Package, User, Users, BookOpen, Zap, Brain, Map, Save, Settings, Home, Bell, Database, Clock, FileText, Plug, Heart, Shield, Hammer, X, BadgeCheck } from 'lucide-vue-next';
 import { useCharacterStore } from '@/stores/characterStore';
 import { toast } from '@/utils/toast';
 import { useUIStore } from '@/stores/uiStore';
@@ -141,6 +141,7 @@ const navSections = computed<Array<{ title: string; short: string; items: NavIte
     { key: 'variables', label: '游戏变量', desc: '查看游戏数据', icon: Database, path: '/game/game-variables', onClick: handleGameVariables },
     { key: 'prompts', label: '提示词管理', desc: '自定义提示词', icon: FileText, path: '/game/prompts', onClick: handlePrompts },
     { key: 'api', label: 'API管理', desc: '多API配置', icon: Plug, path: '/game/api-management', onClick: handleAPIManagement },
+    { key: 'account', label: '道友账户', desc: '签到领取公益额度', icon: BadgeCheck, path: '/game/account', onClick: () => router.push('/game/account') },
     { key: 'settings', label: '系统设置', desc: '偏好设置', icon: Settings, path: '/game/settings', onClick: handleSettings },
   ];
   if (isAdmin.value) {

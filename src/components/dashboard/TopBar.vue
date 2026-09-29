@@ -23,7 +23,8 @@
       <div class="tb-scroll">
         <span class="tb-item tb-place" :title="currentLocation">
           <MapPin :size="15" />
-          <span class="tb-text">{{ currentLocation }}</span>
+          <span class="tb-text tb-place-full">{{ currentLocation }}</span>
+          <span class="tb-text tb-place-short">{{ locationTail }}</span>
         </span>
 
         <template v-if="spiritDensity > 0">
@@ -123,6 +124,12 @@ const currentLocation = computed(() => {
   }
 })
 
+/** 路径末级，如「赤煌洲·青云山·落霞镇」→「落霞镇」 */
+const locationTail = computed(() => {
+  const parts = currentLocation.value.split(/\s*[·・•]\s*/).map((s) => s.trim()).filter(Boolean)
+  return parts[parts.length - 1] || currentLocation.value
+})
+
 const spiritDensity = computed(() => {
   try {
     return gameStateStore.location?.灵气浓度 || 0
@@ -206,7 +213,7 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 30;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   align-items: center;
   gap: 1rem;
   height: 56px;
@@ -287,6 +294,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   min-width: 0;
+  max-width: 100%;
 }
 
 .tb-scroll {
@@ -294,6 +302,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  min-width: 0;
   max-width: 100%;
   height: 36px;
   padding: 0 1.4rem;
@@ -338,17 +347,24 @@ onBeforeUnmount(() => {
 }
 
 .tb-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .tb-place {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--cc-text);
   letter-spacing: 0.1em;
 }
 
 .tb-place .tb-text {
   max-width: 20em;
+}
+
+.tb-place-short {
+  display: none;
 }
 
 .tb-dot {
@@ -453,29 +469,77 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .top-bar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.6rem;
-    height: 50px;
-    padding: 0 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0.3rem;
+    height: auto;
+    padding: 0.4rem 0.7rem 0.45rem;
+  }
+
+  .tb-left {
+    order: 1;
+    flex: 0 0 auto;
   }
 
   .tb-logo {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .tb-name {
     display: none;
   }
 
+  .tb-right {
+    order: 2;
+    margin-left: auto;
+    gap: 0.35rem;
+  }
+
+  .tb-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .tb-center {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: center;
+    padding: 0 2px;
+  }
+
   .tb-scroll {
-    gap: 0.5rem;
-    height: 32px;
-    padding: 0 0.8rem;
+    width: auto;
+    max-width: 100%;
+    justify-content: center;
+    gap: 0.55rem;
+    height: 30px;
+    padding: 0 0.85rem;
     font-size: 13px;
   }
 
+  .tb-place-full {
+    display: none;
+  }
+
+  .tb-place-short {
+    display: inline;
+  }
+
   .tb-place .tb-text {
-    max-width: 7em;
+    max-width: 9em;
+  }
+
+  .tb-time {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 68%;
+  }
+
+  .tb-time .tb-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

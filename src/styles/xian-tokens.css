@@ -109,28 +109,34 @@ select option:disabled {
    可定制下拉（appearance: base-select，Chrome/Edge 135+）
    原生下拉的悬停/选中高亮由系统绘制（灰色），无法用普通 CSS 修改；
    支持的浏览器里改为主题化的下拉面板，其余浏览器回退到上面的原生配色。
-   仅作用于局外界面的容器，局内面板不受影响。
+   作用于所有仙途界面容器，局内外下拉保持同一套主题。
    ------------------------------------------------------------ */
 @supports (appearance: base-select) {
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select,
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select,
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select::picker(select) {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select::picker(select) {
     /* 组件 scoped 样式里的 appearance: none 优先级更高，这里必须强制 */
     appearance: base-select !important;
   }
 
   /* 组件自己用 background-image 画了下拉箭头，隐藏内置箭头避免重复 */
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select::picker-icon {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select::picker-icon {
     display: none;
   }
 
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select::picker(select) {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select::picker(select) {
     margin-block: 4px;
     padding: 4px;
+    /* 面板按内容变宽，不跟被挤窄的选择框走，避免长模型名溢出后被裁切 */
+    width: max-content;
+    min-width: max(100%, min(22rem, 92vw));
+    max-width: min(28rem, 92vw);
     max-height: min(320px, 60vh);
+    overflow: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--cc-border-strong);
     border-radius: 8px;
     background: var(--cc-solid-bg);
@@ -145,50 +151,67 @@ select option:disabled {
 
   @starting-style {
     :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-        .prompt-panel, .character-management-panel, .cc-modal) select:open::picker(select) {
+        .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select:open::picker(select) {
       opacity: 0;
       transform: translateY(-4px);
     }
   }
 
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select option {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select optgroup {
+    margin: 0.15rem 0 0.2rem;
+    padding: 0.35rem 0.55rem 0.1rem;
+    color: var(--cc-text-3);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+  }
+
+  :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select option {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
     padding: 0.45rem 0.7rem;
     border-radius: 5px;
     background: transparent;
     color: var(--cc-text);
     font-size: 0.86rem;
-    letter-spacing: 0.04em;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
     transition: background 0.12s ease, color 0.12s ease;
   }
 
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select option:is(:hover, :focus-visible) {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select option:is(:hover, :focus-visible) {
     outline: none;
     background: var(--cc-surface-hover);
     color: var(--cc-accent);
   }
 
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select option:checked {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select option:checked {
     background: rgba(var(--cc-gold-rgb), 0.16);
     color: var(--cc-gold);
     font-weight: 600;
   }
 
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select option::checkmark {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select option::checkmark {
     order: 1;
     margin-left: auto;
     color: var(--cc-gold);
   }
 
   :is(.creation-container, .xian-scope, .mode-selection-container, .settings-panel, .api-management-panel,
-      .prompt-panel, .character-management-panel, .cc-modal) select option:disabled {
+      .prompt-panel, .character-management-panel, .cc-modal, .gm-view) select option:disabled {
     color: var(--cc-text-3);
     cursor: not-allowed;
   }

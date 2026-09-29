@@ -43,17 +43,17 @@
       <div class="controls">
         <label class="ctl">
           <span class="ctl-name">火候 <b>{{ fire }}</b></span>
-          <input v-model.number="firePercent" type="range" min="1" max="100" :style="fill(firePercent)" />
+          <RangeSlider v-model="firePercent" :min="1" :max="100" aria-label="火候" />
           <output>{{ firePercent }}%</output>
         </label>
         <label class="ctl">
           <span class="ctl-name">灵气投入</span>
-          <input v-model.number="manaPercent" type="range" min="1" max="100" :style="fill(manaPercent)" />
+          <RangeSlider v-model="manaPercent" :min="1" :max="100" aria-label="灵气投入" />
           <output>{{ manaPercent }}% <small>-{{ plan.灵气.基础消耗 }}</small></output>
         </label>
         <label class="ctl">
           <span class="ctl-name">神识投入</span>
-          <input v-model.number="spiritPercent" type="range" min="1" max="100" :style="fill(spiritPercent)" />
+          <RangeSlider v-model="spiritPercent" :min="1" :max="100" aria-label="神识投入" />
           <output>{{ spiritPercent }}% <small>-{{ plan.神识.基础消耗 }}</small></output>
         </label>
         <div class="ctl formation">
@@ -155,6 +155,7 @@ import { qualityTone } from '@/utils/qualityTone';
 import { qualityLabel } from '@/utils/gameDisplay';
 import { toast } from '@/utils/toast';
 import { confirmDialog } from '@/composables/useDialog';
+import RangeSlider from '@/components/common/RangeSlider.vue';
 import EmptyState from '@/components/game/EmptyState.vue';
 import ProgressRing from '@/components/game/ProgressRing.vue';
 import QualityText from '@/components/game/QualityText.vue';
@@ -179,8 +180,6 @@ watch(type, () => {
 });
 const fire = computed(() => fireLabel(firePercent.value));
 const plan = computed(() => resourcePlan({ manaPercent: manaPercent.value, spiritPercent: spiritPercent.value, formation: formation.value }));
-
-const fill = (v: number) => ({ '--fill': `${v}%` });
 
 // ─── 材料 ───
 const items = computed<Record<string, Item>>(() => ((gs.inventory as any)?.物品 || {}) as Record<string, Item>);
@@ -476,26 +475,6 @@ const start = async () => {
 .ctl-name b {
   font-weight: 500;
   color: var(--cc-warning);
-}
-
-.ctl input[type='range'] {
-  --fill: 50%;
-
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--cc-gold) var(--fill), color-mix(in srgb, var(--cc-text) 14%, transparent) var(--fill));
-  appearance: none;
-  cursor: pointer;
-}
-
-.ctl input[type='range']::-webkit-slider-thumb {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--cc-gold);
-  border-radius: 50%;
-  background: var(--cc-solid-bg);
-  appearance: none;
 }
 
 .ctl output {

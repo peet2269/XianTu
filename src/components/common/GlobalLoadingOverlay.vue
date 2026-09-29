@@ -422,7 +422,7 @@ const activeFill = computed<number | null>(() => {
   flex-direction: column;
   gap: 1.1rem;
   width: min(880px, 100%);
-  max-height: calc(100dvh - 2.5rem);
+  max-height: calc(var(--app-dvh) - 2.5rem);
   padding: 1.6rem 1.9rem 1.2rem;
   box-sizing: border-box;
   background: var(--cc-shell-bg), var(--cc-solid-bg);
@@ -587,7 +587,7 @@ const activeFill = computed<number | null>(() => {
   display: grid;
   grid-template-columns: minmax(230px, 0.85fr) 1.5fr;
   gap: 1.25rem;
-  height: clamp(260px, calc(100dvh - 17rem), 420px);
+  height: clamp(260px, calc(var(--app-dvh) - 17rem), 420px);
   min-height: 0;
   flex-shrink: 0;
 }
@@ -1135,7 +1135,7 @@ const activeFill = computed<number | null>(() => {
   }
 
   .preview {
-    height: clamp(180px, 34dvh, 300px);
+    height: clamp(180px, calc(var(--app-dvh) * 0.34), 300px);
   }
 
   .stage-footer {
@@ -1157,7 +1157,7 @@ const activeFill = computed<number | null>(() => {
   .stage-card {
     width: 100%;
     max-height: none;
-    min-height: 100dvh;
+    min-height: var(--app-dvh);
     overflow-y: auto;
     padding: 1.2rem 1rem 1rem;
     border-radius: 0;

@@ -10,6 +10,7 @@
 import type { APIProvider } from '@/services/aiService';
 import {
   createEmbeddings,
+  isEmbeddingFunctionEnabled,
   normalizeToUnitVector,
   resolveEmbeddingConfig,
   type EmbeddingRequestConfig,
@@ -142,6 +143,9 @@ class NarrativeRagService {
   }
 
   getEmbeddingStatus(): { available: boolean; provider?: APIProvider; model?: string; reason?: string } {
+    if (!isEmbeddingFunctionEnabled()) {
+      return { available: false, reason: '叙事检索未开启。到「API 管理 → 功能分配」打开开关，并指定独立的 Embedding API' };
+    }
     const cfg = this.getEmbeddingRequestConfig();
     if (cfg) return { available: true, provider: cfg.provider, model: cfg.model };
     return { available: false, reason: '未配置独立 Embedding API，叙事检索不会启用或注入' };

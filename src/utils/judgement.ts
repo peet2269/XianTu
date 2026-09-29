@@ -1,0 +1,282 @@
+/**
+ * 回合判定：前端算好基础值、幸运点和环境/状态修正，模型只负责选用并写进〔〕。
+ *
+ * 有效属性 = 先天 × 0.7 + 后天 × 0.3
+ * 属性加权 = 主 × 0.5 + 副 × 0.3 + 辅 × 0.2
+ * 基础值 = 属性加权 + 非对抗境界加成
+ * 判定值 = 基础值 + 幸运点 + 环境修正 + 状态修正
+ */
+
+import { realmRank } from '@/utils/realmOrder'
+
+export type SixSiKey = '根骨' | '灵性' | '悟性' | '气运' | '魅力' | '心性'
+
+export interface SixSi {
+  根骨: number
+  灵性: number
+  悟性: number
+  气运: number
+  魅力: number
+  心性: number
+}
+
+/** 主 / 副 / 辅 */
+const TYPE_WEIGHTS: Record<string, [SixSiKey, SixSiKey, SixSiKey]> = {
+  战斗: ['根骨', '灵性', '气运'],
+  战斗攻: ['根骨', '灵性', '气运'],
+  战斗防: ['根骨', '心性', '灵性'],
+  修炼: ['悟性', '灵性', '心性'],
+  突破: ['悟性', '灵性', '心性'],
+  炼制: ['悟性', '灵性', '心性'],
+  探索: ['气运', '灵性', '悟性'],
+  社交: ['魅力', '悟性', '心性'],
+  逃跑: ['灵性', '气运', '根骨'],
+  感知: ['灵性', '悟性', '气运'],
+}
+
+/** 与境界序号对齐：凡人0 … 渡劫9。同序号的武道境界共用这一档。 */
+const REALM_BONUS_BY_RANK = [0, 5, 12, 20, 30, 42, 55, 70, 79, 88]
+
+export interface JudgementBaseLine {
+  属性加权: number
+  基础: number
+}
+
+export interface JudgementRound {
+  幸运点: number
+  气运: number
+  幸运下限: number
+  幸运上限: number
+  状态修正: number
+  境界名: string
+  境界加成: number
+  环境: {
+    灵气浓度: number
+    修炼: number
+    炼制: number
+    战斗: number
+  }
+  分项: Record<string, JudgementBaseLine>
+}
+
+const SIX_KEYS: SixSiKey[] = ['根骨', '灵性', '悟性', '气运', '魅力', '心性']
+
+function num(value: unknown, fallback = 0): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function readSix(raw: unknown, fallback: number): SixSi {
+  const src = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
+  const read = (key: SixSiKey) => {
+    if (!src || src[key] === undefined || src[key] === null || src[key] === '') return fallback
+    return num(src[key], fallback)
+  }
+  return {
+    根骨: read('根骨'),
+    灵性: read('灵性'),
+    悟性: read('悟性'),
+    气运: read('气运'),
+    魅力: read('魅力'),
+    心性: read('心性'),
+  }
+}
+
+/** 先天 70%，后天 30%。装备、功法、大道对六司的提升算在后天里。 */
+export function effectiveAttribute(innate: number, acquired: number): number {
+  return innate * 0.7 + acquired * 0.3
+}
+
+export function effectiveSix(innate: SixSi, acquired: SixSi): SixSi {
+  return SIX_KEYS.reduce((acc, key) => {
+    acc[key] = effectiveAttribute(innate[key], acquired[key])
+    return acc
+  }, {} as SixSi)
+}
+
+export function weightedAttribute(attrs: SixSi, [main, sub, aux]: [SixSiKey, SixSiKey, SixSiKey]): number {
+  return attrs[main] * 0.5 + attrs[sub] * 0.3 + attrs[aux] * 0.2
+}
+
+export function realmJudgementBonus(realmName: string): number {
+  const rank = realmRank(realmName)
+  if (rank < 0) return 0
+  if (rank < REALM_BONUS_BY_RANK.length) return REALM_BONUS_BY_RANK[rank]
+  const last = REALM_BONUS_BY_RANK.length - 1
+  return REALM_BONUS_BY_RANK[last] + (rank - last) * 12
+}
+
+/**
+ * 气运取有效值后限制在 0–10。区间随气运上移，均匀抽取：
+ * 气运 0：-10～+5；气运 5：-8～+10；气运 10：-5～+15。
+ */
+export function luckyRange(fortune: number): { min: number; max: number } {
+  const f = Math.min(10, Math.max(0, Math.round(fortune)))
+  return {
+    min: -10 + Math.floor(f * 0.5),
+    max: 5 + f,
+  }
+}
+
+export function rollLuckyPoints(fortune: number, random: () => number = Math.random): number {
+  const { min, max } = luckyRange(fortune)
+  const span = max - min + 1
+  return min + Math.floor(random() * span)
+}
+
+export function environmentModifier(spiritDensity: number, kind: '修炼' | '炼制' | '战斗'): number {
+  const density = num(spiritDensity, 50)
+  const divisor = kind === '修炼' ? 10 : kind === '炼制' ? 15 : 20
+  return Math.round((density - 50) / divisor)
+}
+
+function ratioOf(current: unknown, max: unknown): number | null {
+  const cap = num(max, NaN)
+  const now = num(current, NaN)
+  if (!Number.isFinite(cap) || cap <= 0 || !Number.isFinite(now)) return null
+  return now / cap
+}
+
+function effectSign(effect: unknown): number | null {
+  if (!effect || typeof effect !== 'object') return null
+  const kind = String((effect as { 类型?: unknown }).类型 || '').toLowerCase()
+  if (kind === 'buff' || kind === '增益') return 1
+  if (kind === 'debuff' || kind === '减益') return -1
+  return null
+}
+
+/** 气血、灵气、神识与增益/减益。合计限制在 ±20。 */
+export function statusModifier(attributes: unknown, effects: unknown): number {
+  const attrs = attributes && typeof attributes === 'object' ? (attributes as Record<string, any>) : {}
+  let mod = 0
+
+  const hp = ratioOf(attrs.气血?.当前, attrs.气血?.上限)
+  if (hp !== null) {
+    if (hp < 0.25) mod -= 15
+    else if (hp < 0.5) mod -= 5
+  }
+  const spirit = ratioOf(attrs.灵气?.当前, attrs.灵气?.上限)
+  if (spirit !== null && spirit < 0.3) mod -= 8
+  const sense = ratioOf(attrs.神识?.当前, attrs.神识?.上限)
+  if (sense !== null && sense < 0.3) mod -= 10
+
+  if (Array.isArray(effects)) {
+    for (const effect of effects) {
+      const sign = effectSign(effect)
+      if (sign === null) continue
+      const raw = num((effect as { 强度?: unknown }).强度, 2)
+      const magnitude = Math.min(10, Math.max(1, Math.round(Math.abs(raw))))
+      mod += sign * magnitude
+    }
+  }
+
+  return Math.min(20, Math.max(-20, mod))
+}
+
+/** 难度跟着该类型基础值走，不再使用固定的 10/35/50。普通线就是基础值本身，幸运点决定过不过。 */
+export function difficultyBands(base: number): Record<'极易' | '简单' | '普通' | '困难' | '艰难' | '极难', number> {
+  const atLeastOne = (n: number) => Math.max(1, n)
+  return {
+    极易: atLeastOne(base - 15),
+    简单: atLeastOne(base - 8),
+    普通: atLeastOne(base),
+    困难: base + 12,
+    艰难: base + 22,
+    极难: base + 35,
+  }
+}
+
+export function computeJudgementResult(finalValue: number, difficulty: number): string {
+  if (finalValue >= difficulty + 30) return '完美'
+  if (finalValue >= difficulty + 15) return '大成功'
+  if (finalValue >= difficulty) return '成功'
+  if (finalValue < difficulty - 15) return '大失败'
+  return '失败'
+}
+
+function realmNameOf(attributes: unknown): string {
+  const realm = attributes && typeof attributes === 'object' ? (attributes as { 境界?: unknown }).境界 : undefined
+  if (typeof realm === 'string') return realm
+  if (realm && typeof realm === 'object' && '名称' in realm) return String((realm as { 名称?: unknown }).名称 || '')
+  return ''
+}
+
+export function buildJudgementRound(input: {
+  先天六司?: unknown
+  后天六司?: unknown
+  属性?: unknown
+  效果?: unknown
+  灵气浓度?: unknown
+  random?: () => number
+}): JudgementRound {
+  const innate = readSix(input.先天六司, 5)
+  const acquired = readSix(input.后天六司, 0)
+  const attrs = effectiveSix(innate, acquired)
+  const fortune = Math.min(10, Math.max(0, Math.round(attrs.气运)))
+  const range = luckyRange(fortune)
+  const realmName = realmNameOf(input.属性)
+  const realmBonus = realmJudgementBonus(realmName)
+  const density = num(input.灵气浓度, 50)
+
+  const 分项: Record<string, JudgementBaseLine> = {}
+  for (const [type, weights] of Object.entries(TYPE_WEIGHTS)) {
+    if (type === '战斗') continue
+    const weighted = Math.round(weightedAttribute(attrs, weights))
+    分项[type] = { 属性加权: weighted, 基础: weighted + realmBonus }
+  }
+
+  return {
+    幸运点: rollLuckyPoints(fortune, input.random),
+    气运: fortune,
+    幸运下限: range.min,
+    幸运上限: range.max,
+    状态修正: statusModifier(input.属性, input.效果),
+    境界名: realmName || '未知',
+    境界加成: realmBonus,
+    环境: {
+      灵气浓度: density,
+      修炼: environmentModifier(density, '修炼'),
+      炼制: environmentModifier(density, '炼制'),
+      战斗: environmentModifier(density, '战斗'),
+    },
+    分项,
+  }
+}
+
+function signed(n: number): string {
+  return n >= 0 ? `+${n}` : String(n)
+}
+
+const PROMPT_TYPES = ['战斗攻', '战斗防', '修炼', '突破', '炼制', '探索', '社交', '逃跑', '感知'] as const
+
+function environmentForType(type: string, round: JudgementRound): number {
+  if (type === '修炼' || type === '突破') return round.环境.修炼
+  if (type === '炼制') return round.环境.炼制
+  if (type === '战斗攻' || type === '战斗防') return round.环境.战斗
+  return 0
+}
+
+/** 贴在玩家操作旁边。同数值的类型合并成一行，模型照抄判定值和寻常难度。 */
+export function formatJudgementBlock(round: JudgementRound): string {
+  const groups = new Map<string, { types: string[]; base: number; env: number; value: number; result: string }>()
+  for (const type of PROMPT_TYPES) {
+    const line = round.分项[type]
+    const env = environmentForType(type, round)
+    const value = line.基础 + round.幸运点 + env + round.状态修正
+    const difficulty = Math.max(1, line.基础)
+    const result = computeJudgementResult(value, difficulty)
+    const key = `${line.基础}|${env}|${value}|${result}`
+    const group = groups.get(key)
+    if (group) group.types.push(type)
+    else groups.set(key, { types: [type], base: line.基础, env, value, result })
+  }
+  const lines = [...groups.values()].map((group) => {
+    return `- ${group.types.join('、')}: 判定值${group.value}，寻常难度${Math.max(1, group.base)}，结果${group.result}（基础${group.base}，环境${signed(group.env)}）`
+  })
+  return `# 本回合判定（已掷好，照抄，禁止重算）
+幸运${signed(round.幸运点)}，状态${signed(round.状态修正)}。判定值 = 基础 + 幸运 + 环境 + 状态。〔〕里必须写上幸运。
+本境界寻常行动：直接用下面的判定值和寻常难度，不要改成 10/20/35/50。吃力把难度 +12，越一级 +22，越两级 +35。
+境界：${round.境界名}。凡人没有初期/中期/后期。
+${lines.join('\n')}
+有明确对手时：基础改为该类型属性加权 + 境界差加成，寻常难度改为新基础，判定值再加幸运、环境、状态。境界差 3 及以上免判。`
+}

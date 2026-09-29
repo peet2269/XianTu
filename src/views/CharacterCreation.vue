@@ -1,6 +1,7 @@
 <template>
   <div class="creation-container">
     <VideoBackground />
+    <div class="creation-stage" :class="{ 'with-board': !store.isLocalCreation }">
     <div class="creation-scroll">
       <span class="frame-corner tl" aria-hidden="true"></span>
       <span class="frame-corner tr" aria-hidden="true"></span>
@@ -139,6 +140,8 @@
         </button>
       </footer>
     </div>
+    <CultivationBoard v-if="!store.isLocalCreation" />
+    </div>
 
     <RedemptionCodeModal
       :visible="isCodeModalVisible"
@@ -165,6 +168,7 @@ import Step5_TalentSelection from '../components/character-creation/Step5_Talent
 import Step6_AttributeAllocation from '../components/character-creation/Step6_AttributeAllocation.vue'
 import Step7_Preview from '../components/character-creation/Step7_Preview.vue'
 import RedemptionCodeModal from '../components/character-creation/RedemptionCodeModal.vue'
+import CultivationBoard from '../components/character-creation/CultivationBoard.vue'
 import { ArrowLeft, ArrowRight, Check, Sparkles } from 'lucide-vue-next';
 import '@/styles/creation-theme.css';
 import { request, verifyStoredToken } from '../services/request'
@@ -828,15 +832,33 @@ async function onLoadCompleted(result: { success: boolean; message: string; pres
   background: transparent;
 }
 
-.creation-scroll {
+.creation-stage {
   position: relative;
   z-index: 1;
   display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.9rem;
+  width: min(1200px, 96%);
+  height: calc(var(--app-vh) * 0.92);
+  max-height: calc(var(--app-vh) * 0.92);
+  min-height: 0;
+}
+
+.creation-stage.with-board {
+  width: min(1520px, 96%);
+}
+
+.creation-scroll {
+  position: relative;
+  display: flex;
   flex-direction: column;
-  width: 95%;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
   max-width: 1200px;
-  height: 92vh;
-  max-height: 92vh;
+  height: 100%;
+  max-height: 100%;
   padding: 1.75rem 2rem 1.5rem;
   box-sizing: border-box;
   overflow: hidden;
@@ -1189,11 +1211,23 @@ async function onLoadCompleted(result: { success: boolean; message: string; pres
 }
 
 /* ---------- 平板 ---------- */
-@media (max-width: 768px) {
-  .creation-scroll {
+@media (max-width: 1100px) {
+  .creation-stage.with-board {
     width: 98%;
-    height: 95vh;
-    max-height: 95vh;
+  }
+}
+
+@media (max-width: 768px) {
+  .creation-stage {
+    width: 98%;
+    height: calc(var(--app-vh) * 0.95);
+    max-height: calc(var(--app-vh) * 0.95);
+  }
+
+  .creation-scroll {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
     padding: 1.25rem 1.25rem 1rem;
   }
 
@@ -1239,10 +1273,16 @@ async function onLoadCompleted(result: { success: boolean; message: string; pres
 
 /* ---------- 手机 ---------- */
 @media (max-width: 480px) {
+  .creation-stage {
+    width: 100%;
+    height: var(--app-vh);
+    height: var(--app-svh);
+    max-height: none;
+  }
+
   .creation-scroll {
     width: 100%;
-    height: 100vh;
-    height: 100svh;
+    height: 100%;
     max-height: none;
     padding: 0.9rem 0.85rem;
     padding-bottom: max(0.85rem, env(safe-area-inset-bottom));

@@ -74,8 +74,14 @@ const DEFAULT_PROMPT_TEMPLATE = `你是一个修仙世界的地图设计师。�
 - 7x7: 9-15个建筑
 - 9x9: 12-20个建筑
 
-【严格输出】只输出纯 JSON，不含任何解释文字：
-{"buildings":[{"id":"英文标识符_无空格","name":"建筑名称","gridX":数字,"gridY":数字,"type":"建筑类型","isEntrance":true/false,"description":"一句话描述"}]}`;
+【硬性约束】（不满足会被系统判为无效）
+- 每个格子最多一个建筑，任意两个建筑的 (gridX, gridY) 不能相同
+- id 全局唯一，只用英文字母、数字和下划线
+- 至少一个 isEntrance:true 的建筑，一般放在边缘格子
+- 建筑名称贴合地点性质与世界观（宗门有山门、大殿、藏经阁；城镇有城门、坊市、客栈……）
+
+【严格输出】只输出一个 JSON 对象，不要代码块或解释文字：
+{"buildings":[{"id":"main_hall","name":"建筑名称","gridX":数字,"gridY":数字,"type":"entrance|main|residential|functional|restricted|wilderness","isEntrance":true或false,"description":"一句话描述"}]}`;
 
 // ─── 提示词构建 ────────────────────────────────────────────────────────────
 

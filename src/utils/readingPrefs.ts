@@ -110,11 +110,24 @@ export const applyNarrativeTone = (tone: NarrativeTone) => {
 
 /**
  * 界面缩放：用 #app 的 zoom 整体放大（字号用 rem 还是 px 都能生效）。
- * 旧版的「界面文字大小」(--base-font-size) 对 rem / px 字号都不起作用，已并入这里。
+ * #app 的宽高会按比例收回，视觉上仍铺满窗口，避免缩放把页面顶出视口。
+ * 拖动滑块期间先挂起，松手再应用，否则滑块和页面会在指针底下挪走。
  */
+let uiScaleGesture = false;
+
+export const beginUIScaleGesture = () => {
+  uiScaleGesture = true;
+};
+
+export const endUIScaleGesture = (scale: unknown) => {
+  uiScaleGesture = false;
+  applyUIScale(scale);
+};
+
 export const applyUIScale = (scale: unknown) => {
   const pct = Number(scale);
   const clamped = Number.isFinite(pct) ? Math.max(80, Math.min(130, pct)) : DEFAULT_UI_SCALE;
+  if (uiScaleGesture) return;
   document.documentElement.style.setProperty('--ui-scale', String(clamped / 100));
   // 清掉旧版遗留的文字大小，避免它只放大少数继承字号的地方
   document.documentElement.style.removeProperty('--base-font-size');

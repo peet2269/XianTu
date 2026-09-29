@@ -47,7 +47,7 @@
           {{ sheet.reputation.value.title }}
           <i v-if="sheet.reputation.value.value !== null">{{ sheet.reputation.value.value }}</i>
         </dd>
-        <dt><MapPin :size="16" class="kv-lucide" />所在</dt>
+        <dt><MapPin :size="16" />所在</dt>
         <dd>{{ sheet.location.value }}</dd>
       </dl>
     </aside>
@@ -248,7 +248,7 @@ const showEffect = (effect: any) => {
   gap: 1.1rem;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.5rem 1.3rem 1.3rem;
+  padding: 1.5rem 1.3rem 1.6rem;
   border: 1px solid var(--cc-border);
   border-radius: 8px;
   background:
@@ -256,24 +256,8 @@ const showEffect = (effect: any) => {
     var(--gm-block);
 }
 
-/* 卷轴轴头 */
-.scroll-card::before,
-.scroll-card::after {
-  content: '';
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  height: 3px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, rgba(var(--cc-gold-rgb), 0.55), transparent);
-}
-
-.scroll-card::before {
-  top: 0;
-}
-
-.scroll-card::after {
-  bottom: 0;
+.scroll-card > * {
+  flex-shrink: 0;
 }
 
 .id {
@@ -420,6 +404,13 @@ const showEffect = (effect: any) => {
   color: var(--cc-text-2);
 }
 
+.id-kv dt svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--cc-gold);
+}
+
 .id-kv dd {
   margin: 0;
   text-align: right;
@@ -434,14 +425,10 @@ const showEffect = (effect: any) => {
 }
 
 .kv-icon {
-  width: 28px;
-  height: 28px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
-}
-
-.kv-lucide {
-  width: 28px;
-  color: var(--cc-gold);
+  flex-shrink: 0;
 }
 
 /* ---------- 正文 ---------- */

@@ -1,44 +1,34 @@
 <template>
-  <div class="sect-migration">
-    <div class="migration-header">
-      <h4>检测到旧版宗门存档</h4>
-      <p>将把宗门数据升级到 V{{ targetVersion }}，只写入 V3 路径（不再保留旧字段）。</p>
-    </div>
+  <div class="migration">
+    <header class="m-head">
+      <span class="m-seal" aria-hidden="true">宗</span>
+      <div>
+        <h4>检测到旧版宗门存档</h4>
+        <p>将把宗门数据升级到 V{{ targetVersion }}，只写入 V3 路径（不再保留旧字段）。</p>
+      </div>
+    </header>
 
-    <div v-if="displayReasons.length" class="migration-reasons">
-      <div v-for="reason in displayReasons" :key="reason" class="reason-item">
-        <span class="dot"></span>
-        <span>{{ reason }}</span>
-      </div>
-    </div>
+    <section>
+      <h5 class="gm-label">检测原因</h5>
+      <ul class="m-list">
+        <li v-for="reason in displayReasons" :key="reason">{{ reason }}</li>
+      </ul>
+    </section>
 
-    <div class="migration-meta">
-      <div class="meta-item">
-        <span class="label">当前宗门</span>
-        <span class="value">{{ currentSectName }}</span>
-      </div>
-      <div class="meta-item">
-        <span class="label">势力数量</span>
-        <span class="value">{{ factionCount }}</span>
-      </div>
-      <div class="meta-item">
-        <span class="label">存档模式</span>
-        <span class="value">{{ modeLabel }}</span>
-      </div>
-    </div>
+    <dl class="gm-kv m-kv">
+      <dt>当前宗门</dt><dd>{{ currentSectName }}</dd>
+      <dt>势力数量</dt><dd>{{ factionCount }}</dd>
+      <dt>存档模式</dt><dd>{{ modeLabel }}</dd>
+    </dl>
 
-    <div class="migration-actions">
-      <button class="primary" :disabled="isMigrating" @click="runMigration">
-        {{ isMigrating ? '正在迁移...' : '创建备份并迁移' }}
+    <p class="m-hint">迁移前会自动备份：单机模式生成新存档槽，联机模式写入本地备份记录。</p>
+
+    <footer class="m-actions">
+      <button type="button" class="cc-btn" :disabled="isMigrating" @click="later">稍后再说</button>
+      <button type="button" class="cc-btn primary" :disabled="isMigrating" @click="runMigration">
+        {{ isMigrating ? '正在迁移…' : '创建备份并迁移' }}
       </button>
-      <button class="secondary" :disabled="isMigrating" @click="later">
-        稍后再说
-      </button>
-    </div>
-
-    <p class="migration-hint">
-      迁移前会自动备份：单机模式生成新存档槽，联机模式写入本地备份记录。
-    </p>
+    </footer>
   </div>
 </template>
 
@@ -145,114 +135,113 @@ const later = () => {
 </script>
 
 <style scoped>
-.sect-migration {
+.migration {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  color: var(--color-text);
+  gap: 1rem;
+  color: var(--cc-text);
 }
 
-.migration-header h4 {
-  margin: 0 0 6px 0;
-  font-size: 1.05rem;
-}
-
-.migration-header p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-.migration-reasons {
+.m-head {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 10px;
+  align-items: flex-start;
+  gap: 0.8rem;
 }
 
-.reason-item {
-  display: flex;
-  gap: 8px;
+.m-seal {
+  display: inline-flex;
   align-items: center;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-.reason-item .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-warning);
+  justify-content: center;
   flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1.5px solid var(--cc-seal);
+  border-radius: 4px;
+  color: var(--cc-seal);
+  font-family: var(--cc-calligraphy);
+  font-size: 22px;
+  transform: rotate(-4deg);
 }
 
-.migration-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
+.m-head h4 {
+  margin: 0 0 0.3rem;
+  font-family: var(--cc-calligraphy);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
 }
 
-.meta-item {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
+.m-head p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--cc-text-2);
+}
+
+section .gm-label {
+  margin-bottom: 0.5rem;
+}
+
+.m-kv {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--gm-line);
+  border-radius: 6px;
+  background: var(--cc-inset);
+}
+
+.m-kv dd {
+  word-break: break-all;
+}
+
+.m-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.meta-item .label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
-
-.meta-item .value {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.migration-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.migration-actions button {
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.migration-actions .primary {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: white;
-}
-
-.migration-actions .primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.migration-actions .secondary {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-
-.migration-hint {
+  gap: 0.35rem;
   margin: 0;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  background: rgba(var(--color-primary-rgb), 0.08);
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--cc-text-2);
+}
+
+.m-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  line-height: 1.6;
+}
+
+.m-list li::before {
+  content: '';
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cc-warning);
+  transform: translateY(-2px);
+}
+
+.m-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.m-hint {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 2px solid rgba(var(--cc-gold-rgb), 0.6);
+  background: rgba(var(--cc-gold-rgb), 0.06);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--cc-text-2);
+}
+
+.m-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 </style>

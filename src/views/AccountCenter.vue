@@ -47,6 +47,18 @@
               <div v-else class="info-empty">{{ section.emptyText || '暂无信息' }}</div>
             </div>
           </details>
+
+          <details class="section" open>
+            <summary class="section-title">
+              <ChevronRight :size="15" class="chevron" />
+              <span>公益额度</span>
+            </summary>
+            <div class="section-body quota-body">
+              <WalletCard :loginable="false" />
+              <button type="button" class="cc-btn small board-btn" @click="showBoard = true"><Trophy :size="14" /><span>查看额度排行</span></button>
+              <LeaderboardModal v-if="showBoard" @close="showBoard = false" />
+            </div>
+          </details>
         </div>
       </template>
 
@@ -68,9 +80,12 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import VideoBackground from '@/components/common/VideoBackground.vue';
-import { ArrowLeft, ChevronRight, Loader2, Lock, LogOut } from 'lucide-vue-next';
+import { ArrowLeft, ChevronRight, Loader2, Lock, LogOut, Trophy } from 'lucide-vue-next';
 import { request } from '@/services/request';
 import { isBackendConfigured } from '@/services/backendConfig';
+import { usePublicApi } from '@/composables/usePublicApi';
+import WalletCard from '@/components/publicApi/WalletCard.vue';
+import LeaderboardModal from '@/components/publicApi/LeaderboardModal.vue';
 import { toast } from '@/utils/toast';
 
 type UserProfile = {
@@ -83,6 +98,8 @@ const router = useRouter();
 const backendReady = ref(isBackendConfigured());
 const loading = ref(false);
 const profile = ref<UserProfile | null>(null);
+const publicApi = usePublicApi();
+const showBoard = ref(false);
 
 const loggedIn = computed(() => !!profile.value);
 
@@ -133,6 +150,7 @@ onMounted(async () => {
   loading.value = true;
   try {
     profile.value = await request.get<UserProfile>('/api/v1/auth/me');
+    await publicApi.refresh();
   } catch (_e) {
     profile.value = null;
     router.push('/login');
@@ -163,7 +181,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 1.1rem;
   width: min(620px, 100%);
-  max-height: 88vh;
+  max-height: calc(var(--app-vh) * 0.88);
   padding: 1.75rem 1.75rem 1.4rem;
   box-sizing: border-box;
   background: var(--cc-shell-bg);
@@ -276,15 +294,16 @@ onMounted(async () => {
 }
 
 .sections {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .section {
+  flex-shrink: 0;
   border: 1px solid var(--cc-border);
   border-radius: 8px;
   background: var(--cc-surface);
@@ -295,7 +314,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.7rem 0.9rem;
+  padding: 0.48rem 0.9rem;
   font-size: 0.92rem;
   font-weight: 600;
   letter-spacing: 0.15em;
@@ -321,7 +340,7 @@ onMounted(async () => {
 }
 
 .section-body {
-  padding: 0.25rem 0.9rem 0.8rem;
+  padding: 0.1rem 0.9rem 0.35rem;
   border-top: 1px solid var(--cc-divider);
 }
 
@@ -333,7 +352,7 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.45rem 0;
+  padding: 0.32rem 0;
   border-bottom: 1px dashed var(--cc-divider);
   font-size: 0.85rem;
 }
@@ -356,6 +375,17 @@ onMounted(async () => {
   color: var(--cc-text-3);
 }
 
+.board-btn {
+  align-self: flex-start;
+}
+
+.quota-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding-top: 0.5rem;
+}
+
 .actions {
   display: flex;
   justify-content: space-between;
@@ -376,7 +406,7 @@ onMounted(async () => {
 
   .account-panel {
     max-height: none;
-    min-height: 100vh;
+    min-height: var(--app-vh);
     border-radius: 0;
   }
 

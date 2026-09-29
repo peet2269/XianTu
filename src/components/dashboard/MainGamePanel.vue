@@ -159,14 +159,41 @@
           <button
             type="button"
             class="send"
-            :disabled="!inputText.trim() || isAIProcessing || !hasActiveCharacter"
-            :title="t('发送')"
-            @click="sendMessage"
+            :class="{ stop: isAIProcessing }"
+            :disabled="isAIProcessing ? false : (!inputText.trim() || !hasActiveCharacter)"
+            :title="isAIProcessing ? t('取消本次请求') : t('发送')"
+            :aria-label="isAIProcessing ? t('取消本次请求') : t('发送')"
+            @click="isAIProcessing ? cancelCurrentRequest() : sendMessage()"
           >
             <Loader2 v-if="isAIProcessing" :size="16" class="cc-spin" />
             <span v-else>{{ t('落笔') }}</span>
           </button>
         </div>
+
+        <div v-if="thinkingLevelVisible" class="thinking-control-row">
+          <div class="thinking-control-label">
+            <BrainCircuit :size="14" />
+            <span>{{ t('思考强度') }}</span>
+          </div>
+          <div class="thinking-levels" role="radiogroup" :aria-label="t('思考强度')">
+            <button
+              v-for="option in thinkingLevelOptions"
+              :key="option.value"
+              type="button"
+              role="radio"
+              :aria-checked="currentThinkingLevel === option.value"
+              :class="{ active: currentThinkingLevel === option.value }"
+              :title="t(option.hint)"
+              :disabled="isAIProcessing"
+              @click="updateCurrentThinkingLevel(option.value)"
+            >
+              {{ t(option.label) }}
+            </button>
+          </div>
+          <small v-if="mainAPI?.model" class="thinking-model">{{ mainAPI.model }}</small>
+        </div>
+
+        <PublicQuotaBar />
       </div>
 
       <!-- 快捷行动（入口未开放，保留逻辑） -->
@@ -246,11 +273,13 @@ import { AIBidirectionalSystem, getTavernHelper } from '@/utils/AIBidirectionalS
 import { isTavernEnv } from '@/utils/tavern';
 import { toast } from '@/utils/toast';
 import { calculateAgeFromBirthdate } from '@/utils/lifespanCalculator';
-import { aiService } from '@/services/aiService';
-import { extractTextFromJsonResponse } from '@/utils/textSanitizer';
+import { aiService, type APIProvider, type ThinkingLevel } from '@/services/aiService';
+import { useAPIManagementStore } from '@/stores/apiManagementStore';
+import { extractStreamingNarrative, extractTextFromJsonResponse } from '@/utils/textSanitizer';
 import FormattedText from '@/components/common/FormattedText.vue';
+import PublicQuotaBar from '@/components/publicApi/PublicQuotaBar.vue';
 import { useGameStateStore } from '@/stores/gameStateStore';
-import { getSnapshots } from '@/utils/snapshotManager';
+import { getSnapshots, snapshotVersion } from '@/utils/snapshotManager';
 import type {  CharacterProfile } from '@/types/game';
 import type { GM_Response } from '@/types/AIGameMaster'; // AIGameMaster.d.ts 仍然需要保留
 
@@ -279,14 +308,38 @@ const inputText = computed({
 const isInputFocused = ref(false);
 // 🔥 使用全局状态替代组件状态
 const isAIProcessing = computed(() => uiStore.isAIProcessing);
-const streamingContent = computed(() => uiStore.streamingContent);
+// 流式原文可能是 {"text":"…"} 这样的 JSON，显示前取出正文并还原转义
+const streamingContent = computed(() => extractStreamingNarrative(uiStore.streamingContent));
 const currentGenerationId = computed(() => uiStore.currentGenerationId);
-const streamingCharCount = computed(() => uiStore.streamingContent.length);
+const streamingCharCount = computed(() => streamingContent.value.length);
 
 // 🔥 思维链状态
 const thinkingContent = computed(() => uiStore.thinkingContent);
 const isThinkingPhase = computed(() => uiStore.isThinkingPhase);
 const thinkingExpanded = computed(() => uiStore.thinkingExpanded);
+
+const THINKING_PROVIDERS: APIProvider[] = ['claude', 'gemini', 'deepseek', 'volcengine'];
+const thinkingLevelOptions: Array<{ value: ThinkingLevel; label: string; hint: string }> = [
+  { value: 'default', label: '默认', hint: '由模型自行决定思考深度' },
+  { value: 'off', label: '关', hint: '关闭思考，回复更快' },
+  { value: 'low', label: '低', hint: '浅层思考，速度优先' },
+  { value: 'medium', label: '中', hint: '适中思考' },
+  { value: 'high', label: '高', hint: '深入思考，更慢、更耗额度' },
+];
+const apiStore = useAPIManagementStore();
+const mainAPI = computed(() => apiStore.getAPIForType('main'));
+const thinkingLevelVisible = computed(() => {
+  const api = mainAPI.value;
+  if (!api || !THINKING_PROVIDERS.includes(api.provider)) return false;
+  if (isTavernEnv() && api.id === 'default') return false;
+  return true;
+});
+const currentThinkingLevel = computed(() => mainAPI.value?.thinkingLevel || 'default');
+const updateCurrentThinkingLevel = (level: ThinkingLevel) => {
+  const api = mainAPI.value;
+  if (!api || isAIProcessing.value || level === currentThinkingLevel.value) return;
+  apiStore.updateAPI(api.id, { thinkingLevel: level });
+};
 
 // 🔥 保存上一次的思维链内容（传输完成后仍可查看）
 const lastThinkingContent = ref('');
@@ -450,17 +503,23 @@ const persistAIProcessingState = () => {
   }
 };
 
-// 强制清除AI处理状态的方法
-const forceResetAIProcessingState = () => {
-  console.log('[强制重置] 清除AI处理状态和会话存储');
-  // 取消所有正在进行的AI请求（包括重试中的）
+const stopCurrentRequest = (notice: string) => {
+  if (!uiStore.isAIProcessing) return;
   aiService.cancelAllRequests();
   aiResetToken += 1;
   uiStore.resetStreamingState();
   streamingMessageIndex.value = null;
   rawStreamingContent.value = '';
   persistAIProcessingState();
-  toast.info(t('AI处理状态已重置'));
+  toast.info(notice);
+};
+
+const cancelCurrentRequest = () => stopCurrentRequest(t('已取消本次请求'));
+
+// 强制清除AI处理状态的方法
+const forceResetAIProcessingState = () => {
+  console.log('[强制重置] 清除AI处理状态和会话存储');
+  stopCurrentRequest(t('AI处理状态已重置'));
 };
 
 
@@ -780,9 +839,10 @@ const rollbackToLastConversation = async () => {
 // 快照相关
 const showSnapshotMenu = ref(false);
 const snapshots = computed(() => {
+  void snapshotVersion.value;
   const active = characterStore.rootState.当前激活存档;
   if (!active) return [];
-  return getSnapshots(active.角色ID, active.存档槽位).reverse();
+  return getSnapshots(active.角色ID, active.存档槽位);
 });
 
 const formatSnapshotTime = (timestamp: number) => {
@@ -850,11 +910,11 @@ const rollbackToSnapshot = async (snapshotId: string) => {
   });
 };
 
-// 回退到最后一条快照
+// 回退最近一回合：列表按时间从旧到新，取最后一档
 const rollbackToLastSnapshot = async () => {
-  if (snapshots.value.length === 0) return;
-  const lastSnapshot = snapshots.value[snapshots.value.length - 1];
-  await rollbackToSnapshot(lastSnapshot.id);
+  const list = snapshots.value;
+  if (list.length === 0) return;
+  await rollbackToSnapshot(list[list.length - 1].id);
 };
 
 
@@ -1498,10 +1558,14 @@ const sendMessage = async () => {
       } else if (streamingContent.value) {
         // 如果以上都没有，使用流式输出的最终结果作为备用
         // 🔥 从 JSON 响应中提取 text 字段
-        finalText = extractTextFromJsonResponse(streamingContent.value);
+        finalText = extractTextFromJsonResponse(uiStore.streamingContent);
         console.log('[AI响应处理] 使用 streamingContent 提取后作为最终文本，长度:', finalText.length);
       } else {
         console.warn('[AI响应处理] 未找到任何有效的文本内容');
+      }
+      // 上游解析失败时 text 可能仍是整段 JSON（{"text":"…\"…"}），这里再剥一次外壳
+      if (/^\s*(?:```(?:json)?\s*)?\{\s*"(?:text|正文)"\s*:/i.test(finalText)) {
+        finalText = extractTextFromJsonResponse(finalText);
       }
 
       console.log('[AI响应处理] 最终文本内容预览:', finalText.substring(0, 100) + '...');
@@ -2440,6 +2504,79 @@ const syncGameState = async () => {
   box-shadow: 0 0 0 3px rgba(var(--cc-gold-rgb), 0.08);
 }
 
+.thinking-control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.45rem;
+}
+
+.thinking-control-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--cc-text-2);
+}
+
+.thinking-control-label svg {
+  color: var(--cc-gold);
+}
+
+.thinking-levels {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: var(--cc-inset);
+}
+
+.thinking-levels button {
+  min-width: 2.6em;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cc-text-2);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.thinking-levels button:hover:not(:disabled) {
+  color: var(--cc-text);
+}
+
+.thinking-levels button.active {
+  color: var(--cc-accent);
+  background: var(--cc-surface-hover);
+  border-color: rgba(var(--cc-gold-rgb), 0.5);
+}
+
+.thinking-levels button:focus-visible {
+  outline: 2px solid var(--cc-accent);
+  outline-offset: 1px;
+}
+
+.thinking-levels button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinking-model {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--cc-text-3);
+}
+
 .memo {
   position: relative;
   flex-shrink: 0;
@@ -2616,6 +2753,18 @@ const syncGameState = async () => {
   color: var(--cc-gold);
 }
 
+.send.stop {
+  border-color: color-mix(in srgb, var(--cc-seal) 55%, var(--cc-border));
+  color: var(--cc-seal);
+  cursor: pointer;
+}
+
+.send.stop:hover {
+  border-color: var(--cc-seal);
+  background: color-mix(in srgb, var(--cc-seal) 12%, var(--gm-block));
+  color: var(--cc-seal);
+}
+
 .send:disabled {
   border-color: var(--cc-border);
   background: transparent;
@@ -2672,6 +2821,10 @@ const syncGameState = async () => {
   .send {
     padding: 0 0.7rem;
     letter-spacing: 0.08em;
+  }
+
+  .thinking-model {
+    display: none;
   }
 }
 

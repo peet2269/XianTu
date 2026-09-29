@@ -171,7 +171,7 @@ const submit = () => {
   if (d.kind === 'confirm') return settleDialog(d.id, true);
   if (d.kind === 'quantity') return settleDialog(d.id, qty.value);
   const v = textValue.value.trim();
-  const err = d.options.validate?.(v) ?? (v ? null : t('不能为空'));
+  const err = d.options.validate ? d.options.validate(v) : v ? null : t('不能为空');
   if (err) {
     textError.value = err;
     return;

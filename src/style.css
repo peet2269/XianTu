@@ -66,8 +66,11 @@
   --color-error-rgb: 220, 38, 38;
   --color-info-rgb: 33, 150, 243;
 
-  /* UI缩放变量 */
+  /* UI缩放变量。视口单位要除掉缩放，否则 100vh 会比缩放后的窗口更高，页面被顶偏 */
   --ui-scale: 1;
+  --app-vh: calc(100vh / var(--ui-scale));
+  --app-dvh: calc(100dvh / var(--ui-scale));
+  --app-svh: calc(100svh / var(--ui-scale));
   --base-font-size: 1rem;
   --lang-font-scale: 1;
 
@@ -145,7 +148,7 @@ body {
   /* 高度将由 App.vue 中的脚本动态设置，此处不应有 height 或 min-height */
   margin: 0;
   padding: 0;
-  /* 移除 overflow: hidden; 应用内滚动由 #app 控制 */
+  /* 窗口本身不滚动，滚动留在 #app 和各页面内部，避免缩放时整页被顶走 */
   font-family: var(--font-family-serif);
   /* 透明背景以显示视频背景（VideoBackground组件使用z-index:-10） */
   background-color: transparent;
@@ -155,6 +158,7 @@ body {
   /* 确保在iframe中也能正确填充 */
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 #app {
@@ -163,11 +167,11 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 100%;
   width: 100%;
+  height: 100%;
   box-sizing: border-box;
-  overflow: auto; /* 应用内的滚动由app自身管理 */
-  /* 应用UI缩放，使用zoom属性（Chrome, Safari等支持） */
+  overflow: auto; /* 内容超出时在画布内滚动，窗口本身不跟着挪 */
+  /* zoom 会改百分比的包含块。这里保持 100%，视觉上仍铺满窗口；再除一次缩放会把页面缩得过小并挤出滚动条 */
   zoom: var(--ui-scale);
   /* 应用基础字体大小 */
   font-size: calc(var(--base-font-size) * var(--lang-font-scale));

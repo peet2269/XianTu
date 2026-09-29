@@ -116,7 +116,7 @@ export default (env, argv) => {
         __VUE_PROD_DEVTOOLS__: JSON.stringify(false),
         __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false),
         'APP_VERSION': JSON.stringify(packageJson.version),
-        'BACKEND_BASE_URL': JSON.stringify('https://back.ddct.top') //后端路径
+        'BACKEND_BASE_URL': JSON.stringify(process.env.BACKEND_PROXY || 'https://back.ddct.top') //后端路径
       }),
       new HtmlWebpackPlugin({
         template: './index.html',
@@ -171,7 +171,7 @@ export default (env, argv) => {
       proxy: [
         {
           context: ['/api'],
-          target: 'https://back.ddct.top',
+          target: process.env.BACKEND_PROXY || 'https://back.ddct.top',
           changeOrigin: true,
           secure: false,
           on: {

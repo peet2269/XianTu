@@ -62,28 +62,56 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script>
+    (function () {
+      var theme = 'dark';
+      try {
+        var stored = localStorage.getItem('theme');
+        if (stored === 'light' || stored === 'dark') theme = stored;
+        else if (stored === 'auto') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } catch (e) {}
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.style.colorScheme = theme;
+    })();
+  </script>
   <style>
     :root {
-      --ink: #120f0c;
-      --paper: #1a1612;
-      --gold: #d4af37;
-      --gold-soft: #f3e2a8;
-      --text: #e8dfcf;
-      --muted: rgba(232, 223, 207, 0.68);
+      --calli: 'Ma Shan Zheng', 'STXingkai', '华文行楷', 'KaiTi', '楷体', 'Noto Serif SC', serif;
+      --ink: #0b101b;
+      --paper: #121a2c;
+      --gold: #d4b878;
+      --gold-rgb: 212, 184, 120;
+      --gold-soft: #e8d7a8;
+      --accent: #9db8ff;
+      --text: #eceff5;
+      --muted: #a9b2c3;
+      --card: linear-gradient(165deg, rgba(22, 30, 50, 0.94), rgba(12, 18, 32, 0.9));
+      color-scheme: dark;
+    }
+    [data-theme='light'] {
+      --ink: #e7eeea;
+      --paper: #f4f7f5;
+      --gold: #7f5d27;
+      --gold-rgb: 127, 93, 39;
+      --gold-soft: #6b4e1e;
+      --accent: #256a67;
+      --text: #233238;
+      --muted: #44545a;
+      --card: linear-gradient(165deg, rgba(255, 255, 255, 0.82), rgba(236, 243, 239, 0.94));
+      color-scheme: light;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(ellipse at 20% 0%, rgba(212, 175, 55, 0.1), transparent 45%),
-        radial-gradient(ellipse at 80% 20%, rgba(140, 90, 40, 0.08), transparent 40%),
-        linear-gradient(180deg, #100e0c, #17130f 40%, #0d0b09);
+        radial-gradient(ellipse 70% 40% at 50% -10%, rgba(var(--gold-rgb), 0.12), transparent 60%),
+        linear-gradient(180deg, var(--ink), var(--paper) 46%, var(--ink));
       color: var(--text);
       font-family: "Noto Serif SC", "Songti SC", serif;
     }
-    a { color: var(--gold-soft); }
+    a { color: var(--accent); }
     .wrap { max-width: 760px; margin: 0 auto; padding: 48px 20px 72px; }
     .crumbs { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
     .crumbs a { color: var(--muted); text-decoration: none; }
@@ -91,18 +119,27 @@
     .eyebrow {
       display: inline-block;
       letter-spacing: 0.28em;
-      color: rgba(212, 175, 55, 0.8);
+      color: var(--gold);
       font-size: 13px;
       margin-bottom: 12px;
     }
     h1 {
       margin: 0 0 14px;
-      font-size: clamp(2rem, 5vw, 2.8rem);
-      letter-spacing: 0.16em;
-      background: linear-gradient(180deg, #f3e2a8, #d4af37 55%, #a67c2a);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
+      font-family: var(--calli);
+      font-weight: 400;
+      font-size: clamp(2.2rem, 5vw, 3.1rem);
+      letter-spacing: 0.12em;
+      color: var(--text);
+    }
+    .theme-switch {
+      float: right;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(var(--gold-rgb), 0.35);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
     }
     .lead { color: var(--muted); line-height: 1.8; margin: 0 0 36px; }
     .friend-links { list-style: none; margin: 0; padding: 0; }
@@ -113,9 +150,10 @@
       padding: 28px 24px;
       text-decoration: none;
       color: inherit;
-      background: linear-gradient(160deg, rgba(36, 28, 18, 0.95), rgba(18, 16, 14, 0.9));
-      border: 1px solid rgba(212, 175, 55, 0.38);
-      box-shadow: inset 0 0 0 1px rgba(255, 236, 180, 0.05);
+      background: var(--card);
+      border: 1px solid rgba(var(--gold-rgb), 0.35);
+      border-radius: 6px;
+      box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.06);
     }
     .friend-card::before,
     .friend-card::after {
@@ -123,14 +161,14 @@
       position: absolute;
       width: 16px;
       height: 16px;
-      border-color: rgba(212, 175, 55, 0.75);
+      border-color: rgba(var(--gold-rgb), 0.75);
       border-style: solid;
     }
     .friend-card::before { top: 8px; left: 8px; border-width: 1px 0 0 1px; }
     .friend-card::after { right: 8px; bottom: 8px; border-width: 0 1px 1px 0; }
     .friend-card:hover {
-      border-color: rgba(234, 200, 98, 0.75);
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), 0 0 28px rgba(212, 175, 55, 0.12);
+      border-color: rgba(var(--gold-rgb), 0.7);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
     }
     .friend-card strong {
       display: block;
@@ -149,7 +187,7 @@
     footer {
       margin-top: 48px;
       padding-top: 24px;
-      border-top: 1px solid rgba(212, 175, 55, 0.18);
+      border-top: 1px solid rgba(var(--gold-rgb), 0.2);
       color: var(--muted);
       font-size: 13px;
     }
@@ -159,6 +197,7 @@
   <main class="wrap">
     <nav class="crumbs" aria-label="面包屑">
       <a href="https://www.ddct.top/">首页</a> / 友情链接
+      <button id="theme-toggle" class="theme-switch" type="button" aria-label="切换亮色">明暗</button>
     </nav>
     <p class="eyebrow">道友相荐</p>
     <h1>友情链接</h1>
@@ -182,5 +221,19 @@
       <p><a href="https://www.ddct.top/">返回仙途首页</a> · © 仙途</p>
     </footer>
   </main>
+  <script>
+    const themeToggle = document.getElementById('theme-toggle');
+    const applyTheme = (theme) => {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.style.colorScheme = theme;
+      if (themeToggle) themeToggle.setAttribute('aria-label', theme === 'light' ? '切换暗色' : '切换亮色');
+      themeToggle.textContent = theme === 'light' ? '夜' : '昼';
+      try { localStorage.setItem('theme', theme); } catch (e) {}
+    };
+    applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+    themeToggle?.addEventListener('click', () => {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    });
+  </script>
 </body>
 </html>

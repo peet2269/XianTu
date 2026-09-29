@@ -64,6 +64,12 @@ export function normalizeLocationsData(locations: any[], mapSize?: Partial<MapSi
         x: clampValue(Number(loc.coordinates.x), 0, mapWidth),
         y: clampValue(Number(loc.coordinates.y), 0, mapHeight),
       };
+    } else if (loc.坐标?.x !== undefined && loc.坐标?.y !== undefined) {
+      // 追加地点（addWorldLocation / 未收录地点定位）写的是「坐标」字段，人物定位也按它匹配
+      coordinates = {
+        x: clampValue(Number(loc.坐标.x), 0, mapWidth),
+        y: clampValue(Number(loc.坐标.y), 0, mapHeight),
+      };
     } else if (loc.位置?.x !== undefined && loc.位置?.y !== undefined) {
       coordinates = {
         x: clampValue(Number(loc.位置.x), 0, mapWidth),

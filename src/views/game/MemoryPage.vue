@@ -97,7 +97,7 @@
           </label>
         </div>
         <div v-if="!rag.embedding.value.available" class="gm-form-row nested">
-          <div class="gm-form-info"><span class="gm-form-desc">Embedding 模型在「API 管理 → 功能分配 → 向量检索」里配置，长期记忆与叙事检索共用。</span></div>
+          <div class="gm-form-info"><span class="gm-form-desc">先在「API 管理 → 功能分配」打开叙事检索，并指定独立的 Embedding 模型。长期记忆与叙事检索共用这一配置。</span></div>
           <button type="button" class="cc-btn small" @click="router.push('/game/api-management')"><Plug :size="14" /><span>去 API 管理</span></button>
         </div>
 
@@ -222,7 +222,9 @@ import {
   Trash2, TriangleAlert,
 } from 'lucide-vue-next';
 import { cloneDeep } from 'lodash';
+import { useAPIManagementStore } from '@/stores/apiManagementStore';
 import { useGameStateStore } from '@/stores/gameStateStore';
+import { narrativeRagService } from '@/services/narrativeRagService';
 import { useCharacterStore } from '@/stores/characterStore';
 import {
   narrativeToNovel, useMemoryConfig, useMemoryLists, useNarrativeRag, type MemoryItem, type MemoryTier,
@@ -360,9 +362,14 @@ const saveRagCfg = () => {
 };
 const toggleRag = async (e: Event) => {
   const on = (e.target as HTMLInputElement).checked;
+  useAPIManagementStore().setFunctionEnabled('embedding', on);
   rag.saveConfig({ enabled: on });
+  embeddingRefresh();
   toast.success(on ? '叙事检索已开启' : '叙事检索已关闭');
   if (on && rag.embedding.value.available) await syncRag();
+};
+const embeddingRefresh = () => {
+  rag.embedding.value = narrativeRagService.getEmbeddingStatus();
 };
 const syncRag = async () => {
   try {
@@ -541,7 +548,8 @@ watch(tab, (t) => {
 }
 
 .mem-card {
-  padding: 0.7rem 1rem 0.5rem;
+  position: relative;
+  padding: 0.7rem 3rem 0.7rem 1rem;
   border: 1px solid var(--cc-border);
   border-radius: 6px;
   background: var(--gm-block);
@@ -596,7 +604,22 @@ watch(tab, (t) => {
 .mem-foot {
   display: flex;
   align-items: center;
+}
+
+.mem-foot .link {
   margin-top: 0.35rem;
+}
+
+.mem-foot .cc-icon-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  opacity: 0.6;
+}
+
+.mem-card:hover .mem-foot .cc-icon-btn,
+.mem-foot .cc-icon-btn:focus-visible {
+  opacity: 1;
 }
 
 .mem-foot .spacer {

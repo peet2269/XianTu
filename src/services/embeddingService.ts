@@ -58,17 +58,31 @@ function buildDashScopeEmbeddingsEndpoint(urlOrBase: string): string {
   }
 }
 
-/**
- * 读取 API 管理中分配给 Embedding 的独立 API。
- * 未分配（回落到 default）或缺少地址/Key/模型时返回 null。
- * @param apiIdOverride 指定使用某个 API 配置（可选）
- */
-export function resolveEmbeddingConfig(apiIdOverride?: string): EmbeddingRequestConfig | null {
+function getApiStore(): { isFunctionEnabled: (type: string) => boolean; apiConfigs: any[]; getAPIForType: (type: string) => any } | null {
   try {
     // 动态获取 store，避免 store ↔ service 循环依赖
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useAPIManagementStore } = require('@/stores/apiManagementStore');
-    const apiStore = useAPIManagementStore();
+    return useAPIManagementStore();
+  } catch {
+    return null;
+  }
+}
+
+/** 功能分配里的叙事检索开关。未开启时不调用 Embedding。 */
+export function isEmbeddingFunctionEnabled(): boolean {
+  return getApiStore()?.isFunctionEnabled('embedding') === true;
+}
+
+/**
+ * 读取 API 管理中分配给 Embedding 的独立 API。
+ * 开关关闭、未分配（回落到 default）或缺少地址/Key/模型时返回 null。
+ * @param apiIdOverride 指定使用某个 API 配置（可选）
+ */
+export function resolveEmbeddingConfig(apiIdOverride?: string): EmbeddingRequestConfig | null {
+  try {
+    const apiStore = getApiStore();
+    if (!apiStore || !apiStore.isFunctionEnabled('embedding')) return null;
     const cfg = apiIdOverride
       ? apiStore.apiConfigs.find((api: any) => api.id === apiIdOverride && api.enabled)
       : apiStore.getAPIForType('embedding');
@@ -200,4 +214,24 @@ export async function createEmbeddings(
   }
 
   throw new Error(`当前 provider 不支持 Embedding：${provider}`);
+}
+
+/** 用一条短文本打 Embedding 接口，成功时返回向量维度。 */
+export async function testEmbeddingConnection(config: EmbeddingRequestConfig): Promise<number> {
+  try {
+    const [vec] = await createEmbeddings(config, ['连通测试']);
+    if (!Array.isArray(vec) || vec.length === 0) throw new Error('Embedding 响应为空');
+    return vec.length;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        const data = error.response.data;
+        const body = typeof data === 'string' ? data : JSON.stringify(data);
+        throw new Error(`API错误 ${error.response.status}: ${body}`);
+      }
+      if (error.code === 'ECONNABORTED') throw new Error('请求超时');
+      throw new Error('网络错误：无法连接到 API 服务器');
+    }
+    throw error;
+  }
 }

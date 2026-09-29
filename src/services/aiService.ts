@@ -12,9 +12,14 @@
  */
 import axios from 'axios';
 import type { APIUsageType, APIConfig as StoreAPIConfig } from '@/stores/apiManagementStore';
+import { chatRequestPath, geminiStreamPath, joinApiUrl, modelsRequestPath } from '@/utils/apiEndpoint';
+import { JSON_CAPABLE } from '@/data/apiProviders';
+import { BUILTIN_API_KEY, builtinProxyBaseUrl } from '@/services/builtinApi';
+import { recordBuiltinUsage } from '@/services/builtinUsageLog';
 
 // ============ API提供商类型 ============
 export type APIProvider = 'openai' | 'claude' | 'gemini' | 'deepseek' | 'zhipu' | 'volcengine' | 'siliconflow-embedding' | 'custom';
+export type ThinkingLevel = 'default' | 'off' | 'low' | 'medium' | 'high';
 
 // ============ 配置接口 ============
 export interface AIConfig {
@@ -30,7 +35,12 @@ export interface AIConfig {
     model: string;
     temperature?: number;
     maxTokens?: number;
+    thinkingLevel?: ThinkingLevel;
     forceJsonOutput?: boolean;
+    /** 走服务器内置接口时为 true，请求时再换成登录令牌 */
+    builtin?: boolean;
+    /** 后端内置名单里的条目编号 */
+    builtinServerId?: string;
   };
 }
 
@@ -44,7 +54,10 @@ type APIConfigInput = {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  thinkingLevel?: ThinkingLevel;
   forceJsonOutput?: boolean;
+  builtin?: boolean;
+  builtinServerId?: string;
 };
 
 const toCustomAPIConfig = (api: APIConfigInput, defaultMaxTokens = 16000): CustomAPIConfig => ({
@@ -54,7 +67,10 @@ const toCustomAPIConfig = (api: APIConfigInput, defaultMaxTokens = 16000): Custo
   model: api.model,
   temperature: api.temperature ?? 0.7,
   maxTokens: api.maxTokens ?? defaultMaxTokens,
+  thinkingLevel: api.thinkingLevel ?? 'default',
   forceJsonOutput: api.forceJsonOutput,
+  builtin: api.builtin || api.apiKey === BUILTIN_API_KEY,
+  builtinServerId: api.builtinServerId,
 });
 
 // API提供商预设配置
@@ -65,12 +81,12 @@ export const API_PROVIDER_PRESETS: Record<APIProvider, {
   defaultMaxTokens?: number;
   maxOutputTokens?: number;
 }> = {
-  openai: { url: 'https://api.openai.com', defaultModel: 'gpt-4o', name: 'OpenAI', defaultMaxTokens: 16000, maxOutputTokens: 128000 },
-  claude: { url: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-20250514', name: 'Claude', defaultMaxTokens: 16000, maxOutputTokens: 64000 },
-  gemini: { url: 'https://generativelanguage.googleapis.com', defaultModel: 'gemini-2.0-flash', name: 'Gemini', defaultMaxTokens: 16000, maxOutputTokens: 65536 },
-  deepseek: { url: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-flash', name: 'DeepSeek', defaultMaxTokens: 64000, maxOutputTokens: 384000 },
-  zhipu: { url: 'https://open.bigmodel.cn', defaultModel: 'glm-4-flash', name: '智谱AI', defaultMaxTokens: 16000, maxOutputTokens: 128000 },
-  volcengine: { url: 'https://ark.cn-beijing.volces.com', defaultModel: 'doubao-seed-2-1-pro-260628', name: '火山引擎(豆包)', defaultMaxTokens: 16000, maxOutputTokens: 65536 },
+  openai: { url: 'https://api.openai.com', defaultModel: 'gpt-6-astra', name: 'OpenAI', defaultMaxTokens: 32000, maxOutputTokens: 128000 },
+  claude: { url: 'https://api.anthropic.com', defaultModel: 'claude-fable-5-1', name: 'Claude', defaultMaxTokens: 32000, maxOutputTokens: 128000 },
+  gemini: { url: 'https://generativelanguage.googleapis.com', defaultModel: 'gemini-3.8-flash', name: 'Gemini', defaultMaxTokens: 16000, maxOutputTokens: 65536 },
+  deepseek: { url: 'https://api.deepseek.com', defaultModel: 'deepseek-flash', name: 'DeepSeek', defaultMaxTokens: 64000, maxOutputTokens: 384000 },
+  zhipu: { url: 'https://open.bigmodel.cn', defaultModel: 'glm-5.3-flash', name: '智谱AI', defaultMaxTokens: 24000, maxOutputTokens: 128000 },
+  volcengine: { url: 'https://ark.cn-beijing.volces.com', defaultModel: 'doubao-seed-evolving', name: '火山引擎(豆包)', defaultMaxTokens: 64000, maxOutputTokens: 256000 },
   'siliconflow-embedding': { url: 'https://api.siliconflow.cn', defaultModel: 'BAAI/bge-m3', name: '硅基流动(Embedding)' },
   custom: { url: '', defaultModel: '', name: '自定义(OpenAI兼容)', defaultMaxTokens: 16000, maxOutputTokens: 384000 }
 };
@@ -117,9 +133,10 @@ class AIService {
       provider: 'openai',
       url: '',
       apiKey: '',
-      model: 'gpt-4o',
+      model: 'gpt-6-astra',
       temperature: 0.7,
-      maxTokens: 16000
+      maxTokens: 16000,
+      thinkingLevel: 'default'
     }
   };
 
@@ -195,6 +212,11 @@ class AIService {
           throw lastError;
         }
 
+        // 公益额度不足、未登录：重试也不会成功
+        if (lastError.message?.includes('额度不足') || lastError.message?.includes('需要先登录云端账号')) {
+          throw lastError;
+        }
+
         // 如果还有重试机会，等待后继续
         if (attempt < maxRetries) {
           console.warn(`[AI服务] ${operationName} 失败，准备重试:`, lastError.message);
@@ -266,7 +288,10 @@ class AIService {
     model: string;
     temperature?: number;
     maxTokens?: number;
+    thinkingLevel?: ThinkingLevel;
     forceJsonOutput?: boolean;
+    builtin?: boolean;
+    builtinServerId?: string;
   }, testPrompt: string): Promise<string> {
     console.log(`[AI服务] 直接测试API: ${apiConfig.url}, model: ${apiConfig.model}`);
 
@@ -299,7 +324,7 @@ class AIService {
           // 注意：官方Gemini使用查询参数，但某些中转服务可能使用Bearer token
           try {
             // 首先尝试使用查询参数方式（官方Gemini格式）
-            const response = await axios.get(`${baseUrl}/v1beta/models?key=${apiKey}`, {
+            const response = await axios.get(`${joinApiUrl(baseUrl, modelsRequestPath('gemini'))}?key=${apiKey}`, {
               signal: this.getAbortSignal(),
               timeout: 10000
             });
@@ -314,7 +339,7 @@ class AIService {
             if (axios.isAxiosError(error) && error.response?.status === 401) {
               console.warn('[AI服务] Gemini查询参数认证失败，尝试Bearer token方式');
               try {
-                const response = await axios.get(`${baseUrl}/v1beta/models`, {
+                const response = await axios.get(joinApiUrl(baseUrl, modelsRequestPath('gemini')), {
                   headers: { 'Authorization': `Bearer ${apiKey}` },
                   signal: this.getAbortSignal(),
                   timeout: 10000
@@ -333,12 +358,10 @@ class AIService {
             // 如果所有方式都失败，返回常用模型
             console.warn('[AI服务] 返回Gemini预设模型列表');
             return [
-              'gemini-2.0-flash-exp',
-              'gemini-exp-1206',
-              'gemini-2.0-flash-thinking-exp-1219',
-              'gemini-1.5-pro',
-              'gemini-1.5-flash',
-              'gemini-1.5-flash-8b'
+              'gemini-3.8-flash',
+              'gemini-3.7-flash',
+              'gemini-3.5-flash-lite',
+              'gemini-3.1-pro-preview'
             ];
           }
         }
@@ -347,18 +370,17 @@ class AIService {
           // Claude API 不提供模型列表端点，返回常用模型列表
           console.warn('[AI服务] Claude API不支持获取模型列表，返回预设模型');
           return [
-            'claude-3-5-sonnet-20241022',
-            'claude-3-5-haiku-20241022',
-            'claude-3-opus-20240229',
-            'claude-3-sonnet-20240229',
-            'claude-3-haiku-20240307'
+            'claude-fable-5-1',
+            'claude-opus-5-5',
+            'claude-sonnet-5',
+            'claude-haiku-4-5'
           ];
         }
 
         case 'siliconflow-embedding': {
           // 硅基流动 Embedding 模型：使用 sub_type=embedding 过滤
           try {
-            const response = await axios.get(`${baseUrl}/v1/models?sub_type=embedding`, {
+            const response = await axios.get(joinApiUrl(baseUrl, modelsRequestPath('siliconflow-embedding')), {
               headers: { 'Authorization': `Bearer ${apiKey}` },
               signal: this.getAbortSignal(),
               timeout: 10000
@@ -440,46 +462,40 @@ class AIService {
     if (baseUrl.includes('siliconflow.cn')) {
       console.log('[AI服务] 检测到硅基流动API，返回硅基流动预设模型列表');
       return [
-        'Qwen/Qwen2.5-7B-Instruct',
-        'Qwen/Qwen2.5-14B-Instruct',
-        'Qwen/Qwen2.5-32B-Instruct',
-        'Qwen/Qwen2.5-72B-Instruct',
-        'Qwen/QwQ-32B-Preview',
-        'deepseek-ai/DeepSeek-V2.5',
-        'deepseek-ai/DeepSeek-R1',
-        'Pro/Qwen/Qwen2.5-7B-Instruct',
-        'Pro/Qwen/Qwen2.5-14B-Instruct',
-        'Pro/Qwen/Qwen2.5-32B-Instruct',
-        'Pro/Qwen/Qwen2.5-72B-Instruct'
+        'Qwen/Qwen3.5-397B-A17B',
+        'Qwen/Qwen3.5-35B-A3B',
+        'Qwen/Qwen3-Next-80B-A3B-Instruct',
+        'deepseek-ai/DeepSeek-V4.1-Flash',
+        'deepseek-ai/DeepSeek-V4-Pro',
+        'BAAI/bge-m3',
+        'Pro/Qwen/Qwen3.5-397B-A17B',
+        'Pro/deepseek-ai/DeepSeek-V4.1-Flash'
       ];
     }
 
     // DeepSeek预设模型
     if (provider === 'deepseek' || baseUrl.includes('deepseek.com')) {
       return [
-        'deepseek-v4-flash',
-        'deepseek-v4-pro',
-        'deepseek-chat',
-        'deepseek-reasoner'
+        'deepseek-flash',
+        'deepseek-v4-pro'
       ];
     }
 
     // OpenAI预设模型
     if (provider === 'openai' || baseUrl.includes('openai.com')) {
       return [
-        'gpt-4o',
-        'gpt-4o-mini',
-        'gpt-4-turbo',
-        'gpt-3.5-turbo'
+        'gpt-6-astra',
+        'gpt-6-sol',
+        'gpt-6-luna'
       ];
     }
 
     // 默认返回通用模型列表
     return [
-      'gpt-4o',
-      'gpt-4o-mini',
-      'gpt-3.5-turbo',
-      'deepseek-v4-flash'
+      'gpt-6-astra',
+      'gpt-6-sol',
+      'gpt-6-luna',
+      'deepseek-flash'
     ];
   }
 
@@ -882,7 +898,7 @@ class AIService {
     const usageType = options.usageType;
     const apiConfig = usageType ? this.getAPIConfigForUsageType(usageType) : null;
     const responseFormat = options.responseFormat || (apiConfig?.forceJsonOutput ? 'json_object' : undefined);
-    return this.callAPI(api, messages, shouldStream, options.onStreamChunk, responseFormat);
+    return this.callAPI(api, messages, shouldStream, options.onStreamChunk, responseFormat, options.usageType);
   }
 
   private async generateRawWithCustomAPI(options: GenerateOptions, api: CustomAPIConfig | undefined = this.config.customAPI): Promise<string> {
@@ -902,7 +918,84 @@ class AIService {
     const apiConfig = usageType ? this.getAPIConfigForUsageType(usageType) : null;
     const responseFormat = options.responseFormat || (apiConfig?.forceJsonOutput ? 'json_object' : undefined);
     console.log(`[AI服务-自定义Raw] shouldStream=${shouldStream}, hasOnStreamChunk=${!!options.onStreamChunk}, options.should_stream=${options.should_stream}, config.streaming=${this.config.streaming}`);
-    return this.callAPI(api, messages, shouldStream, options.onStreamChunk, responseFormat);
+    return this.callAPI(api, messages, shouldStream, options.onStreamChunk, responseFormat, options.usageType);
+  }
+
+  /** 内置 API 不保存上游密钥。格式沿用后端下发的 openai / gemini，请求时再换成登录令牌。 */
+  private resolveBuiltinApi(api: CustomAPIConfig): CustomAPIConfig {
+    if (!api.builtin && api.apiKey !== BUILTIN_API_KEY) return api;
+    const token = localStorage.getItem('access_token') || '';
+    if (!token) {
+      throw new Error('使用公益 API 需要先登录云端账号');
+    }
+    const builtinServerId = api.builtinServerId || 'builtin';
+    this.assertBuiltinQuota(builtinServerId);
+    return {
+      ...api,
+      builtin: true,
+      builtinServerId,
+      provider: api.provider === 'gemini' ? 'gemini' : 'custom',
+      url: builtinProxyBaseUrl(),
+      apiKey: token,
+    };
+  }
+
+  private builtinStore() {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAPIManagementStore } = require('@/stores/apiManagementStore') as typeof import('@/stores/apiManagementStore');
+    return useAPIManagementStore();
+  }
+
+  private builtinClient(serverId?: string) {
+    const configs = this.builtinStore().apiConfigs;
+    if (serverId) {
+      const found = configs.find((item) => item.builtin && item.builtinServerId === serverId);
+      if (found) return found;
+    }
+    return configs.find((item) => item.builtin);
+  }
+
+  /** 余额已知且不够这次的单价时，直接提示去签到，不白跑一趟服务器 */
+  private assertBuiltinQuota(serverId?: string) {
+    const api = this.builtinClient(serverId);
+    const balance = this.builtinStore().builtinBalance;
+    if (!api || balance === null) return;
+    const cost = api.cost ?? 1;
+    if (cost > 0 && balance < cost) {
+      this.promptBuiltinQuota();
+      throw new Error(`公益额度不足（本次需要 ${cost}，剩余 ${balance}）`);
+    }
+  }
+
+  private noteBuiltinConsumed(serverId?: string, usageType?: APIUsageType) {
+    const api = this.builtinClient(serverId);
+    if (!api) return;
+    this.builtinStore().consumeBuiltinQuota(api.id);
+    recordBuiltinUsage({
+      name: api.name,
+      model: api.model,
+      cost: api.cost ?? 1,
+      balance: this.builtinStore().builtinBalance,
+      usage: usageType || 'main',
+    });
+  }
+
+  private noteBuiltinRejected(error: unknown, serverId?: string) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('额度不足')) return;
+    void serverId;
+    this.builtinStore().markBuiltinQuotaExhausted();
+    this.promptBuiltinQuota();
+  }
+
+  /** 额度不够时弹提示：没签到引导签到，签过了引导切回自己的 API */
+  private promptBuiltinQuota() {
+    void import('@/services/builtinQuotaPrompt').then((m) => m.promptBuiltinQuota());
+  }
+
+  private withBuiltinId(headers: Record<string, string>, serverId?: string) {
+    if (serverId) headers['X-Builtin-Id'] = serverId;
+    return headers;
   }
 
   private async callAPI(
@@ -910,15 +1003,18 @@ class AIService {
     messages: AIMessage[],
     streaming: boolean,
     onStreamChunk?: (chunk: string) => void,
-    responseFormat?: 'json_object'
+    responseFormat?: 'json_object',
+    usageType?: APIUsageType
   ): Promise<string> {
+    api = this.resolveBuiltinApi(api);
     const { provider, url, model } = api;
 
     // 🔥 某些模型/API不支持 response_format: json_object
     const isReasonerModel = model.includes('reasoner') || model.includes('r1');
     const isClaudeModel = model.includes('claude');
     const isUnsupportedAPI = this.isResponseFormatUnsupported(url, model, provider);
-    const shouldSkipResponseFormat = isReasonerModel || isClaudeModel || isUnsupportedAPI;
+    const jsonCapable = !!api.builtin || JSON_CAPABLE.includes(provider);
+    const shouldSkipResponseFormat = !jsonCapable || isReasonerModel || isClaudeModel || isUnsupportedAPI;
     const effectiveResponseFormat = (responseFormat && !shouldSkipResponseFormat) ? responseFormat : undefined;
     if (responseFormat && shouldSkipResponseFormat) {
       const reason = isReasonerModel ? 'reasoner模型' : isClaudeModel ? 'Claude模型' : '该API';
@@ -944,41 +1040,37 @@ class AIService {
     console.log(`[AI服务-API调用] Provider: ${provider}, URL: ${url}, Model: ${model}, 消息数: ${finalMessages.length}, 流式: ${streaming}`);
 
     // 根据provider选择不同的调用方式
-    switch (provider) {
-      case 'claude':
-        return this.callClaudeAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
-      case 'gemini':
-        return this.callGeminiAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
-      case 'openai':
-      case 'deepseek':
-      case 'zhipu':
-      case 'volcengine':
-      case 'custom':
-      default:
-        return this.callOpenAICompatibleAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+    try {
+      let text: string;
+      switch (provider) {
+        case 'claude':
+          text = await this.callClaudeAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+          break;
+        case 'gemini':
+          text = await this.callGeminiAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+          break;
+        case 'openai':
+        case 'deepseek':
+        case 'zhipu':
+        case 'volcengine':
+        case 'custom':
+        default:
+          text = await this.callOpenAICompatibleAPI(api, finalMessages, streaming, onStreamChunk, effectiveResponseFormat);
+      }
+      if (api.builtin) this.noteBuiltinConsumed(api.builtinServerId, usageType);
+      return text;
+    } catch (error) {
+      if (api.builtin) this.noteBuiltinRejected(error, api.builtinServerId);
+      throw error;
     }
   }
 
   private getChatEndpoint(url: string, provider: APIProvider): string {
-    switch (provider) {
-      case 'zhipu':
-        return `${url}/api/paas/v4/chat/completions`;
-      case 'volcengine':
-        return `${url}/api/v3/chat/completions`;
-      default:
-        return `${url}/v1/chat/completions`;
-    }
+    return joinApiUrl(url, chatRequestPath(provider));
   }
 
   private getModelsEndpoint(url: string, provider: APIProvider): string {
-    switch (provider) {
-      case 'zhipu':
-        return `${url}/api/paas/v4/models`;
-      case 'volcengine':
-        return `${url}/api/v3/models`;
-      default:
-        return `${url}/v1/models`;
-    }
+    return joinApiUrl(url, modelsRequestPath(provider) || '/v1/models');
   }
 
   // OpenAI兼容格式（OpenAI、DeepSeek、自定义）
@@ -1008,9 +1100,11 @@ class AIService {
     // Many OpenAI-compatible providers expose these model names; match by model string first.
     if (provider === 'deepseek' || m.includes('deepseek')) return DEEPSEEK_V4_CONTEXT_WINDOW;
     if (m.includes('moonshot') || m.includes('kimi')) return 128_000;
-    if (provider === 'zhipu' || m.includes('glm')) return 128_000;
+    if (provider === 'zhipu' || m.includes('glm')) return 256_000;
+    if (provider === 'volcengine' || m.includes('doubao-seed')) return 1_000_000;
 
     // OpenAI-compatible defaults
+    if (m.includes('gpt-6') || m.includes('gpt-5.6') || m.includes('gpt-5')) return 1_050_000;
     if (m.includes('gpt-4o') || m.includes('gpt-4.1') || m.includes('o1') || m.includes('o3')) return 128_000;
     if (m.includes('gpt-4')) return 128_000;
     if (m.includes('gpt-3.5')) return 16_385;
@@ -1102,7 +1196,7 @@ class AIService {
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = api;
+    const { provider, url, apiKey, model, temperature, maxTokens, thinkingLevel = 'default' } = api;
     const safeMaxTokens = this.clampMaxTokensForContext(provider, model, messages, maxTokens || 16000);
 
     // 不同提供商使用不同的API路径
@@ -1113,7 +1207,7 @@ class AIService {
     try {
       if (streaming) {
         try {
-          return await this.streamingRequestOpenAI(url, apiKey, model, messages, temperature || 0.7, safeMaxTokens, onStreamChunk, responseFormat, provider);
+          return await this.streamingRequestOpenAI(url, apiKey, model, messages, temperature || 0.7, safeMaxTokens, onStreamChunk, responseFormat, provider, thinkingLevel, api.builtinServerId);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (!this.isStreamUnsupportedError(msg)) throw e;
@@ -1126,6 +1220,7 @@ class AIService {
             stream: false
           };
           this.applyMaxTokensParam(requestBody, provider, model, safeMaxTokens);
+          this.applyThinkingParam(requestBody, provider, thinkingLevel);
 
           // 如果指定了 JSON 格式，添加 response_format
           // 🔥 注意：某些模型/API不支持 response_format
@@ -1141,10 +1236,10 @@ class AIService {
             chatEndpoint,
             requestBody,
             {
-              headers: {
+              headers: this.withBuiltinId({
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
-              },
+              }, api.builtinServerId),
               timeout: 60000, // 减少到60秒
               signal: this.getAbortSignal()
             }
@@ -1162,6 +1257,7 @@ class AIService {
           stream: false
         };
         this.applyMaxTokensParam(requestBody, provider, model, safeMaxTokens);
+        this.applyThinkingParam(requestBody, provider, thinkingLevel);
 
         // 如果指定了 JSON 格式，添加 response_format
         // 🔥 注意：某些模型/API不支持 response_format
@@ -1177,10 +1273,10 @@ class AIService {
           chatEndpoint,
           requestBody,
           {
-            headers: {
+            headers: this.withBuiltinId({
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
-            },
+            }, api.builtinServerId),
             timeout: 120000,
             signal: this.getAbortSignal()
           }
@@ -1203,6 +1299,12 @@ class AIService {
     }
   }
 
+  private applyThinkingParam(requestBody: Record<string, unknown>, provider: APIProvider, level: ThinkingLevel) {
+    if (level === 'default' || (provider !== 'deepseek' && provider !== 'volcengine')) return;
+    requestBody.thinking = { type: level === 'off' ? 'disabled' : 'enabled' };
+    if (provider === 'deepseek' && level !== 'off') requestBody.reasoning_effort = level;
+  }
+
   // Claude API格式
   private async callClaudeAPI(
     api: CustomAPIConfig,
@@ -1211,7 +1313,7 @@ class AIService {
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = api;
+    const { provider, url, apiKey, model, temperature, maxTokens, thinkingLevel = 'default' } = api;
 
     // 转换消息格式：提取system消息，其余转为Claude格式
     let systemPrompt = '';
@@ -1251,6 +1353,15 @@ class AIService {
         temperature: temperature || 0.7
       };
 
+      if (thinkingLevel !== 'default') {
+        if (thinkingLevel !== 'off') {
+          const budget = thinkingLevel === 'low' ? 2048 : thinkingLevel === 'medium' ? 8192 : 16384;
+          body.thinking = { type: 'enabled', budget_tokens: budget };
+          body.max_tokens = Math.max(body.max_tokens, budget + 1024);
+          delete body.temperature;
+        }
+      }
+
       // Claude 支持 JSON 模式（通过 prefill 技巧）
       if (responseFormat === 'json_object') {
         console.log('[AI服务-Claude] 启用JSON格式输出（使用prefill技巧）');
@@ -1267,14 +1378,14 @@ class AIService {
     try {
       if (streaming) {
         try {
-          return await this.streamingRequestClaude(baseUrl, apiKey, model, systemPrompt, claudeMessages, temperature || 0.7, safeMaxTokens, onStreamChunk);
+          return await this.streamingRequestClaude(baseUrl, apiKey, model, systemPrompt, claudeMessages, temperature || 0.7, safeMaxTokens, onStreamChunk, thinkingLevel);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (!this.isStreamUnsupportedError(msg)) throw e;
           console.warn('[AI服务-Claude] 当前API可能不支持流式传输，已自动降级为非流式请求。');
 
           const response = await axios.post(
-            `${baseUrl}/v1/messages`,
+            joinApiUrl(baseUrl, chatRequestPath('claude')),
             buildRequestBody(),
             {
               headers: {
@@ -1297,7 +1408,7 @@ class AIService {
         }
       } else {
         const response = await axios.post(
-          `${baseUrl}/v1/messages`,
+          joinApiUrl(baseUrl, chatRequestPath('claude')),
           buildRequestBody(),
           {
             headers: {
@@ -1337,7 +1448,7 @@ class AIService {
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object'
   ): Promise<string> {
-    const { provider, url, apiKey, model, temperature, maxTokens } = api;
+    const { provider, url, apiKey, model, temperature, maxTokens, thinkingLevel = 'default' } = api;
 
     // 验证必需参数
     if (!model || model.trim() === '') {
@@ -1365,7 +1476,6 @@ class AIService {
     }
 
     const baseUrl = url || 'https://generativelanguage.googleapis.com';
-    const endpoint = streaming ? 'streamGenerateContent' : 'generateContent';
     const safeMaxTokens = this.clampMaxTokensForContext(
       provider,
       model,
@@ -1383,6 +1493,13 @@ class AIService {
         maxOutputTokens: safeMaxTokens
       };
 
+      if (thinkingLevel !== 'default') {
+        const isGemini3 = /^gemini-3/i.test(model);
+        config.thinkingConfig = isGemini3
+          ? { thinkingLevel: thinkingLevel === 'off' ? 'low' : thinkingLevel, includeThoughts: thinkingLevel !== 'off' }
+          : { thinkingBudget: thinkingLevel === 'off' ? 0 : thinkingLevel === 'low' ? 1024 : thinkingLevel === 'medium' ? 4096 : 8192, includeThoughts: thinkingLevel !== 'off' };
+      }
+
       // Gemini 支持 JSON 模式（通过 response_mime_type）
       if (responseFormat === 'json_object') {
         console.log('[AI服务-Gemini] 启用JSON格式输出（使用response_mime_type）');
@@ -1399,16 +1516,18 @@ class AIService {
       generationConfig: buildGenerationConfig()
     };
 
-    // Gemini API请求辅助函数：支持查询参数和Bearer token两种方式
-    const makeGeminiRequest = async (urlPath: string, useQueryParam: boolean = true) => {
-      const requestUrl = useQueryParam
-        ? `${baseUrl}${urlPath}?key=${apiKey}`
-        : `${baseUrl}${urlPath}`;
+    // 内置接口走登录令牌，不能把玩家令牌当成 Gemini 的 key 查询参数
+    const makeGeminiRequest = async (urlPath: string, useQueryParam: boolean = !api.builtin) => {
+      const endpoint = joinApiUrl(baseUrl, urlPath);
+      const requestUrl = api.builtin || !useQueryParam
+        ? endpoint
+        : `${endpoint}?key=${encodeURIComponent(apiKey)}`;
 
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (!useQueryParam) {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (api.builtin || !useQueryParam) {
         headers['Authorization'] = `Bearer ${apiKey}`;
       }
+      if (api.builtin && api.builtinServerId) headers['X-Builtin-Id'] = api.builtinServerId;
 
       return axios.post(requestUrl, requestBody, {
         headers,
@@ -1420,7 +1539,7 @@ class AIService {
     try {
       if (streaming) {
         try {
-          return await this.streamingRequestGemini(baseUrl, apiKey, model, systemInstruction, contents, temperature || 0.7, safeMaxTokens, onStreamChunk);
+          return await this.streamingRequestGemini(baseUrl, apiKey, model, systemInstruction, contents, temperature || 0.7, safeMaxTokens, onStreamChunk, responseFormat, !!api.builtin, thinkingLevel, api.builtinServerId);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (!this.isStreamUnsupportedError(msg)) throw e;
@@ -1428,7 +1547,7 @@ class AIService {
 
           // 尝试查询参数方式
           try {
-            const response = await makeGeminiRequest(`/v1beta/models/${model}:generateContent`, true);
+            const response = await makeGeminiRequest(chatRequestPath('gemini', model), true);
             const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             console.log(`[AI服务-Gemini] 响应长度: ${content.length}`);
             return content;
@@ -1436,7 +1555,7 @@ class AIService {
             // 如果查询参数方式失败且是401错误，尝试Bearer token方式
             if (axios.isAxiosError(queryError) && queryError.response?.status === 401) {
               console.warn('[AI服务-Gemini] 查询参数认证失败，尝试Bearer token方式');
-              const response = await makeGeminiRequest(`/v1beta/models/${model}:generateContent`, false);
+              const response = await makeGeminiRequest(chatRequestPath('gemini', model), false);
               const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
               console.log(`[AI服务-Gemini] 响应长度: ${content.length}`);
               return content;
@@ -1447,7 +1566,7 @@ class AIService {
       } else {
         // 尝试查询参数方式
         try {
-          const response = await makeGeminiRequest(`/v1beta/models/${model}:${endpoint}`, true);
+          const response = await makeGeminiRequest(chatRequestPath('gemini', model), true);
           const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
           console.log(`[AI服务-Gemini] 响应长度: ${content.length}`);
           return content;
@@ -1455,7 +1574,7 @@ class AIService {
           // 如果查询参数方式失败且是401错误，尝试Bearer token方式
           if (axios.isAxiosError(queryError) && queryError.response?.status === 401) {
             console.warn('[AI服务-Gemini] 查询参数认证失败，尝试Bearer token方式');
-            const response = await makeGeminiRequest(`/v1beta/models/${model}:${endpoint}`, false);
+            const response = await makeGeminiRequest(chatRequestPath('gemini', model), false);
             const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             console.log(`[AI服务-Gemini] 响应长度: ${content.length}`);
             return content;
@@ -1484,7 +1603,9 @@ class AIService {
     maxTokens: number,
     onStreamChunk?: (chunk: string) => void,
     responseFormat?: 'json_object',
-    provider?: APIProvider
+    provider?: APIProvider,
+    thinkingLevel: ThinkingLevel = 'default',
+    builtinServerId?: string
   ): Promise<string> {
     console.log('[AI服务-OpenAI流式] 开始');
 
@@ -1495,6 +1616,13 @@ class AIService {
       max_tokens: maxTokens,
       stream: true
     };
+
+    if (thinkingLevel !== 'default' && (provider === 'deepseek' || provider === 'volcengine')) {
+      requestBody.thinking = { type: thinkingLevel === 'off' ? 'disabled' : 'enabled' };
+    }
+    if (thinkingLevel !== 'default' && provider === 'deepseek' && thinkingLevel !== 'off') {
+      requestBody.reasoning_effort = thinkingLevel;
+    }
 
     // 如果指定了 JSON 格式，添加 response_format
     // 🔥 注意：某些模型/API不支持 response_format
@@ -1515,11 +1643,11 @@ class AIService {
 
     const response = await fetch(chatEndpoint, {
       method: 'POST',
-      headers: {
+      headers: this.withBuiltinId({
         'Authorization': `Bearer ${apiKey}`,
         'Accept': 'text/event-stream',
         'Content-Type': 'application/json'
-      },
+      }, builtinServerId),
       body: JSON.stringify(requestBody),
       signal: this.getAbortSignal()
     });
@@ -1555,7 +1683,8 @@ class AIService {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     temperature: number,
     maxTokens: number,
-    onStreamChunk?: (chunk: string) => void
+    onStreamChunk?: (chunk: string) => void,
+    thinkingLevel: ThinkingLevel = 'default'
   ): Promise<string> {
     console.log(`[AI服务-Claude流式] 开始`);
 
@@ -1567,8 +1696,16 @@ class AIService {
       temperature,
       stream: true
     };
+    if (thinkingLevel !== 'default') {
+      if (thinkingLevel !== 'off') {
+        const budget = thinkingLevel === 'low' ? 2048 : thinkingLevel === 'medium' ? 8192 : 16384;
+        requestBody.thinking = { type: 'enabled', budget_tokens: budget };
+        requestBody.max_tokens = Math.max(maxTokens, budget + 1024);
+        delete requestBody.temperature;
+      }
+    }
 
-    const response = await fetch(`${url}/v1/messages`, {
+    const response = await fetch(joinApiUrl(url, chatRequestPath('claude')), {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -1630,7 +1767,11 @@ class AIService {
     contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
     temperature: number,
     maxTokens: number,
-    onStreamChunk?: (chunk: string) => void
+    onStreamChunk?: (chunk: string) => void,
+    responseFormat?: 'json_object',
+    bearerAuth = false,
+    thinkingLevel: ThinkingLevel = 'default',
+    builtinServerId?: string
   ): Promise<string> {
     console.log(`[AI服务-Gemini流式] 开始`);
 
@@ -1638,10 +1779,24 @@ class AIService {
       temperature,
       maxOutputTokens: maxTokens
     };
+    if (responseFormat === 'json_object') {
+      generationConfig.response_mime_type = 'application/json';
+    }
+    if (thinkingLevel !== 'default') {
+      const isGemini3 = /^gemini-3/i.test(model);
+      generationConfig.thinkingConfig = isGemini3
+        ? { thinkingLevel: thinkingLevel === 'off' ? 'low' : thinkingLevel, includeThoughts: thinkingLevel !== 'off' }
+        : { thinkingBudget: thinkingLevel === 'off' ? 0 : thinkingLevel === 'low' ? 1024 : thinkingLevel === 'medium' ? 4096 : 8192, includeThoughts: thinkingLevel !== 'off' };
+    }
 
-    const response = await fetch(`${url}/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`, {
+    const streamUrl = bearerAuth
+      ? `${joinApiUrl(url, geminiStreamPath(model))}?alt=sse`
+      : `${joinApiUrl(url, geminiStreamPath(model))}?key=${apiKey}&alt=sse`;
+    const response = await fetch(streamUrl, {
       method: 'POST',
-      headers: { 'Accept': 'text/event-stream', 'Content-Type': 'application/json' },
+      headers: bearerAuth
+        ? this.withBuiltinId({ 'Authorization': `Bearer ${apiKey}`, 'Accept': 'text/event-stream', 'Content-Type': 'application/json' }, builtinServerId)
+        : { 'Accept': 'text/event-stream', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents,
         systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
@@ -1785,6 +1940,13 @@ class AIService {
       }
       return { available: true, message: '酒馆模式已就绪' };
     } else {
+      const builtin = !!this.config.customAPI?.builtin || this.config.customAPI?.apiKey === BUILTIN_API_KEY;
+      if (builtin) {
+        if (!localStorage.getItem('access_token')) {
+          return { available: false, message: '公益 API 需要先登录云端账号。' };
+        }
+        return { available: true, message: '公益 API 已就绪' };
+      }
       if (!this.config.customAPI?.url || !this.config.customAPI?.apiKey) {
         return {
           available: false,

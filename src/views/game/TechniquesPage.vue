@@ -13,7 +13,8 @@
         <button type="button" class="cc-btn primary" @click="tab = 'library'"><Library :size="15" /><span>前往功法库</span></button>
       </EmptyState>
 
-      <template v-else>
+      <div v-else class="practice-grid">
+        <div class="practice-main">
         <section class="banner" :style="{ '--quality': qualityTone(current.品质) }">
           <ProgressRing :percent="progressOf(current)" :size="96" :tone="progressOf(current) >= 100 ? 'hot' : 'accent'" />
           <div class="banner-main">
@@ -41,6 +42,7 @@
           <button type="button" class="cc-btn ghost" :disabled="unequipping" @click="unequip(current)"><LogOut :size="15" /><span>卸下</span></button>
         </div>
         <p class="acts-note">以上按钮只会把意图告诉天道（下回合随输入发出），数值变化由剧情推演决定。</p>
+        </div>
 
         <section class="route-sec">
           <header class="gm-sec-head">
@@ -69,7 +71,7 @@
           </ol>
           <p v-else class="gm-muted">此功法没有记载可修习的技能。</p>
         </section>
-      </template>
+      </div>
     </div>
 
     <!-- 掌握技能 -->
@@ -329,11 +331,26 @@ const pickBook = (id: string) => {
   flex-direction: column;
 }
 
+.practice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 1fr);
+  align-items: start;
+  gap: 2rem;
+  padding-bottom: 1.5rem;
+}
+
+.practice-main {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .banner {
   display: flex;
   align-items: center;
   gap: 1.75rem;
-  max-width: 980px;
   padding: 1.5rem 1.75rem;
   border: 1px solid color-mix(in srgb, var(--quality) 40%, var(--cc-border));
   border-radius: 8px;
@@ -391,7 +408,6 @@ const pickBook = (id: string) => {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  max-width: 980px;
   margin-top: 1rem;
 }
 
@@ -412,9 +428,7 @@ const pickBook = (id: string) => {
 }
 
 .route-sec {
-  max-width: 980px;
-  margin-top: 2rem;
-  padding-bottom: 1.5rem;
+  min-width: 0;
 }
 
 .route {
@@ -540,6 +554,17 @@ const pickBook = (id: string) => {
   padding-left: 1.1rem;
   font-size: 14px;
   line-height: 1.8;
+}
+
+@media (max-width: 1200px) {
+  .practice-grid {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 900px;
+  }
+
+  .practice-main {
+    position: static;
+  }
 }
 
 @media (max-width: 768px) {

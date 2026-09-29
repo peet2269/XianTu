@@ -14,7 +14,19 @@
     <link rel="shortcut icon" href="https://www.ddct.top/favicon.ico" />
     <meta name="author" content="仙途开发团队" />
     <title>仙途 - AI驱动的修仙大世界 | AI游戏 | AI修仙 | 官方网站</title>
-    <meta name="theme-color" content="#100e0c" />
+    <meta name="theme-color" content="#0c1220" />
+    <script>
+      (function () {
+        var theme = 'dark';
+        try {
+          var stored = localStorage.getItem('theme');
+          if (stored === 'light' || stored === 'dark') theme = stored;
+          else if (stored === 'auto') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } catch (e) {}
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:title" content="仙途 - AI驱动的修仙大世界 | AI游戏" />
     <meta
@@ -79,23 +91,23 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
               cyber: {
-                dark: '#100e0c',
-                darker: '#0a0908',
-                blue: '#d4af37',
-                gold: '#f0d78c',
-                teal: '#6b8f71',
-                gray: '#1a1612'
+                dark: '#0c1220',
+                darker: '#070b14',
+                blue: '#9db8ff',
+                gold: '#d4b878',
+                teal: '#5fbfa9',
+                gray: '#121a2c'
               }
             },
             fontFamily: {
-              sans: ['Inter', 'system-ui', 'sans-serif'],
+              sans: ['Noto Serif SC', 'serif'],
               serif: ['Noto Serif SC', 'serif']
             }
           }
@@ -103,766 +115,604 @@
       }
     </script>
     <style>
-      * { box-sizing: border-box; }
-
-      :root {
-        --ink: #100e0c;
-        --ink-deep: #0a0908;
-        --paper: #1a1612;
-        --gold: #d4af37;
-        --gold-bright: #f0d78c;
-        --gold-dim: rgba(212, 175, 55, 0.35);
-        --jade: #6b8f71;
-        --cinnabar: #a84a3a;
-        --text: #e8dfcf;
-        --muted: rgba(232, 223, 207, 0.65);
-      }
-
-      body {
-        background:
-          radial-gradient(ellipse at 15% 10%, rgba(212, 175, 55, 0.07), transparent 42%),
-          radial-gradient(ellipse at 85% 0%, rgba(107, 143, 113, 0.05), transparent 40%),
-          linear-gradient(180deg, #12100e 0%, #0d0b09 45%, #090807 100%);
-        font-family: 'Noto Serif SC', 'Songti SC', serif;
-        color: var(--text);
-        overflow-x: hidden;
-        scroll-behavior: smooth;
-      }
-
-      /* 水墨云雾背景（替代科技网格） */
-      .grid-bg {
-        position: fixed;
-        inset: 0;
-        background-image:
-          radial-gradient(ellipse at 20% 30%, rgba(212, 175, 55, 0.04), transparent 50%),
-          radial-gradient(ellipse at 80% 70%, rgba(107, 143, 113, 0.035), transparent 45%),
-          radial-gradient(circle at 50% 100%, rgba(168, 74, 58, 0.03), transparent 40%);
-        pointer-events: none;
-        z-index: 0;
-      }
-      .grid-bg::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        opacity: 0.035;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-        pointer-events: none;
-      }
-
-      /* 灵气光晕 */
-      .tech-particles {
-        position: fixed;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
-        z-index: 1;
-      }
-
-      .tech-particles::before,
-      .tech-particles::after {
-        content: '';
-        position: absolute;
-        width: 360px;
-        height: 360px;
-        border-radius: 50%;
-        filter: blur(90px);
-        opacity: 0.12;
-        animation: float-glow 22s ease-in-out infinite;
-      }
-
-      .tech-particles::before {
-        background: radial-gradient(circle, #d4af37 0%, transparent 70%);
-        top: 8%;
-        left: 8%;
-      }
-
-      .tech-particles::after {
-        background: radial-gradient(circle, #6b8f71 0%, transparent 70%);
-        bottom: 16%;
-        right: 8%;
-        animation-delay: -11s;
-      }
-
-      @keyframes float-glow {
-        0%, 100% { transform: translate(0, 0) scale(1); }
-        25% { transform: translate(40px, 24px) scale(1.08); }
-        50% { transform: translate(16px, -18px) scale(0.92); }
-        75% { transform: translate(-28px, 18px) scale(1.04); }
-      }
-
-      .glow-text {
-        text-shadow: 0 0 18px rgba(240, 215, 140, 0.28), 0 0 36px rgba(212, 175, 55, 0.12);
-      }
-
-      .glow-gold {
-        text-shadow: 0 0 18px rgba(212, 175, 55, 0.4), 0 0 36px rgba(212, 175, 55, 0.18);
-      }
-
-      /* 修仙金墨标题（替换赛博彩虹） */
-      .text-gradient-cyber {
-        background: linear-gradient(180deg, #f7e7b0 0%, #d4af37 48%, #8c6a22 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        animation: none;
-        font-family: 'Noto Serif SC', serif;
-        letter-spacing: 0.08em;
-      }
-
-      /* 卷轴/墨色卡片 */
-      .cyber-card {
-        background: linear-gradient(165deg, rgba(36, 30, 22, 0.92), rgba(18, 16, 14, 0.88));
-        border: 1px solid rgba(212, 175, 55, 0.22);
-        backdrop-filter: blur(10px);
-        position: relative;
-        overflow: hidden;
-        transition: all 0.35s ease;
-        box-shadow: inset 0 0 0 1px rgba(255, 236, 180, 0.03);
-      }
-
-      .cyber-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        width: 100%;
-        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.45), transparent);
-        animation: none;
-        transform: none;
-      }
-
-      .cyber-card::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.07), transparent 55%);
-        opacity: 0;
-        transition: opacity 0.35s ease;
-        pointer-events: none;
-      }
-
-      .cyber-card:hover::after { opacity: 1; }
-
-      .cyber-card:hover {
-        border-color: rgba(212, 175, 55, 0.5);
-        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35), 0 0 28px rgba(212, 175, 55, 0.08);
-        transform: translateY(-4px);
-      }
-
-      /* 修仙风友链 */
-      .xian-friends {
-        position: relative;
-      }
-      .xian-friends::before {
-        content: '';
-        position: absolute;
-        inset: 8% 10% auto;
-        height: 220px;
-        background:
-          radial-gradient(ellipse at 30% 40%, rgba(212, 175, 55, 0.12), transparent 55%),
-          radial-gradient(ellipse at 70% 30%, rgba(180, 120, 60, 0.08), transparent 50%);
-        filter: blur(8px);
-        pointer-events: none;
-      }
-      .xian-title {
-        font-family: 'Noto Serif SC', serif;
-        letter-spacing: 0.18em;
-        background: linear-gradient(180deg, #f3e2a8 0%, #d4af37 45%, #a67c2a 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-      .xian-eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-family: 'Noto Serif SC', serif;
-        font-size: 13px;
-        letter-spacing: 0.28em;
-        color: rgba(212, 175, 55, 0.75);
-      }
-      .xian-eyebrow::before,
-      .xian-eyebrow::after {
-        content: '';
-        width: 28px;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.55), transparent);
-      }
-      .friend-links {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      .friend-links > li {
-        margin: 0;
-      }
-      .xian-friend-card {
-        position: relative;
-        display: block;
-        padding: 1.75rem 1.5rem;
-        text-decoration: none;
-        color: inherit;
-        background:
-          linear-gradient(160deg, rgba(36, 28, 18, 0.92), rgba(18, 16, 22, 0.88)),
-          radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 45%);
-        border: 1px solid rgba(212, 175, 55, 0.35);
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 236, 180, 0.06),
-          0 18px 40px rgba(0, 0, 0, 0.35);
-        transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
-      }
-      .xian-friend-card::before,
-      .xian-friend-card::after {
-        content: '';
-        position: absolute;
-        width: 18px;
-        height: 18px;
-        border-color: rgba(212, 175, 55, 0.7);
-        border-style: solid;
-        pointer-events: none;
-      }
-      .xian-friend-card::before {
-        top: 8px;
-        left: 8px;
-        border-width: 1px 0 0 1px;
-      }
-      .xian-friend-card::after {
-        right: 8px;
-        bottom: 8px;
-        border-width: 0 1px 1px 0;
-      }
-      .xian-friend-card:hover {
-        border-color: rgba(234, 200, 98, 0.7);
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 236, 180, 0.1),
-          0 22px 48px rgba(0, 0, 0, 0.4),
-          0 0 36px rgba(212, 175, 55, 0.12);
-        transform: translateY(-3px);
-      }
-      .xian-friend-card h3 {
-        font-family: 'Noto Serif SC', serif;
-        font-size: clamp(1.5rem, 3vw, 2rem);
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        color: #f5e6c0;
-        margin: 0.35rem 0 0.75rem;
-      }
-      .xian-friend-card h3 span {
-        font-family: Inter, system-ui, sans-serif;
-        font-size: 0.72em;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        color: rgba(212, 175, 55, 0.85);
-      }
-      .xian-friend-meta {
-        font-family: 'Noto Serif SC', serif;
-        font-size: 12px;
-        letter-spacing: 0.2em;
-        color: rgba(212, 175, 55, 0.8);
-      }
-      .xian-friend-desc {
-        margin: 0;
-        color: rgba(220, 210, 190, 0.82);
-        line-height: 1.75;
-        font-size: 0.95rem;
-      }
-      .xian-friend-url {
-        display: inline-block;
-        margin-top: 0.85rem;
-        font-size: 0.85rem;
-        color: #d4af37;
-        letter-spacing: 0.04em;
-      }
-      .xian-friend-cta {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 1rem;
-        padding: 0.65rem 1.15rem;
-        border: 1px solid rgba(212, 175, 55, 0.45);
-        background: linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(120, 80, 20, 0.18));
-        color: #f3e2a8;
-        font-family: 'Noto Serif SC', serif;
-        letter-spacing: 0.12em;
-        transition: background 0.3s ease, border-color 0.3s ease;
-      }
-      .xian-friend-card:hover .xian-friend-cta {
-        background: linear-gradient(180deg, rgba(212, 175, 55, 0.28), rgba(140, 95, 25, 0.25));
-        border-color: rgba(234, 200, 98, 0.7);
-      }
-      .xian-nav-pill {
-        background: linear-gradient(180deg, rgba(212, 175, 55, 0.22), rgba(120, 80, 20, 0.18)) !important;
-        border-color: rgba(212, 175, 55, 0.55) !important;
-        color: #f3e2a8 !important;
-      }
-      .xian-nav-pill:hover {
-        box-shadow: 0 0 18px rgba(212, 175, 55, 0.25) !important;
-        border-color: rgba(234, 200, 98, 0.75) !important;
-      }
-      /* 织界品牌按钮 */
-      .wl-nav-btn {
-        background: linear-gradient(180deg, rgba(0, 208, 132, 0.28), rgba(0, 120, 80, 0.18)) !important;
-        border-color: rgba(0, 208, 132, 0.7) !important;
-        color: #b8ffe0 !important;
-        box-shadow: 0 0 0 1px rgba(0, 208, 132, 0.18), 0 0 16px rgba(0, 208, 132, 0.12);
-        font-size: 1.05rem !important;
-        padding: 0.65rem 1.1rem !important;
-      }
-      .wl-nav-btn:hover {
-        background: linear-gradient(180deg, rgba(0, 208, 132, 0.4), rgba(0, 140, 90, 0.24)) !important;
-        border-color: rgba(125, 255, 196, 0.85) !important;
-        box-shadow: 0 0 22px rgba(0, 208, 132, 0.3);
-        color: #e6fff4 !important;
-      }
-      .wl-hero-btn {
-        border-color: rgba(0, 208, 132, 0.7) !important;
-        color: #c8ffe8 !important;
-        background: linear-gradient(135deg, rgba(0, 208, 132, 0.22), rgba(0, 100, 70, 0.16)) !important;
-        font-size: 1.05rem !important;
-        gap: 0.65rem !important;
-        padding: 14px 28px !important;
-      }
-      .wl-hero-btn:hover {
-        background: linear-gradient(135deg, rgba(0, 208, 132, 0.34), rgba(0, 120, 80, 0.2)) !important;
-        box-shadow: 0 0 28px rgba(0, 208, 132, 0.28) !important;
-        color: #e6fff4 !important;
-      }
-      .wl-mark {
-        display: block;
-        flex-shrink: 0;
-        width: 26px;
-        height: 26px;
-        object-fit: contain;
-        filter: drop-shadow(0 0 6px rgba(0, 208, 132, 0.55));
-      }
-      .wl-hero-btn .wl-mark {
-        width: 28px;
-        height: 28px;
-      }
-      .wl-nav-btn .wl-mark {
-        width: 26px;
-        height: 26px;
-      }
-      .wl-friend-mark {
-        width: 44px;
-        height: 44px;
-      }
-      .wl-name {
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        font-size: 1.12em;
-      }
-      .xian-footer-friend {
-        border-color: rgba(212, 175, 55, 0.4) !important;
-        background: linear-gradient(90deg, rgba(212, 175, 55, 0.12), rgba(40, 32, 22, 0.55)) !important;
-      }
-      .xian-footer-friend:hover {
-        border-color: rgba(234, 200, 98, 0.7) !important;
-        box-shadow: 0 0 24px rgba(212, 175, 55, 0.15) !important;
-      }
-
-      /* 侧边导航 */
-      .side-nav {
-        position: fixed;
-        left: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 100;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 12px 10px;
-        background: rgba(16, 14, 12, 0.94);
-        border: 1px solid rgba(212, 175, 55, 0.22);
-        border-radius: 4px;
-        backdrop-filter: blur(20px);
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-      }
-
-      .side-nav a {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        color: rgba(232, 223, 207, 0.45);
-        transition: all 0.3s ease;
-        border-radius: 4px;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .side-nav a::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle at center, rgba(212, 175, 55, 0.16), transparent 70%);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-      }
-
-      .side-nav a:hover::before { opacity: 1; }
-
-      .side-nav a:hover {
-        color: #f0d78c;
-        transform: scale(1.06);
-        text-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
-      }
-
-      .side-nav a.active {
-        color: #f0d78c;
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.22), rgba(120, 80, 20, 0.12));
-        box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.35);
-      }
-
-      /* 道门按钮 */
-      .cyber-btn {
-        position: relative;
-        padding: 14px 36px;
-        background: transparent;
-        border: 1px solid rgba(212, 175, 55, 0.5);
-        color: #f0d78c;
-        font-weight: 600;
-        font-family: 'Noto Serif SC', serif;
-        letter-spacing: 0.12em;
-        overflow: hidden;
-        transition: all 0.35s ease;
-      }
-
-      .cyber-btn::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
-        transition: left 0.55s ease;
-      }
-
-      .cyber-btn::after {
-        content: '';
-        position: absolute;
-        inset: 2px;
-        background: transparent;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        box-shadow: inset 0 0 18px rgba(212, 175, 55, 0.15);
-      }
-
-      .cyber-btn:hover::before { left: 100%; }
-      .cyber-btn:hover::after { opacity: 1; }
-
-      .cyber-btn:hover {
-        background: rgba(212, 175, 55, 0.1);
-        box-shadow: 0 0 24px rgba(212, 175, 55, 0.2);
-        transform: translateY(-2px);
-      }
-
-      .cyber-btn-gold {
-        border-color: rgba(212, 175, 55, 0.65);
-        color: #f7e7b0;
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.16), rgba(120, 80, 20, 0.12));
-      }
-
-      .cyber-btn-gold::before {
-        background: linear-gradient(90deg, transparent, rgba(240, 215, 140, 0.25), transparent);
-      }
-
-      .cyber-btn-gold::after {
-        box-shadow: inset 0 0 18px rgba(212, 175, 55, 0.18);
-      }
-
-      .cyber-btn-gold:hover {
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.26), rgba(140, 95, 25, 0.16));
-        box-shadow: 0 0 28px rgba(212, 175, 55, 0.28);
-      }
-
-      /* 滚动条 */
-      ::-webkit-scrollbar { width: 8px; }
-      ::-webkit-scrollbar-track { background: #0a0908; }
-      ::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, #d4af37, #8c6a22);
-        border-radius: 4px;
-      }
-
-      /* 移动端隐藏侧边导航 */
-      @media (max-width: 768px) {
-        .side-nav { display: none; }
-      }
-
-      /* 移动端菜单 */
-      .mobile-menu {
-        display: none;
-        position: fixed;
-        top: 64px;
-        left: 12px;
-        right: 12px;
-        background: rgba(16, 14, 12, 0.98);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(212, 175, 55, 0.25);
-        border-radius: 8px;
-        padding: 8px;
-        z-index: 49;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
-      }
-
-      .mobile-menu.active {
-        display: block;
-        animation: menu-slide-in 0.3s ease;
-      }
-
-      @keyframes menu-slide-in {
-        from {
-          opacity: 0;
-          transform: translateY(-10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .mobile-menu a {
-        display: flex;
-        align-items: center;
-        padding: 14px 16px;
-        color: #9ca3af;
-        border-radius: 10px;
-        transition: all 0.3s ease;
-        margin: 2px 0;
-      }
-
-      .mobile-menu a:hover, .mobile-menu a:active {
-        color: #f0d78c;
-        background: linear-gradient(90deg, rgba(212, 175, 55, 0.14), rgba(120, 80, 20, 0.08));
-      }
-
-      /* 道标标签 */
-      .data-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 14px;
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(120, 80, 20, 0.08));
-        border: 1px solid rgba(212, 175, 55, 0.35);
-        border-radius: 2px;
-        font-size: 12px;
-        font-family: 'Noto Serif SC', serif;
-        letter-spacing: 0.12em;
-        color: #f0d78c;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .data-tag::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.12), transparent);
-        transform: translateX(-100%);
-        transition: transform 0.5s ease;
-      }
-
-      .data-tag:hover::before { transform: translateX(100%); }
-
-      .data-tag:hover {
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(140, 95, 25, 0.12));
-        border-color: rgba(212, 175, 55, 0.55);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(212, 175, 55, 0.12);
-      }
-
-      /* 分隔线 */
-      .cyber-divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
-        position: relative;
-      }
-
-      .cyber-divider::before {
-        content: '';
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%) rotate(45deg);
-        width: 8px;
-        height: 8px;
-        background: rgba(212, 175, 55, 0.25);
-        border: 1px solid rgba(212, 175, 55, 0.55);
-        box-shadow: none;
-      }
-
-      /* 动画 */
-      @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
-      }
-
-      .float-animation {
-        animation: float 6s ease-in-out infinite;
-      }
-
-      /* 导航 */
-      .nav-link-cyber {
-        position: relative;
-        overflow: hidden;
-        font-family: 'Noto Serif SC', serif;
-        letter-spacing: 0.08em;
-      }
-
-      .nav-link-bg {
-        position: absolute;
-        inset: 0;
-        background: transparent;
-        transition: all 0.3s ease;
-      }
-
-      .nav-link-cyber:hover .nav-link-bg {
-        background: linear-gradient(180deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.04) 100%);
-      }
-
-      .nav-link-border {
-        position: absolute;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 0;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #d4af37, transparent);
-        transition: width 0.3s ease;
-      }
-
-      .nav-link-cyber:hover .nav-link-border {
-        width: 100%;
-      }
-
-      .nav-header {
-        position: relative;
-        border-bottom: 1px solid rgba(212, 175, 55, 0.18);
-        background: linear-gradient(180deg, rgba(16, 14, 12, 0.97) 0%, rgba(16, 14, 12, 0.9) 100%);
-      }
-
-      .nav-links {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        position: relative;
-        padding: 6px 8px;
-        background: rgba(212, 175, 55, 0.04);
-        border: 1px solid rgba(212, 175, 55, 0.14);
-        border-radius: 4px;
-      }
-
-      .nav-links::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.05), transparent);
-        border-radius: 4px;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-      }
-
-      .nav-links:hover::before { opacity: 1; }
-
-      .nav-link-cyber {
-        position: relative;
-        border-radius: 4px;
-        transition: all 0.3s ease;
-      }
-
-      .nav-link-cyber::before {
-        content: '';
-        position: absolute;
-        bottom: 4px;
-        left: 50%;
-        width: 0;
-        height: 1px;
-        background: linear-gradient(90deg, #d4af37, #f0d78c);
-        transition: all 0.3s ease;
-        transform: translateX(-50%);
-        box-shadow: none;
-      }
-
-      .nav-link-cyber:hover {
-        background: rgba(212, 175, 55, 0.08);
-        color: #f0d78c !important;
-      }
-
-      .nav-link-cyber:hover::before { width: 50%; }
-
-      .logo-glow {
-        position: relative;
-        transition: all 0.3s ease;
-        border-color: rgba(212, 175, 55, 0.35) !important;
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(120, 80, 20, 0.08)) !important;
-      }
-
-      /* 将页面内残留的赛博青改成金墨 */
-      .text-cyan-400, .text-cyan-300, .hover\:text-cyan-400:hover { color: #f0d78c !important; }
-      .text-cyan-500\/60 { color: rgba(212, 175, 55, 0.65) !important; }
-      .border-cyan-500\/20, .border-cyan-500\/30, .border-cyan-500\/40, .border-cyan-500\/50,
-      .hover\:border-cyan-500\/40:hover, .hover\:border-cyan-500\/50:hover, .hover\:border-cyan-500\/60:hover,
-      .hover\:border-cyan-400:hover, .hover\:border-cyan-500\/30:hover {
-        border-color: rgba(212, 175, 55, 0.35) !important;
-      }
-      .bg-cyan-500\/5, .bg-cyan-500\/10, .bg-cyan-500\/20, .bg-cyan-500\/30,
-      .hover\:bg-cyan-500\/5:hover, .hover\:bg-cyan-500\/10:hover,
-      .hover\:bg-cyan-500\/15:hover, .hover\:bg-cyan-500\/30:hover {
-        background-color: rgba(212, 175, 55, 0.1) !important;
-      }
-      .from-cyan-500\/15, .to-teal-500\/10 { --tw-gradient-from: rgba(212, 175, 55, 0.14) !important; }
-      .via-cyan-500\/30 { --tw-gradient-via: rgba(212, 175, 55, 0.28) !important; }
-      .border-l-2.border-cyan-500\/30 { border-left-color: rgba(212, 175, 55, 0.35) !important; }
-      .font-bold.text-cyan-400 { color: #d4af37 !important; }
-      #backToTop {
-        background: rgba(212, 175, 55, 0.15) !important;
-        border-color: rgba(212, 175, 55, 0.45) !important;
-        color: #f0d78c !important;
-        border-radius: 4px !important;
-      }
-      #backToTop:hover { background: rgba(212, 175, 55, 0.28) !important; }
-
-      .logo-glow::before {
-        content: '';
-        position: absolute;
-        inset: -2px;
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.28), rgba(140, 95, 25, 0.16));
-        border-radius: inherit;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        z-index: -1;
-        filter: blur(8px);
-      }
-
-      .logo-glow::after {
-        content: '';
-        position: absolute;
-        inset: -4px;
-        background: radial-gradient(circle, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        pointer-events: none;
-      }
-
-      .logo-glow:hover {
-        transform: scale(1.04);
-        box-shadow: 0 0 18px rgba(212, 175, 55, 0.28);
-      }
-
-      .logo-glow:hover::before,
-      .logo-glow:hover::after {
-        opacity: 1;
-      }
-
-      .header-scan {
-        display: none;
-      }
-
+* { box-sizing: border-box; }
+
+:root {
+  --calli: 'Ma Shan Zheng', 'STXingkai', '华文行楷', 'KaiTi', 'STKaiti', '楷体', 'Noto Serif SC', serif;
+  --serif: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  --ink: #0b101b;
+  --ink-deep: #070b14;
+  --paper: #121a2c;
+  --gold: #d4b878;
+  --gold-rgb: 212, 184, 120;
+  --gold-bright: #e8d7a8;
+  --accent: #9db8ff;
+  --accent-rgb: 157, 184, 255;
+  --seal: #c0392b;
+  --seal-rgb: 192, 57, 43;
+  --seal-text: #fbe9dc;
+  --jade: #5fbfa9;
+  --text: #eceff5;
+  --text-2: #a9b2c3;
+  --text-3: #78839a;
+  --muted: #a9b2c3;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --inset: rgba(8, 12, 22, 0.72);
+  --card-bg: linear-gradient(165deg, rgba(22, 30, 50, 0.92), rgba(12, 18, 32, 0.9));
+  --nav-bg: linear-gradient(180deg, rgba(12, 18, 32, 0.96) 0%, rgba(12, 18, 32, 0.88) 100%);
+  --title-gradient: linear-gradient(170deg, #d0fff0 0%, #73d6c7 45%, #78a8ee 100%);
+  --title-tu: #eef0f5;
+  --primary-bg: linear-gradient(135deg, #3d6be0 0%, #5a4fd0 100%);
+  --primary-border: rgba(230, 206, 150, 0.55);
+  --primary-shadow: 0 10px 24px -8px rgba(90, 100, 230, 0.7);
+  --glyph-bg: radial-gradient(circle at 35% 30%, rgba(157, 184, 255, 0.22) 0%, rgba(40, 52, 90, 0.55) 72%);
+  --glow-a: rgba(157, 184, 255, 0.16);
+  --glow-b: rgba(115, 214, 199, 0.12);
+  --mountain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'%3E%3Cpath d='M0 210 C90 160 150 110 230 145 S360 80 430 120 S560 205 640 160 S790 55 870 105 S1010 190 1090 135 S1170 115 1200 140 V300 H0Z' fill='rgba(150,172,220,0.09)'/%3E%3Cpath d='M0 255 C110 222 180 190 270 214 S430 165 530 200 S710 248 810 210 S970 176 1070 205 S1170 238 1200 222 V300 H0Z' fill='rgba(150,172,220,0.12)'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --ink: #e7eeea;
+  --ink-deep: #d5e0db;
+  --paper: #f4f7f5;
+  --gold: #7f5d27;
+  --gold-rgb: 127, 93, 39;
+  --gold-bright: #6b4e1e;
+  --accent: #256a67;
+  --accent-rgb: 37, 106, 103;
+  --seal: #b8322a;
+  --seal-rgb: 184, 50, 42;
+  --seal-text: #fff4ea;
+  --jade: #2f7d6f;
+  --text: #233238;
+  --text-2: #44545a;
+  --text-3: #5b6b70;
+  --muted: #44545a;
+  --surface: rgba(255, 255, 255, 0.62);
+  --surface-2: rgba(255, 255, 255, 0.82);
+  --inset: rgba(221, 230, 226, 0.85);
+  --card-bg: linear-gradient(165deg, rgba(255, 255, 255, 0.78), rgba(236, 243, 239, 0.9));
+  --nav-bg: linear-gradient(180deg, rgba(241, 245, 242, 0.94) 0%, rgba(232, 238, 234, 0.9) 100%);
+  --title-gradient: linear-gradient(170deg, #1d696d 0%, #2f9d93 55%, #3f7f96 100%);
+  --title-tu: #1b2a2f;
+  --primary-bg: linear-gradient(135deg, #2f7774 0%, #255b68 100%);
+  --primary-border: rgba(95, 157, 151, 0.62);
+  --primary-shadow: 0 10px 20px -10px rgba(37, 91, 104, 0.42);
+  --glyph-bg: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.96) 0%, rgba(223, 233, 229, 0.92) 75%);
+  --glow-a: rgba(47, 119, 116, 0.1);
+  --glow-b: rgba(127, 93, 39, 0.06);
+  --mountain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'%3E%3Cpath d='M0 210 C90 160 150 110 230 145 S360 80 430 120 S560 205 640 160 S790 55 870 105 S1010 190 1090 135 S1170 115 1200 140 V300 H0Z' fill='rgba(55,86,86,0.08)'/%3E%3Cpath d='M0 255 C110 222 180 190 270 214 S430 165 530 200 S710 248 810 210 S970 176 1070 205 S1170 238 1200 222 V300 H0Z' fill='rgba(55,86,86,0.1)'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 70% 40% at 50% -8%, var(--glow-a), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 100% 0%, var(--glow-b), transparent 60%),
+    linear-gradient(180deg, var(--ink) 0%, var(--ink-deep) 100%);
+  font-family: var(--serif);
+  color: var(--text);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  background-image: var(--mountain);
+  background-repeat: no-repeat;
+  background-position: center calc(100% + 36px);
+  background-size: 100% 150px;
+  pointer-events: none;
+  z-index: 0;
+}
+.grid-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.tech-particles {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.tech-particles::before,
+.tech-particles::after {
+  content: '';
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.55;
+  animation: float-glow 22s ease-in-out infinite;
+}
+.tech-particles::before {
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.55) 0%, transparent 70%);
+  top: 6%;
+  left: 6%;
+}
+.tech-particles::after {
+  background: radial-gradient(circle, rgba(var(--gold-rgb), 0.28) 0%, transparent 70%);
+  bottom: 12%;
+  right: 6%;
+  animation-delay: -11s;
+}
+@keyframes float-glow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(24px, -16px) scale(1.06); }
+}
+
+h1, h2, .text-gradient-cyber, .xian-title, .logo-word {
+  font-family: var(--calli) !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.08em;
+}
+.text-gradient-cyber, .xian-title, .title-xian {
+  background: var(--title-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+[data-theme='dark'] .title-xian {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+@keyframes glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(92, 218, 193, 0.45)) drop-shadow(0 0 16px rgba(78, 151, 224, 0.25)); }
+  50% { filter: drop-shadow(0 0 14px rgba(92, 218, 193, 0.7)) drop-shadow(0 0 24px rgba(78, 151, 224, 0.4)); }
+}
+.title-tu { color: var(--title-tu); }
+[data-theme='dark'] .title-tu { text-shadow: 0 0 24px rgba(180, 200, 255, 0.25); }
+
+.hero-seal-wrap { position: relative; display: inline-block; }
+.title-seal {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  bottom: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, 1fr);
+  width: 42px;
+  height: 42px;
+  padding: 3px;
+  box-sizing: border-box;
+  background: var(--seal);
+  color: var(--seal-text);
+  border-radius: 4px;
+  font-family: var(--calli);
+  font-size: 14px;
+  line-height: 1;
+  transform: rotate(-4deg);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 240, 230, 0.55), 0 2px 6px rgba(120, 20, 10, 0.3);
+}
+.title-seal span { display: flex; align-items: center; justify-content: center; }
+.title-seal span:nth-child(1) { grid-column: 2; grid-row: 1; }
+.title-seal span:nth-child(3) { grid-column: 2; grid-row: 2; }
+.title-seal span:nth-child(2) { grid-column: 1; grid-row: 1; }
+.title-seal span:nth-child(4) { grid-column: 1; grid-row: 2; }
+.news-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.news-points li {
+  position: relative;
+  padding-left: 0.9rem;
+  color: var(--text-2);
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+.news-points li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  background: var(--gold);
+  transform: rotate(45deg);
+}
+.hero-verse {
+  margin: 0 auto 1.75rem;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  letter-spacing: 0.28em;
+  color: var(--text-2);
+}
+
+.cyber-card {
+  background: var(--card-bg);
+  border: 1px solid rgba(var(--gold-rgb), 0.22);
+  border-radius: 6px !important;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+.cyber-card::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(var(--gold-rgb), 0.16);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.cyber-card:hover {
+  border-color: rgba(var(--gold-rgb), 0.45);
+  box-shadow: 0 16px 36px -18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(var(--gold-rgb), 0.12);
+  transform: translateY(-3px);
+}
+.cyber-card .w-12,
+.cyber-card .w-10 {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 50% !important;
+  background: var(--glyph-bg) !important;
+  border: 1px solid rgba(var(--gold-rgb), 0.4) !important;
+  box-shadow: inset 0 1px 4px rgba(255, 255, 255, 0.12);
+  color: var(--gold-bright);
+}
+.cyber-card .w-10 { width: 40px !important; height: 40px !important; }
+
+.xian-friends { position: relative; }
+.xian-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  color: var(--gold);
+}
+.xian-eyebrow::before,
+.xian-eyebrow::after {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--gold-rgb), 0.7), transparent);
+}
+.friend-links { list-style: none; margin: 0; padding: 0; }
+.friend-links > li { margin: 0; }
+.xian-friend-card {
+  position: relative;
+  display: block;
+  padding: 1.75rem 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--card-bg);
+  border: 1px solid rgba(var(--gold-rgb), 0.32);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.06), 0 18px 40px -24px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+.xian-friend-card::before,
+.xian-friend-card::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: rgba(var(--gold-rgb), 0.75);
+  border-style: solid;
+  pointer-events: none;
+}
+.xian-friend-card::before { top: 8px; left: 8px; border-width: 1px 0 0 1px; }
+.xian-friend-card::after { right: 8px; bottom: 8px; border-width: 0 1px 1px 0; }
+.xian-friend-card:hover {
+  border-color: rgba(var(--gold-rgb), 0.7);
+  transform: translateY(-3px);
+}
+.xian-friend-card h3 {
+  font-family: var(--calli);
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  margin: 0.35rem 0 0.75rem;
+}
+.xian-friend-card h3 span {
+  font-family: var(--serif);
+  font-size: 0.62em;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+.xian-friend-meta {
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+}
+.xian-friend-desc {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.75;
+  font-size: 0.95rem;
+}
+.xian-friend-url {
+  display: inline-block;
+  margin-top: 0.85rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.xian-friend-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.55rem 1.05rem;
+  border: 1px solid var(--primary-border);
+  border-radius: 6px;
+  background: var(--primary-bg);
+  color: #f4faf8;
+  letter-spacing: 0.12em;
+}
+.xian-footer-friend { border-radius: 6px; }
+
+.wl-nav-btn, .wl-hero-btn { font-size: 1.02rem !important; }
+.wl-mark { display: block; flex-shrink: 0; width: 26px; height: 26px; object-fit: contain; }
+.wl-hero-btn .wl-mark, .wl-friend-mark { width: 28px; height: 28px; }
+.wl-friend-mark { width: 44px; height: 44px; }
+.wl-name { font-weight: 700; letter-spacing: 0.06em; }
+
+.side-nav {
+  position: fixed;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+  background: var(--nav-bg);
+  border: 1px solid rgba(var(--gold-rgb), 0.22);
+  border-radius: 6px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+}
+.side-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  color: var(--text-3);
+  border-radius: 6px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.side-nav a:hover, .side-nav a.active {
+  color: var(--gold-bright);
+  background: rgba(var(--gold-rgb), 0.12);
+}
+.side-nav a.active { box-shadow: inset 2px 0 0 var(--gold); }
+
+.cyber-btn {
+  position: relative;
+  padding: 13px 28px;
+  background: var(--surface);
+  border: 1px solid rgba(var(--gold-rgb), 0.32);
+  border-radius: 6px !important;
+  color: var(--text);
+  font-weight: 600;
+  font-family: var(--serif);
+  letter-spacing: 0.12em;
+  overflow: hidden;
+  transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+}
+.cyber-btn:hover {
+  border-color: rgba(var(--gold-rgb), 0.6);
+  background: var(--surface-2);
+  transform: translateY(-2px);
+}
+.cyber-btn-gold {
+  border-color: var(--primary-border);
+  color: #f7f4ea;
+  background: var(--primary-bg);
+  box-shadow: var(--primary-shadow);
+}
+.cyber-btn-gold:hover {
+  filter: brightness(1.06);
+  box-shadow: var(--primary-shadow);
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--gold-rgb), 0.32);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.4s ease;
+}
+.theme-switch:hover {
+  color: var(--gold);
+  border-color: rgba(var(--gold-rgb), 0.7);
+  transform: rotate(24deg);
+}
+.theme-switch .icon-moon { display: none; }
+[data-theme='light'] .theme-switch .icon-sun { display: none; }
+[data-theme='light'] .theme-switch .icon-moon { display: block; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--ink-deep); }
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--gold-rgb), 0.55);
+  border-radius: 4px;
+}
+
+@media (max-width: 768px) { .side-nav { display: none; } }
+@media (min-width: 769px) and (max-width: 1180px) {
+  main, footer { padding-left: 78px; }
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 68px;
+  left: 12px;
+  right: 12px;
+  background: var(--paper);
+  border: 1px solid rgba(var(--gold-rgb), 0.28);
+  border-radius: 8px;
+  padding: 8px;
+  z-index: 49;
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.45);
+}
+.mobile-menu.active { display: block; }
+.mobile-menu a {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  color: var(--text-2);
+  border-radius: 6px;
+}
+.mobile-menu a:hover { color: var(--gold-bright); background: rgba(var(--gold-rgb), 0.1); }
+
+.data-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(var(--gold-rgb), 0.1);
+  border: 1px solid rgba(var(--gold-rgb), 0.32);
+  border-radius: 3px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--gold-bright);
+}
+
+.cyber-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--gold-rgb), 0.45), transparent);
+  position: relative;
+}
+.cyber-divider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+  border: 1px solid rgba(var(--gold-rgb), 0.7);
+}
+
+.nav-header {
+  border-bottom: 1px solid rgba(var(--gold-rgb), 0.16);
+  background: var(--nav-bg);
+  backdrop-filter: blur(18px);
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid rgba(var(--gold-rgb), 0.16);
+  border-radius: 6px;
+}
+.nav-link-cyber {
+  position: relative;
+  border-radius: 4px;
+  color: var(--text-3) !important;
+  letter-spacing: 0.08em;
+}
+.nav-link-cyber:hover, .nav-link-cyber:focus-visible {
+  color: var(--gold-bright) !important;
+  background: rgba(var(--gold-rgb), 0.1);
+}
+.logo-glow {
+  border-radius: 50% !important;
+  border-color: rgba(var(--gold-rgb), 0.4) !important;
+  background: var(--glyph-bg) !important;
+  color: var(--gold-bright);
+}
+.logo-word { font-size: 1.55rem; }
+.header-scan { display: none; }
+
+.text-white { color: var(--text) !important; }
+.text-gray-300 { color: var(--text-2) !important; }
+.text-gray-400, .text-gray-500, .text-gray-600 { color: var(--text-3) !important; }
+.text-cyan-400, .text-cyan-300,
+.hover\:text-cyan-400:hover, .group-hover\:text-cyan-400:hover, .group-hover\:text-cyan-300:hover {
+  color: var(--accent) !important;
+}
+.text-cyan-500\/60, .group-hover\:text-cyan-400 { color: rgba(var(--accent-rgb), 0.8) !important; }
+.text-amber-100, .text-amber-200, .text-amber-300, .text-yellow-400,
+.hover\:text-amber-100:hover, .hover\:text-amber-200:hover {
+  color: var(--gold-bright) !important;
+}
+.bg-\[\#0a0f1a\] {
+  background: var(--inset) !important;
+  border-color: rgba(var(--gold-rgb), 0.16) !important;
+}
+.border-cyan-500\/10, .border-cyan-500\/20, .border-cyan-500\/30, .border-cyan-500\/40, .border-cyan-500\/50,
+.hover\:border-cyan-500\/30:hover, .hover\:border-cyan-500\/40:hover, .hover\:border-cyan-500\/50:hover, .hover\:border-cyan-500\/60:hover {
+  border-color: rgba(var(--gold-rgb), 0.28) !important;
+}
+.bg-cyan-500\/5, .bg-cyan-500\/10, .bg-cyan-500\/20,
+.hover\:bg-cyan-500\/5:hover, .hover\:bg-cyan-500\/10:hover {
+  background-color: rgba(var(--accent-rgb), 0.1) !important;
+}
+.border-l-yellow-500, .border-l-amber-600\/70, .border-amber-500\/30 { border-color: rgba(var(--gold-rgb), 0.55) !important; }
+#backToTop {
+  background: var(--paper) !important;
+  border: 1px solid rgba(var(--gold-rgb), 0.4) !important;
+  color: var(--gold-bright) !important;
+  border-radius: 6px !important;
+}
+footer .bg-gradient-to-t { background-image: linear-gradient(to top, var(--ink-deep), transparent) !important; }
+footer .via-cyan-500\/30, .via-cyan-500\/30 { --tw-gradient-via: rgba(var(--gold-rgb), 0.35) !important; }
+a.animate-pulse { animation: none; }
+
+[data-theme='light'] .text-green-400 { color: #166534 !important; }
+[data-theme='light'] .text-blue-400 { color: #1e429f !important; }
+[data-theme='light'] .text-purple-400 { color: #5b3fa0 !important; }
+[data-theme='light'] .text-pink-400 { color: #9d174d !important; }
+[data-theme='light'] .text-orange-400 { color: #9a3412 !important; }
+[data-theme='light'] .text-red-400 { color: #b91c1c !important; }
+[data-theme='light'] .text-emerald-300 { color: #166534 !important; }
+[data-theme='light'] .bg-green-500\/20 { background-color: rgba(22, 101, 52, 0.1) !important; }
+[data-theme='light'] .bg-blue-500\/20 { background-color: rgba(30, 66, 159, 0.1) !important; }
+[data-theme='light'] .bg-purple-500\/20 { background-color: rgba(91, 63, 160, 0.1) !important; }
+[data-theme='light'] .bg-pink-500\/20, [data-theme='light'] .bg-pink-500\/10 { background-color: rgba(157, 23, 77, 0.08) !important; }
+[data-theme='light'] .bg-orange-500\/20 { background-color: rgba(154, 52, 18, 0.1) !important; }
+[data-theme='light'] .bg-red-500\/20 { background-color: rgba(185, 28, 28, 0.1) !important; }
+[data-theme='light'] .bg-yellow-500\/20, [data-theme='light'] .bg-yellow-500\/10,
+[data-theme='light'] .bg-amber-500\/20, [data-theme='light'] .bg-amber-500\/15 {
+  background-color: rgba(127, 93, 39, 0.12) !important;
+}
+[data-theme='light'] .bg-gray-500\/20, [data-theme='light'] .bg-gray-500\/5 { background-color: rgba(55, 86, 86, 0.06) !important; }
+[data-theme='light'] .border-gray-500\/20, [data-theme='light'] .border-gray-500\/30 { border-color: rgba(55, 86, 86, 0.18) !important; }
+[data-theme='light'] .text-gray-300 { color: #3d4c52 !important; }
+
+@media (max-width: 640px) {
+  .title-seal { position: static; margin: 0.75rem auto 0; }
+  .hero-seal-wrap { display: flex; flex-direction: column; align-items: center; }
+  .hero-verse { letter-spacing: 0.12em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
     </style>
   </head>
   <body class="min-h-screen theme-xian">
@@ -911,8 +761,8 @@
               </svg>
             </div>
             <div>
-              <span class="text-xl font-bold text-gradient-cyber">仙途</span>
-              <span class="hidden sm:inline text-xs text-gray-500 ml-2 font-mono">XIANTU.AI</span>
+              <span class="logo-word text-gradient-cyber">仙途</span>
+              <span class="hidden sm:inline text-xs text-gray-500 ml-2 tracking-[0.18em]">XIANTU</span>
             </div>
           </a>
 
@@ -942,6 +792,10 @@
 
           <!-- 右侧按钮组 -->
           <div class="flex items-center gap-2 sm:gap-3">
+            <button id="theme-toggle" class="theme-switch" type="button" aria-label="切换亮色">
+              <i data-lucide="sun" class="icon-sun w-4 h-4"></i>
+              <i data-lucide="moon" class="icon-moon w-4 h-4"></i>
+            </button>
             <!-- 移动端菜单按钮 -->
             <button id="mobile-menu-btn" class="lg:hidden flex items-center justify-center w-10 h-10 border border-cyan-500/30 rounded-xl text-gray-400 hover:text-cyan-400 hover:border-cyan-500/60 hover:bg-cyan-500/10 transition-all">
               <i data-lucide="menu" class="w-5 h-5"></i>
@@ -991,11 +845,15 @@
           </div>
 
           <!-- 主标题 -->
-          <h1 class="text-4xl sm:text-6xl md:text-7xl font-black mb-6">
-            <span class="text-gradient-cyber">AI驱动的</span>
-            <br>
-            <span class="text-white glow-text">修仙大世界</span>
-          </h1>
+          <div class="hero-seal-wrap mb-4">
+            <h1 class="text-4xl sm:text-6xl md:text-7xl mb-0">
+              <span class="title-xian">AI驱动的</span>
+              <br>
+              <span class="title-tu">修仙大世界</span>
+            </h1>
+            <span class="title-seal" aria-hidden="true"><span>大</span><span>朝</span><span>道</span><span>天</span></span>
+          </div>
+          <p class="hero-verse">山河无主皆可渡，此心有路即朝天</p>
 
           <!-- 副标题 -->
           <p class="text-lg sm:text-xl text-gray-400 max-w-3xl mx-auto mb-4 leading-relaxed">
@@ -1307,20 +1165,29 @@
             <h2 class="text-3xl sm:text-5xl font-bold text-gradient-cyber mt-4">最新更新日志</h2>
           </div>
 
-          <!-- 最新：同步自 CHANGELOG.md -->
+          <!-- 最新：V5.0 -->
           <div class="cyber-card rounded-xl p-6 mb-6 border-l-4 border-l-yellow-500">
             <div class="flex flex-wrap items-center gap-3 mb-4">
               <span class="data-tag bg-yellow-500/20 border-yellow-500/30 text-yellow-400">
-                <i data-lucide="star" class="w-3 h-3"></i> 最新动态
+                <i data-lucide="star" class="w-3 h-3"></i> 最新
               </span>
-              <span class="text-2xl font-bold text-white">Unreleased</span>
-              <span class="text-gray-500 text-sm ml-auto font-mono">进行中</span>
+              <span class="text-2xl font-bold text-white">V5.0</span>
+              <span class="text-gray-500 text-sm ml-auto font-mono">2026-09-28</span>
             </div>
             <div class="flex flex-wrap gap-2 mb-4">
-              <span class="px-2 py-1 bg-amber-500/20 text-amber-300 rounded text-xs">联机日志</span>
-              <span class="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">服务拆分</span>
+              <span class="px-2 py-1 bg-amber-500/20 text-amber-300 rounded text-xs">夜山松烟</span>
+              <span class="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">宣纸淡墨</span>
+              <span class="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs">功能页重写</span>
+              <span class="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">公益额度</span>
+              <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">境界地图</span>
             </div>
-            <p class="text-gray-400 text-sm">联机会话日志队列与自动补发；日志回显更及时；HTTP 客户端与业务 API 服务层拆分</p>
+            <ul class="news-points">
+              <li>界面换成双主题：暗色「夜山松烟」、亮色「宣纸淡墨」。书法标题、玉璧图标、朱砂印，局内局外同一套。</li>
+              <li>功能页整页重写：人物、背包、功法、三千大道、炼制、宗门、人物名录、世界地图、记忆、事件、存档、设置、API、提示词、游戏变量。</li>
+              <li>世界地图按境界分层，旧存档可以迁移。云端修行仍保留账号、云存档和多端同步。</li>
+              <li>道友账户可签到领取公益额度，主流程也能切到公益模型，并查看额度排行。</li>
+              <li>主流程不再提供穿越、联机共修、关系网络图和宗门战争。</li>
+            </ul>
           </div>
 
           <div class="cyber-card rounded-xl p-6 mb-6 border-l-4 border-l-amber-600/70">
@@ -1497,7 +1364,7 @@
       <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent"></div>
       <div class="max-w-5xl mx-auto text-center relative">
         <div class="mb-6">
-          <span class="text-2xl font-bold text-gradient-cyber">仙途</span>
+          <span class="text-3xl text-gradient-cyber">仙途</span>
           <span class="text-gray-500 text-sm ml-2">XIANTU.AI</span>
         </div>
         <p class="text-gray-400 mb-3">AI驱动的游戏 | AI修仙 | AI大世界</p>
@@ -1555,6 +1422,21 @@
     <script>
       // 初始化 Lucide 图标
       lucide.createIcons();
+
+      const themeToggle = document.getElementById('theme-toggle');
+      const applyTheme = (theme) => {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'light' ? '#e7eeea' : '#0c1220');
+        if (themeToggle) themeToggle.setAttribute('aria-label', theme === 'light' ? '切换暗色' : '切换亮色');
+        try { localStorage.setItem('theme', theme); } catch (e) {}
+      };
+      applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+      themeToggle?.addEventListener('click', () => {
+        const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        applyTheme(next);
+      });
 
       // 侧边导航高亮
       const sections = document.querySelectorAll('section[id]');

@@ -15,6 +15,7 @@ import type { APIProvider } from '@/services/aiService';
 import { isTavernEnv } from '@/utils/tavern';
 import {
   createEmbeddings,
+  isEmbeddingFunctionEnabled,
   normalizeToUnitVector,
   resolveEmbeddingConfig,
   type EmbeddingRequestConfig,
@@ -286,6 +287,9 @@ class VectorMemoryService {
   }
 
   getEmbeddingStatus(): { available: boolean; provider?: APIProvider; model?: string; reason?: string } {
+    if (!isEmbeddingFunctionEnabled()) {
+      return { available: false, reason: '叙事检索未开启。到「API 管理 → 功能分配」打开开关，并指定独立的 Embedding API' };
+    }
     const cfg = this.getEmbeddingRequestConfig();
     if (cfg) return { available: true, provider: cfg.provider, model: cfg.model };
 

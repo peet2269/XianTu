@@ -488,7 +488,10 @@
 }
 
 .cc-btn.primary:hover:not(:disabled) {
-  filter: brightness(1.1);
+  /* 通用 .cc-btn:hover 会把背景换成近白的 surface-hover，主按钮字又是白色，亮色下会变成空白块 */
+  background: var(--cc-primary-bg);
+  color: #fff;
+  filter: brightness(1.12);
   transform: translateY(-1px);
 }
 

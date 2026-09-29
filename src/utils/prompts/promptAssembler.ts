@@ -25,6 +25,7 @@ export async function assembleSystemPrompt(
     businessRulesPrompt,
     extendedBusinessRulesPrompt,
     playerPersonalityPrompt,
+    styleNarrativePrompt,
     dataDefinitionsPrompt,
     textFormatsPrompt,
     worldStandardsPrompt
@@ -33,6 +34,7 @@ export async function assembleSystemPrompt(
     getPrompt('businessRules'),
     getPrompt('extendedBusinessRules'), // 默认关闭，停用时为空字符串
     getPrompt('playerPersonality'),
+    getPrompt('styleNarrative'),
     getPrompt('dataDefinitions'),
     getPrompt('textFormatRules'),
     getPrompt('worldStandards')
@@ -50,7 +52,9 @@ export async function assembleSystemPrompt(
     sanitizedBusinessRulesPrompt,
     // 2.5 扩展规则（可选）
     sanitize(extendedBusinessRulesPrompt),
-    // 2.1 主角性格（可自定义）
+    // 文风（可预设 / 自定义）
+    styleNarrativePrompt,
+    // 2.1 主角性格（可预设 / 自定义）
     playerPersonalityPrompt,
     // 3. 数据结构定义
     sanitizedDataDefinitionsPrompt,
@@ -93,7 +97,7 @@ export async function assembleSystemPrompt(
         `- nsfwMode: ${nsfwMode ? 'true' : 'false'}`,
         `- nsfwGenderFilter: ${nsfwGenderFilter}`,
         '- 当 nsfwMode=true 且 NPC性别符合过滤条件时，创建NPC必须生成完整私密信息(PrivacyProfile)',
-        '- 若 NPC 已存在但私密信息缺失，需用 set 写入 社交.关系.[NPC名].私密信息 完整对象',
+        '- 若 NPC 已存在但私密信息缺失，需用 set 写入 社交.关系.{NPC名}.私密信息 完整对象',
         '- 当 nsfwMode=false 或 性别不匹配 时，禁止生成私密信息'
       ].join('\n')
     );

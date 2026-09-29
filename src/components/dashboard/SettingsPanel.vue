@@ -88,15 +88,15 @@
                 <span class="row-desc">{{ t('按钮、菜单、面板和文字一起放大缩小；只想调正文请用「阅读 → 正文字号」') }}</span>
               </div>
               <div class="range">
-                <input
+                <RangeSlider
                   id="setting-ui-scale"
-                  v-model.number="settings.uiScale"
-                  type="range"
-                  min="80"
-                  max="130"
-                  step="5"
-                  :style="rangeFill(settings.uiScale, 80, 130)"
-                  @change="applyUIScale"
+                  v-model="settings.uiScale"
+                  :min="80"
+                  :max="130"
+                  :step="5"
+                  :aria-label="t('界面缩放')"
+                  @dragstart="beginUIScaleGesture"
+                  @commit="endUIScaleGesture(settings.uiScale)"
                 />
                 <output>{{ settings.uiScale }}%</output>
               </div>
@@ -151,15 +151,14 @@
                 <span class="row-desc">{{ t('只影响中间的故事正文') }}</span>
               </div>
               <div class="range">
-                <input
+                <RangeSlider
                   id="setting-narrative-size"
-                  v-model.number="settings.narrativeSize"
-                  type="range"
-                  min="14"
-                  max="22"
-                  step="1"
-                  :style="rangeFill(settings.narrativeSize, 14, 22)"
-                  @input="applyNarrativeSize(settings.narrativeSize)"
+                  v-model="settings.narrativeSize"
+                  :min="14"
+                  :max="22"
+                  :step="1"
+                  :aria-label="t('正文字号')"
+                  @update:modelValue="applyNarrativeSize"
                 />
                 <output>{{ settings.narrativeSize }}px</output>
               </div>
@@ -413,6 +412,7 @@ import {
 import { toast } from '@/utils/toast';
 import { debug } from '@/utils/debug';
 import { useI18n } from '@/i18n';
+import RangeSlider from '@/components/common/RangeSlider.vue';
 import TextReplaceRulesModal from '@/components/common/TextReplaceRulesModal.vue';
 import PromptManagementPanel from '@/components/dashboard/PromptManagementPanel.vue';
 import type { TextReplaceRule } from '@/types/textRules';
@@ -427,6 +427,7 @@ import { confirmDialog } from '@/composables/useDialog';
 import {
   FONT_OPTIONS, DEFAULT_FONT, DEFAULT_TONE, DEFAULT_NARRATIVE_SIZE, DEFAULT_LEADING, DEFAULT_UI_SCALE,
   applyFont, applyNarrativeTone, applyNarrativeSize, applyNarrativeLeading, applyUIScale as applyRootUIScale,
+  beginUIScaleGesture, endUIScaleGesture,
   ensureFontLoaded, type FontKey, type NarrativeTone, type NarrativeLeading,
 } from '@/utils/readingPrefs';
 
@@ -485,9 +486,6 @@ const leadingOptions: { value: NarrativeLeading; label: string }[] = [
   { value: 'loose', label: '宽松' },
 ];
 
-const rangeFill = (value: number, min: number, max: number) => ({
-  '--fill': `${((value - min) / (max - min)) * 100}%`,
-});
 const characterStore = useCharacterStore();
 const gameStateStore = useGameStateStore();
 const uiStore = useUIStore();
@@ -1282,37 +1280,14 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.range input {
-  --fill: 50%;
-
+.range :deep(.range-slider) {
+  flex: 0 0 180px;
   width: 180px;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--cc-gold) var(--fill), color-mix(in srgb, var(--cc-text) 14%, transparent) var(--fill));
-  appearance: none;
-  cursor: pointer;
-}
-
-.range input::-webkit-slider-thumb {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--cc-gold);
-  border-radius: 50%;
-  background: var(--cc-solid-bg);
-  box-shadow: 0 0 0 3px rgba(var(--cc-gold-rgb), 0.15);
-  appearance: none;
-}
-
-.range input::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--cc-gold);
-  border-radius: 50%;
-  background: var(--cc-solid-bg);
 }
 
 .range output {
-  min-width: 3.2em;
+  flex: none;
+  width: 4.2em;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -1634,7 +1609,8 @@ onMounted(async () => {
     flex-basis: 100%;
   }
 
-  .range input {
+  .range :deep(.range-slider) {
+    flex-basis: 150px;
     width: 150px;
   }
 

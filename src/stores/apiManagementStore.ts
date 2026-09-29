@@ -7,7 +7,8 @@
  */
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { API_PROVIDER_PRESETS, type APIProvider } from '@/services/aiService';
+import { API_PROVIDER_PRESETS, type APIProvider, type ThinkingLevel } from '@/services/aiService';
+import { BUILTIN_API_KEY, builtinClientId, builtinServerIdFromClient, fetchBuiltinApiList, isBuiltinClientId, type BuiltinApiStatus } from '@/services/builtinApi';
 
 export interface APIConfig {
   id: string;
@@ -18,8 +19,18 @@ export interface APIConfig {
   model: string;
   temperature: number;
   maxTokens: number;
+  thinkingLevel?: ThinkingLevel;
   enabled: boolean;
-  forceJsonOutput?: boolean;  // 强制JSON格式输出（仅支持OpenAI兼容API，如DeepSeek）
+  forceJsonOutput?: boolean;  // 仅 DeepSeek、Gemini 会在请求里打开 JSON 模式
+  /** 服务器托管的对话接口。密钥不在本机。 */
+  builtin?: boolean;
+  /** 后端名单里的条目编号，请求时放进 X-Builtin-Id */
+  builtinServerId?: string;
+  /** 公益模型每次调用扣多少额度（可为小数） */
+  cost?: number;
+  /** 公益模型的简介和公益池里的渠道数，只用于展示 */
+  description?: string;
+  poolChannels?: number;
 }
 
 export type APIUsageType =
@@ -74,7 +85,7 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
     const preset = API_PROVIDER_PRESETS.deepseek;
     const normalized: APIConfig = { ...config };
     const model = (normalized.model || '').trim();
-    if (!model || model === 'deepseek-chat' || model === 'deepseek-reasoner') {
+    if (!model || model === 'deepseek-chat' || model === 'deepseek-reasoner' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-flash-vision-exp') {
       normalized.model = preset.defaultModel;
     }
     if (!normalized.url) {
@@ -87,6 +98,11 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
     }
 
     return normalized;
+  };
+
+  const normalizeOpenAIConfig = (config: APIConfig): APIConfig => {
+    if (config.provider !== 'openai' || config.model !== 'gpt-5.6') return config;
+    return { ...config, model: API_PROVIDER_PRESETS.openai.defaultModel };
   };
 
   const DEFAULT_API_ASSIGNMENTS: APIAssignment[] = [
@@ -166,7 +182,7 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
             ...data.aiGenerationSettings
           };
         }
-        apiConfigs.value = (data.apiConfigs || []).map((config: APIConfig) => normalizeDeepSeekConfig(config));
+        apiConfigs.value = (data.apiConfigs || []).map((config: APIConfig) => sanitizeBuiltinConfig(normalizeOpenAIConfig(normalizeDeepSeekConfig(config))));
 
         const knownTypes = new Set(DEFAULT_API_ASSIGNMENTS.map(a => a.type));
         const mergedAssignments = new Map<APIUsageType, APIAssignment>();
@@ -229,9 +245,10 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
           provider: 'openai',
           url: 'https://api.openai.com',
           apiKey: '',
-          model: 'gpt-4o',
+          model: API_PROVIDER_PRESETS.openai.defaultModel,
           temperature: 0.7,
           maxTokens: 16000,
+          thinkingLevel: 'default',
           enabled: true
         });
       }
@@ -244,7 +261,7 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
   const saveToStorage = () => {
     try {
       const data = {
-        apiConfigs: apiConfigs.value,
+        apiConfigs: apiConfigs.value.map((config) => sanitizeBuiltinConfig(config)),
         apiAssignments: apiAssignments.value,
         functionModes: functionModes.value,
         functionEnabled: functionEnabled.value,
@@ -270,17 +287,140 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
   // 更新API配置
   const updateAPI = (id: string, updates: Partial<APIConfig>) => {
     const index = apiConfigs.value.findIndex(api => api.id === id);
-    if (index !== -1) {
-      apiConfigs.value[index] = { ...apiConfigs.value[index], ...updates };
+    if (index === -1) return;
+    const current = apiConfigs.value[index];
+    if (current.builtin || isBuiltinClientId(id)) {
+      apiConfigs.value[index] = sanitizeBuiltinConfig({
+        ...current,
+        enabled: typeof updates.enabled === 'boolean' ? updates.enabled : current.enabled,
+        temperature: typeof updates.temperature === 'number' ? updates.temperature : current.temperature,
+        thinkingLevel: updates.thinkingLevel ?? current.thinkingLevel,
+        forceJsonOutput: typeof updates.forceJsonOutput === 'boolean' ? updates.forceJsonOutput : current.forceJsonOutput,
+      });
       saveToStorage();
+      return;
     }
+    apiConfigs.value[index] = { ...current, ...updates };
+    saveToStorage();
   };
 
   // 删除API配置
+  const sanitizeBuiltinConfig = (config: APIConfig): APIConfig => {
+    if (!config.builtin && !isBuiltinClientId(config.id)) return config;
+    const serverId = builtinServerIdFromClient(config.id, config.builtinServerId);
+    return {
+      ...config,
+      id: builtinClientId(serverId),
+      builtin: true,
+      builtinServerId: serverId,
+      provider: config.provider === 'gemini' ? 'gemini' : 'custom',
+      url: '',
+      apiKey: BUILTIN_API_KEY,
+    };
+  };
+
+  /** 所有公益模型共用的额度余额。未登录或还没同步时为 null。 */
+  const builtinBalance = ref<number | null>(null);
+
+  const applyBuiltinList = (items: BuiltinApiStatus[]) => {
+    const previousById = new Map(
+      apiConfigs.value
+        .filter((config) => config.builtin || isBuiltinClientId(config.id))
+        .map((config) => [builtinClientId(builtinServerIdFromClient(config.id, config.builtinServerId)), config]),
+    );
+    const entries: APIConfig[] = items
+      .filter((status) => status.available && status.id)
+      .map((status) => {
+        const id = builtinClientId(status.id);
+        const previous = previousById.get(id);
+        return {
+          id,
+          name: status.name || '公益 API',
+          provider: status.format === 'gemini' ? 'gemini' : 'custom',
+          url: '',
+          apiKey: BUILTIN_API_KEY,
+          model: status.model,
+          temperature: previous?.temperature ?? 0.7,
+          maxTokens: status.max_tokens || 16000,
+          thinkingLevel: previous?.thinkingLevel ?? 'default',
+          enabled: previous?.enabled ?? true,
+          forceJsonOutput: previous?.forceJsonOutput,
+          builtin: true,
+          builtinServerId: status.id,
+          cost: status.cost,
+          description: status.description,
+          poolChannels: status.channels,
+        };
+      });
+    const rest = apiConfigs.value.filter((config) => !config.builtin && !isBuiltinClientId(config.id));
+    const defaultIndex = rest.findIndex((config) => config.id === 'default');
+    rest.splice(defaultIndex >= 0 ? defaultIndex + 1 : 0, 0, ...entries);
+    apiConfigs.value = rest;
+    const ids = new Set(rest.map((config) => config.id));
+    apiAssignments.value.forEach((assignment) => {
+      if (!ids.has(assignment.apiId)) assignment.apiId = 'default';
+    });
+    saveToStorage();
+  };
+
+  /** 拉公益模型名单和余额。失败时保留上次的名单。 */
+  let builtinSyncing: Promise<void> | null = null;
+  const syncBuiltinApi = async () => {
+    if (builtinSyncing) return builtinSyncing;
+    builtinSyncing = (async () => {
+      const list = await fetchBuiltinApiList();
+      if (!list) return;
+      applyBuiltinList(list.items);
+      builtinBalance.value = localStorage.getItem('access_token') ? list.balance : null;
+    })().finally(() => {
+      builtinSyncing = null;
+    });
+    return builtinSyncing;
+  };
+
+  const setBuiltinBalance = (value: number | null) => {
+    builtinBalance.value = value;
+  };
+
+  /** 本地先扣，服务端仍会再校验 */
+  const consumeBuiltinQuota = (clientId?: string) => {
+    const api = apiConfigs.value.find((item) => (clientId ? item.id === clientId : item.builtin));
+    if (!api || builtinBalance.value === null) return;
+    builtinBalance.value = Math.max(0, Math.round((builtinBalance.value - (api.cost ?? 1)) * 10000) / 10000);
+  };
+
+  const markBuiltinQuotaExhausted = () => {
+    void syncBuiltinApi();
+  };
+
+  // ─── 一键切换主流程 ───
+  const PREV_MAIN_KEY = 'dad_prev_own_main_api';
+  const mainApiId = computed(() => apiAssignments.value.find((a) => a.type === 'main')?.apiId ?? 'default');
+  const mainIsBuiltin = computed(() => isBuiltinClientId(mainApiId.value));
+
+  /** 切到公益模型前记住当前自己的 API，切回时恢复。 */
+  const switchMainToBuiltin = (clientId: string) => {
+    const target = apiConfigs.value.find((api) => api.id === clientId && api.builtin);
+    if (!target) throw new Error('这个公益模型已下线');
+    if (!mainIsBuiltin.value) localStorage.setItem(PREV_MAIN_KEY, mainApiId.value);
+    if (!target.enabled) target.enabled = true;
+    assignAPI('main', clientId);
+  };
+
+  const switchMainToOwn = () => {
+    const saved = localStorage.getItem(PREV_MAIN_KEY) || 'default';
+    const exists = apiConfigs.value.some((api) => api.id === saved && !api.builtin && api.enabled);
+    assignAPI('main', exists ? saved : 'default');
+    return exists ? saved : 'default';
+  };
+
   const deleteAPI = (id: string) => {
     // 不能删除默认API
     if (id === 'default') {
       throw new Error('不能删除默认API配置');
+    }
+    if (isBuiltinClientId(id)) {
+      throw new Error('不能删除公益 API');
     }
 
     // 如果有功能使用了这个API，将它们改回默认API
@@ -296,6 +436,9 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
 
   // 设置功能使用的API
   const assignAPI = (type: APIUsageType, apiId: string) => {
+    if (type === 'embedding' && (isBuiltinClientId(apiId) || apiConfigs.value.find((api) => api.id === apiId)?.builtin)) {
+      throw new Error('公益 API 只提供对话，不能用作向量模型');
+    }
     const assignment = apiAssignments.value.find(a => a.type === type);
     if (assignment) {
       assignment.apiId = apiId;
@@ -395,10 +538,12 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
       if (data.apiConfigs && Array.isArray(data.apiConfigs)) {
         // 不含 Key 的配置（如云端同步来的）沿用本机同 ID 配置的 Key
         const localKeys = new Map(apiConfigs.value.map(c => [c.id, c.apiKey]));
-        apiConfigs.value = data.apiConfigs.map((c: APIConfig) => ({
-          ...c,
-          apiKey: c.apiKey || localKeys.get(c.id) || '',
-        }));
+        apiConfigs.value = data.apiConfigs
+          .filter((c: APIConfig) => !c.builtin && !isBuiltinClientId(c.id))
+          .map((c: APIConfig) => ({
+            ...c,
+            apiKey: c.apiKey || localKeys.get(c.id) || '',
+          }));
       }
       if (data.apiAssignments && Array.isArray(data.apiAssignments)) {
         apiAssignments.value = data.apiAssignments;
@@ -416,11 +561,15 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
         };
       }
       saveToStorage();
+      void syncBuiltinApi();
     } catch (error) {
       console.error('[API管理] 导入配置失败:', error);
       throw error;
     }
   };
+
+  loadFromStorage();
+  void syncBuiltinApi();
 
   return {
     apiConfigs,
@@ -432,6 +581,15 @@ export const useAPIManagementStore = defineStore('apiManagement', () => {
     shouldEnableSplitGeneration,
     loadFromStorage,
     saveToStorage,
+    syncBuiltinApi,
+    builtinBalance,
+    setBuiltinBalance,
+    consumeBuiltinQuota,
+    markBuiltinQuotaExhausted,
+    mainApiId,
+    mainIsBuiltin,
+    switchMainToBuiltin,
+    switchMainToOwn,
     addAPI,
     updateAPI,
     deleteAPI,

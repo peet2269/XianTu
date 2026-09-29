@@ -238,7 +238,7 @@ export class EnhancedWorldGenerator {
 - 类型：魔道宗门 或 中立宗门
 - 等级：二流 或 三流（必须明确填写，不能为空）
 - 特色：以双修采补闻名，宗门风气开放
-- 必须包含圣女职位（leadership.圣女字段）`;
+- 领导层中必须包含"圣女"字段（圣女姓名）`;
       }
 
       // 🔥 注入现有地点和势力信息（防止重叠）
@@ -326,44 +326,49 @@ export class EnhancedWorldGenerator {
         大洲边界: continent.continent_bounds || continent.大洲边界 || []
       })),
       势力信息: (rawData.factions || []).map((faction: Record<string, any>) => {
+        // 世界生成提示词要求输出中文键（领导层/成员数量），旧生成器用英文键，两种都接
+        const rawLeadership = faction.leadership ?? faction.领导层;
+        const rawMemberCount = faction.memberCount ?? faction.成员数量;
+        const rawByPosition = rawMemberCount?.byPosition ?? rawMemberCount?.按职位;
+
         // 计算声望与综合战力（若可）
         const calcInput: SectCalculationData = {
           名称: faction.name || faction.名称,
           类型: faction.type || faction.类型 || '修仙宗门',
           等级: faction.level || faction.等级 || '三流',
-          宗主修为: faction.leadership?.宗主修为,
-          最强修为: faction.leadership?.最强修为,
-          长老数量: faction.memberCount?.byPosition?.长老 || 0,
-          核心弟子数: faction.leadership?.核心弟子数,
-          内门弟子数: faction.leadership?.内门弟子数,
-          外门弟子数: faction.leadership?.外门弟子数
+          宗主修为: rawLeadership?.宗主修为,
+          最强修为: rawLeadership?.最强修为,
+          长老数量: rawByPosition?.长老 || 0,
+          核心弟子数: rawLeadership?.核心弟子数,
+          内门弟子数: rawLeadership?.内门弟子数,
+          外门弟子数: rawLeadership?.外门弟子数
         };
         const calculated = calculateSectData(calcInput);
         const factionName = String(faction.name || faction.名称 || '');
         const isHehuan = factionName.includes('合欢');
 
-        const leadership = faction.leadership
+        const leadership = rawLeadership
           ? {
-              宗主: faction.leadership.宗主,
-              宗主修为: faction.leadership.宗主修为,
-              副宗主: faction.leadership.副宗主 ?? undefined,
-              圣女: isHehuan ? (faction.leadership.圣女 ?? undefined) : undefined,
-              圣子: isHehuan ? (faction.leadership.圣子 ?? undefined) : undefined,
-              太上长老: faction.leadership.太上长老 ?? undefined,
-              太上长老修为: faction.leadership.太上长老修为 ?? undefined,
-              最强修为: faction.leadership.最强修为 || faction.leadership.宗主修为,
+              宗主: rawLeadership.宗主,
+              宗主修为: rawLeadership.宗主修为,
+              副宗主: rawLeadership.副宗主 ?? undefined,
+              圣女: isHehuan ? (rawLeadership.圣女 ?? undefined) : undefined,
+              圣子: isHehuan ? (rawLeadership.圣子 ?? undefined) : undefined,
+              太上长老: rawLeadership.太上长老 ?? undefined,
+              太上长老修为: rawLeadership.太上长老修为 ?? undefined,
+              最强修为: rawLeadership.最强修为 || rawLeadership.宗主修为,
               综合战力: calculated.综合战力,
-              核心弟子数: faction.leadership.核心弟子数,
-              内门弟子数: faction.leadership.内门弟子数,
-              外门弟子数: faction.leadership.外门弟子数
+              核心弟子数: rawLeadership.核心弟子数,
+              内门弟子数: rawLeadership.内门弟子数,
+              外门弟子数: rawLeadership.外门弟子数
             }
           : undefined;
 
-        const memberCount = faction.memberCount
+        const memberCount = rawMemberCount
           ? {
-              total: Number(faction.memberCount.total) || 0,
-              byRealm: faction.memberCount.byRealm || {},
-              byPosition: faction.memberCount.byPosition || {}
+              total: Number(rawMemberCount.total ?? rawMemberCount.总数) || 0,
+              byRealm: rawMemberCount.byRealm || rawMemberCount.按境界 || {},
+              byPosition: rawByPosition || {}
             }
           : undefined;
 

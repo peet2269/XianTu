@@ -85,6 +85,10 @@
           <UserCircle :size="18" />
           <span>账号中心</span>
         </button>
+        <button class="action-menu-item" :class="{ 'is-disabled': !backendReady }" @click="openLeaderboard(close)">
+          <Trophy :size="18" />
+          <span>额度排行</span>
+        </button>
         <div class="action-menu-divider" role="separator"></div>
         <button class="action-menu-item" @click="toggleTheme(); close()">
           <component :is="isDark ? Sun : Moon" :size="18" />
@@ -138,6 +142,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 额度排行弹窗 -->
+    <LeaderboardModal v-if="showLeaderboard" @close="showLeaderboard = false" />
 
     <!-- 提示词管理弹窗 -->
     <div v-if="showPromptModal" class="settings-modal-overlay" @click.self="showPromptModal = false">
@@ -229,8 +236,9 @@ import { useRouter, useRoute } from 'vue-router';
 import $ from 'jquery'; // 导入 jQuery
 import {
   BookOpen, X, Maximize2, Minimize2, Moon, Sun, Settings, Store, Globe, UserCircle, Heart, ArrowRight,
-  Plug, FileText, Lightbulb, Dices, Sparkles, ScrollText, Save, Swords, Map as MapIcon,
+  Plug, FileText, Lightbulb, Dices, Sparkles, ScrollText, Save, Swords, Map as MapIcon, Trophy,
 } from 'lucide-vue-next';
+import LeaderboardModal from './components/publicApi/LeaderboardModal.vue';
 import ToastContainer from './components/common/ToastContainer.vue';
 import GlobalLoadingOverlay from './components/common/GlobalLoadingOverlay.vue';
 import RetryConfirmDialog from './components/common/RetryConfirmDialog.vue';
@@ -272,6 +280,15 @@ const helpFeatures = [
 const showSettingsModal = ref(false);
 const showAPIModal = ref(false);
 const showSponsorModal = ref(false);
+const showLeaderboard = ref(false);
+const openLeaderboard = (close: () => void) => {
+  close();
+  if (!backendReady.value) {
+    toast.info('未配置后端服务器，排行榜不可用');
+    return;
+  }
+  showLeaderboard.value = true;
+};
 const showPromptModal = ref(false);
 const backendReady = ref(isBackendConfigured());
 const displayVersion = '5.0';
@@ -775,7 +792,7 @@ watch(route, (newRoute, oldRoute) => {
   background: var(--color-surface, #ffffff);
   border-radius: 14px;
   width: min(760px, 100%);
-  max-height: 85vh;
+  max-height: calc(var(--app-vh) * 0.85);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -808,8 +825,8 @@ watch(route, (newRoute, oldRoute) => {
 
 .settings-panel-modal {
   width: min(720px, 100%);
-  height: min(820px, 88vh);
-  max-height: 88vh;
+  height: min(820px, calc(var(--app-vh) * 0.88));
+  max-height: calc(var(--app-vh) * 0.88);
   border-radius: 14px;
   border-color: rgba(212, 184, 120, 0.3);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.2);

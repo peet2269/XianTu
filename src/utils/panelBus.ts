@@ -1,4 +1,8 @@
-type PanelAction = 'refresh' | 'save' | 'test' | 'clear' | 'export' | 'stats' | 'memory-settings-updated' | 'settings-reset';
+/**
+ * 跨组件广播：只剩记忆设置变更通知（记忆档案 → 主面板）。
+ * 页面按钮已改为各页面通过 usePageActions 自行声明。
+ */
+type PanelAction = 'memory-settings-updated';
 
 type Handler = (payload?: any) => void | Promise<void>;
 

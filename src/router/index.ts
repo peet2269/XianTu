@@ -39,27 +39,26 @@ const FullscreenCharacterManagement = {
 
 // 静态导入所有组件，避免代码分割
 import MainGamePanel from '../components/dashboard/MainGamePanel.vue';
-import MemoryCenterPanel from '../components/dashboard/MemoryCenterPanel.vue';
+import MemoryPage from '../views/game/MemoryPage.vue';
 import CharacterPage from '../views/game/CharacterPage.vue';
 import NpcsPage from '../views/game/NpcsPage.vue';
 import InventoryPage from '../views/game/InventoryPage.vue';
 import TechniquesPage from '../views/game/TechniquesPage.vue';
 import ThousandDaoPage from '../views/game/ThousandDaoPage.vue';
-import SettingsPanel from '../components/dashboard/SettingsPanel.vue';
+import SettingsPage from '../views/game/SettingsPage.vue';
 import SavePage from '../views/game/SavePage.vue';
-import WorldMapRoute from '../components/dashboard/WorldMapRoute.vue';
+import WorldMapPage from '../views/game/WorldMapPage.vue';
 import EventsPage from '../views/game/EventsPage.vue';
 import CraftingPage from '../views/game/CraftingPage.vue';
-import SectPanel from '../components/dashboard/SectPanel.vue';
-import SectSystemPanel from '../components/dashboard/SectSystemPanel.vue';
-import SectMembersContent from '../components/dashboard/components/SectMembersContent.vue';
-import SectLibraryContent from '../components/dashboard/components/SectLibraryContent.vue';
-import SectContributionContent from '../components/dashboard/components/SectContributionContent.vue';
-import SectTasksContent from '../components/dashboard/components/SectTasksContent.vue';
-import SectManagementContent from '../components/dashboard/components/SectManagementContent.vue';
-import GameVariablePanel from '../components/dashboard/GameVariablePanel.vue';
+import SectPage from '../views/game/SectPage.vue';
+
+// 宗门是一个页面 + 标签；子路由只用来决定选中哪个标签（旧链接仍可用）
+const SectTabRoute = { render: () => null };
+import GameVariablesPage from '../views/game/GameVariablesPage.vue';
+import PromptsPage from '../views/game/PromptsPage.vue';
 import PromptManagementPanel from '../components/dashboard/PromptManagementPanel.vue';
-import APIManagementPanel from '../components/dashboard/APIManagementPanel.vue';
+import ApiPage from '../views/game/ApiPage.vue';
+import AccountPage from '../views/game/AccountPage.vue';
 
 const routes = [
   {
@@ -106,7 +105,7 @@ const routes = [
       {
         path: 'memory',
         name: 'Memory',
-        component: MemoryCenterPanel,
+        component: MemoryPage,
       },
       {
         path: 'character-details',
@@ -136,7 +135,7 @@ const routes = [
       {
         path: 'settings',
         name: 'Settings',
-        component: SettingsPanel,
+        component: SettingsPage,
       },
       {
         path: 'save',
@@ -146,7 +145,7 @@ const routes = [
       {
         path: 'world-map',
         name: 'WorldMap',
-        component: WorldMapRoute,
+        component: WorldMapPage,
       },
       {
         path: 'events',
@@ -161,7 +160,7 @@ const routes = [
       {
         path: 'sect',
         name: 'Sect',
-        component: SectSystemPanel,
+        component: SectPage,
         children: [
           {
             path: '',
@@ -170,49 +169,54 @@ const routes = [
           {
             path: 'overview',
             name: 'SectOverview',
-            component: SectPanel,
+            component: SectTabRoute,
           },
           {
             path: 'members',
             name: 'SectMembers',
-            component: SectMembersContent,
+            component: SectTabRoute,
           },
           {
             path: 'management',
             name: 'SectManagement',
-            component: SectManagementContent,
+            component: SectTabRoute,
           },
           {
             path: 'library',
             name: 'SectLibrary',
-            component: SectLibraryContent,
+            component: SectTabRoute,
           },
           {
             path: 'tasks',
             name: 'SectTasks',
-            component: SectTasksContent,
+            component: SectTabRoute,
           },
           {
             path: 'contribution',
             name: 'SectContribution',
-            component: SectContributionContent,
+            component: SectTabRoute,
           },
         ],
       },
       {
         path: 'game-variables',
         name: 'GameVariables',
-        component: GameVariablePanel,
+        component: GameVariablesPage,
       },
       {
         path: 'prompts',
         name: 'Prompts',
-        component: PromptManagementPanel,
+        component: PromptsPage,
       },
       {
         path: 'api-management',
         name: 'APIManagement',
-        component: APIManagementPanel,
+        component: ApiPage,
+      },
+      {
+        path: 'account',
+        name: 'GameAccount',
+        component: AccountPage,
       },
     ],
   },

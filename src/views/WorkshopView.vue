@@ -1057,7 +1057,7 @@ const submitUpload = async () => {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 100dvh;
+  height: var(--app-dvh);
   padding: 1.5rem;
   box-sizing: border-box;
   overflow: hidden;

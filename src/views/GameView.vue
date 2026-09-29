@@ -136,7 +136,7 @@ import { useCharacterStore } from '@/stores/characterStore';
 import { useGameStateStore } from '@/stores/gameStateStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useRouter, useRoute } from 'vue-router';
-import { Package, User, Brain, Users, BookOpen, Zap, Settings, Save, Map, Scroll, Bell, Home, Box, Database, FileText, Plug, Hammer, Shield, ChevronLeft, ChevronRight, ArrowLeft, Check, Loader2 } from 'lucide-vue-next';
+import { Package, User, Brain, Users, BookOpen, Zap, Settings, Save, Map, Scroll, Bell, Home, Box, Database, FileText, Plug, Hammer, Shield, BadgeCheck, ChevronLeft, ChevronRight, ArrowLeft, Check, Loader2 } from 'lucide-vue-next';
 import { useCurrentPageActions } from '@/composables/usePageActions';
 import { applyUIScale } from '@/utils/readingPrefs';
 import { detectSectMigration } from '@/utils/sectMigration';
@@ -214,12 +214,12 @@ const panelRoutes = new Set([
   'Cultivation', 'Techniques', 'ThousandDao', 'Settings', 'Save', 'WorldMap',
   'Events', 'Crafting', 'Sect', 'SectOverview', 'SectMembers', 'SectManagement', 'SectLibrary', 'SectTasks', 'SectContribution', 'GameVariables',
   'Npcs',
-  'Prompts', 'APIManagement', 'BackendAdminPanel'
+  'Prompts', 'APIManagement', 'GameAccount', 'BackendAdminPanel'
 ]);
 
 // 不需要角色数据就能访问的面板（设置类）
 const noDataRequiredRoutes = new Set([
-  'Settings', 'Prompts', 'APIManagement', 'BackendAdminPanel'
+  'Settings', 'Prompts', 'APIManagement', 'GameAccount', 'BackendAdminPanel'
 ]);
 
 // 右侧相关面板（应该影响右侧收缩按钮）
@@ -255,6 +255,7 @@ const panelTitles: Record<string, { title: string; desc?: string; icon: IconComp
   GameVariables: { title: '游戏变量', desc: '查看游戏数据', icon: Database },
   Prompts: { title: '提示词管理', desc: '自定义提示词', icon: FileText },
   APIManagement: { title: 'API管理', desc: '多API配置', icon: Plug },
+  GameAccount: { title: '道友账户', desc: '签到领取公益额度', icon: BadgeCheck },
   BackendAdminPanel: { title: '仙官后台', icon: Shield }
 };
 
@@ -503,6 +504,7 @@ watch(isPanelOpen, (isOpen) => {
 }
 
 .shell.panel-open .side-status,
+.shell.panel-open .edge-toggle.left,
 .shell.panel-open .edge-toggle.right {
   display: none;
 }

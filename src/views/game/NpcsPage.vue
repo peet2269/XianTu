@@ -32,41 +32,42 @@
       </select>
     </div>
 
-    <ListDetail :open="!!selected && detailOpen" :detail-width="440" detail-label="人物详情" @close="detailOpen = false">
-      <template #list>
-        <EmptyState v-if="!list.length" glyph="寻" title="没有符合条件的人物" compact>
-          <button type="button" class="cc-btn small" @click="clearFilters">清除筛选</button>
-        </EmptyState>
-        <ul v-else class="gm-list npc-list">
-          <li v-for="npc in list" :key="npc.名字">
-            <div class="gm-row npc-row" :class="{ active: selected?.名字 === npc.名字 }" :style="{ '--tone': favorInfo(npc.好感度).tone }">
-              <button type="button" class="npc-row-main" @click="select(npc.名字)">
-                <span class="gm-disc" :style="{ '--tone': favorInfo(npc.好感度).tone }">{{ npc.名字.charAt(0) }}</span>
-                <span class="gm-row-main">
-                  <span class="gm-row-title">{{ npc.名字 }}</span>
-                  <span class="gm-row-sub">{{ formatRealmWithStage(npc.境界) }} · {{ npc.与玩家关系 || '相识' }}</span>
-                </span>
-                <span class="favor-mini" :title="`好感 ${npc.好感度 ?? 0}（${favorInfo(npc.好感度).label}）`">
-                  <b :style="{ color: favorInfo(npc.好感度).tone }">{{ npc.好感度 ?? 0 }}</b>
-                  <span class="favor-track"><span :style="{ width: favorInfo(npc.好感度).percent + '%', background: favorInfo(npc.好感度).tone }"></span></span>
-                </span>
-              </button>
-              <button
-                type="button"
-                class="star"
-                :class="{ on: npc.实时关注 }"
-                :title="npc.实时关注 ? '取消实时关注' : '实时关注'"
-                :aria-label="npc.实时关注 ? '取消实时关注' : '实时关注'"
-                :aria-pressed="!!npc.实时关注"
-                :disabled="busy === npc.名字"
-                @click="toggleFollow(npc)"
-              >
-                <Star :size="16" :fill="npc.实时关注 ? 'currentColor' : 'none'" />
-              </button>
-            </div>
-          </li>
-        </ul>
-      </template>
+    <div class="npc-layout">
+      <ListDetail :open="!!selected && detailOpen" :detail-width="560" detail-label="人物详情" @close="detailOpen = false">
+        <template #list>
+          <EmptyState v-if="!list.length" glyph="寻" title="没有符合条件的人物" compact>
+            <button type="button" class="cc-btn small" @click="clearFilters">清除筛选</button>
+          </EmptyState>
+          <ul v-else class="gm-list npc-list">
+            <li v-for="npc in list" :key="npc.名字">
+              <div class="gm-row npc-row" :class="{ active: selected?.名字 === npc.名字 }" :style="{ '--tone': favorInfo(npc.好感度).tone }">
+                <button type="button" class="npc-row-main" @click="select(npc.名字)">
+                  <span class="gm-disc" :style="{ '--tone': favorInfo(npc.好感度).tone }">{{ npc.名字.charAt(0) }}</span>
+                  <span class="gm-row-main">
+                    <span class="gm-row-title">{{ npc.名字 }}</span>
+                    <span class="gm-row-sub">{{ formatRealmWithStage(npc.境界) }} · {{ npc.与玩家关系 || '相识' }}</span>
+                  </span>
+                  <span class="favor-mini" :title="`好感 ${npc.好感度 ?? 0}（${favorInfo(npc.好感度).label}）`">
+                    <b :style="{ color: favorInfo(npc.好感度).tone }">{{ npc.好感度 ?? 0 }}</b>
+                    <span class="favor-track"><span :style="{ width: favorInfo(npc.好感度).percent + '%', background: favorInfo(npc.好感度).tone }"></span></span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="star"
+                  :class="{ on: npc.实时关注 }"
+                  :title="npc.实时关注 ? '取消实时关注' : '实时关注'"
+                  :aria-label="npc.实时关注 ? '取消实时关注' : '实时关注'"
+                  :aria-pressed="!!npc.实时关注"
+                  :disabled="busy === npc.名字"
+                  @click="toggleFollow(npc)"
+                >
+                  <Star :size="16" :fill="npc.实时关注 ? 'currentColor' : 'none'" />
+                </button>
+              </div>
+            </li>
+          </ul>
+        </template>
 
       <template #detail>
         <div v-if="selected" class="npc-detail">
@@ -251,7 +252,8 @@
         </div>
         <EmptyState v-else glyph="缘" title="选择一位人物" desc="左侧列表点选即可查看详情" compact />
       </template>
-    </ListDetail>
+      </ListDetail>
+    </div>
   </div>
 </template>
 
@@ -567,6 +569,23 @@ const removeNpc = async () => {
   height: 100%;
   min-height: 0;
   padding-top: 1rem;
+}
+
+.npc-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 人物详情包含长文本和多组属性，桌面端与列表保持接近的视觉比重。 */
+.npc-layout :deep(.list-detail) {
+  grid-template-columns: minmax(0, 1fr) minmax(480px, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .npc-layout :deep(.list-detail) {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 0.95fr);
+  }
 }
 
 .npc-list {
@@ -890,6 +909,10 @@ const removeNpc = async () => {
 @media (max-width: 768px) {
   .npcs-page {
     padding-top: 0.75rem;
+  }
+
+  .npc-layout :deep(.list-detail) {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .npc-tools .gm-seg {

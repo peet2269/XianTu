@@ -500,7 +500,7 @@ const handleLogin = async () => {
   flex-direction: column;
   gap: 1.25rem;
   width: min(440px, 100%);
-  max-height: calc(100dvh - 3rem);
+  max-height: calc(var(--app-dvh) - 3rem);
   overflow-y: auto;
   padding: 2rem 2.1rem 1.5rem;
   box-sizing: border-box;
@@ -748,7 +748,7 @@ const handleLogin = async () => {
 
   .login-panel {
     width: 100%;
-    min-height: 100dvh;
+    min-height: var(--app-dvh);
     max-height: none;
     justify-content: center;
     padding: 4.5rem 1.25rem 2rem;

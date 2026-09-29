@@ -24,6 +24,7 @@ import { stripNsfwContent } from '@/utils/prompts/definitions/dataDefinitions';
 import { isSaveDataV3, migrateSaveDataToLatest } from './saveMigration';
 import { parseJsonSmart } from '@/utils/jsonExtract';
 import type { APIUsageType } from '@/stores/apiManagementStore';
+import { buildJudgementRound, formatJudgementBlock } from '@/utils/judgement';
 
 type PlainObject = Record<string, unknown>;
 
@@ -178,12 +179,13 @@ class AIBidirectionalSystemClass {
     const list = focusedNames.length > 0 ? focusedNames.map(name => `- ${name}`).join('\n') : '- （无）';
     return [
       '# 🔎 实时关注NPC（必须更新）',
-      '请先检查“实时关注”名单；若名单非空，本回合必须推演并更新其💭当前状态（实时），即使不在玩家身边：',
+      '以下NPC即使不在玩家身边，本回合也要按时间推移推演其动态并写入 tavern_commands：',
       list,
       '要求：',
-      '- 必须更新 社交.关系.[NPC名].当前内心想法',
-      '- 如有变化，同步更新 当前位置 / 当前外貌状态 / 属性 等',
-      '- 所有名单必须全部覆盖，可合并或分多条 tavern_commands 更新'
+      '- 名单为（无）时忽略本节',
+      '- 每人至少 set 社交.关系.{NPC名}.当前内心想法（{NPC名}换成真实名字）',
+      '- 位置 / 外貌状态 / 属性有变化时一并更新',
+      '- 名单中每个人都要覆盖'
     ].join('\n');
   }
 
@@ -425,11 +427,16 @@ class AIBidirectionalSystemClass {
 
     try {
       const { aiService } = await import('@/services/aiService');
-      const textOptPrompt = await getPrompt('textOptimization');
+      const [textOptPrompt, styleNarrativePrompt] = await Promise.all([
+        getPrompt('textOptimization'),
+        getPrompt('styleNarrative'),
+      ]);
+      const styleNarrative = styleNarrativePrompt.trim();
+      const polishSystem = styleNarrative ? `${textOptPrompt}\n\n---\n\n${styleNarrative}` : textOptPrompt;
 
       const optimizedText = await aiService.generateRaw({
         ordered_prompts: [
-          { role: 'system', content: textOptPrompt },
+          { role: 'system', content: polishSystem },
           { role: 'user', content: `请优化以下文本：\n\n${text}` }
         ],
         should_stream: false,
@@ -481,7 +488,7 @@ class AIBidirectionalSystemClass {
     options?.onProgressUpdate?.('获取存档数据…');
     const saveData = gameStateStore.toSaveData();
 
-    // 🔥 对话前创建快照（轻量级，不含叙事历史）
+    // 对话前记一档快照，回退只撤这一回合
     if (saveData) {
       const characterStore = useCharacterStore();
       const active = characterStore.rootState.当前激活存档;
@@ -579,57 +586,14 @@ class AIBidirectionalSystemClass {
         coreStatusSummary += `\n- 天赋: ${formatTalentsForPrompt(character.天赋)}`;
       }
 
-      // 🍀 前端计算幸运点（基于气运和随机数，AI不知道具体骰子点数）
-      const innate = character?.先天六司 || {};
-      const acquired = character?.后天六司 || {};
-      // 气运范围 0-10，先天+后天
-      const fortune = Math.min(10, Math.max(0, (innate.气运 || 5) + (acquired.气运 || 0)));
-
-      // 幸运点计算逻辑（气运 0-10）
-      // 设计目标：
-      // - 气运 0：范围 -10 到 +5，期望值约 -2.5
-      // - 气运 5：范围 -8 到 +10，期望值约 +1
-      // - 气运 10：范围 -5 到 +15，期望值约 +5
-
-      // 基础随机：-10 到 +5 的波动（15个档位）
-      const baseRandom = Math.floor(Math.random() * 16) - 10;
-
-      // 气运提升上限：每点气运增加 1 点上限
-      const fortuneUpperBonus = Math.floor(Math.random() * (fortune + 1));
-
-      // 气运减少下限惩罚：每点气运减少 0.5 点下限惩罚（向上取整）
-      const fortuneLowerBonus = Math.ceil(fortune * 0.5);
-
-      // 最终幸运点 = 基础随机 + 气运上限加成 + 气运下限保护
-      const luckyPoints = baseRandom + fortuneUpperBonus + fortuneLowerBonus;
-
-      // 计算灵气浓度的环境修正（如果有位置信息）
-      const currentLocation = stateForAI.角色?.位置;
-      const spiritDensity = currentLocation?.灵气浓度 || 50; // 默认50
-
-      // 🔥 结构化判定数据（直接传给AI使用，无需AI自己计算）
-      const judgmentData = {
-        幸运点: luckyPoints,
-        气运值: fortune,
-        环境: {
-          灵气浓度: spiritDensity,
-          修炼修正: Math.round((spiritDensity - 50) / 10),  // 修炼突破用
-          炼制修正: Math.round((spiritDensity - 50) / 15),  // 炼丹炼器用
-          战斗修正: Math.round((spiritDensity - 50) / 20)   // 战斗用
-        }
-      };
-
-      coreStatusSummary += `\n\n# 本回合判定数据（前端已计算）
-**幸运点**: ${luckyPoints >= 0 ? '+' : ''}${luckyPoints}
-**环境修正**:
-  - 灵气浓度: ${spiritDensity}
-  - 修炼/突破: ${judgmentData.环境.修炼修正 >= 0 ? '+' : ''}${judgmentData.环境.修炼修正}
-  - 炼丹/炼器: ${judgmentData.环境.炼制修正 >= 0 ? '+' : ''}${judgmentData.环境.炼制修正}
-  - 战斗施法: ${judgmentData.环境.战斗修正 >= 0 ? '+' : ''}${judgmentData.环境.战斗修正}
-
-⚠️ **重要**：判定时直接使用以上数值，不要自己计算！
-- 幸运点固定为: ${luckyPoints >= 0 ? '+' : ''}${luckyPoints}
-- 环境修正根据判定类型选择对应的值`;
+      const judgementRound = buildJudgementRound({
+        先天六司: character?.先天六司,
+        后天六司: character?.后天六司,
+        属性: attributes,
+        效果: stateForAI.角色?.效果,
+        灵气浓度: stateForAI.角色?.位置?.灵气浓度,
+      });
+      coreStatusSummary += `\n\n${formatJudgementBlock(judgementRound)}`;
       // --- 结束 ---
 
       // 🔥 构建精简版存档数据（用于叙事判定，减少token消耗）
@@ -692,17 +656,24 @@ ${assembledPrompt}
 ${coreStatusSummary}
 ${narrativeRagSection ? `\n${narrativeRagSection}\n` : ''}
 # 游戏状态
-你正在修仙世界《仙途》中扮演GM。以下是当前完整游戏存档(JSON格式):
+你是这个修仙世界的GM。以下是当前完整游戏存档(JSON)，所有叙事与判定以此为准:
 ${stateJsonString}
 `.trim();
 
       const userActionForAI = (userMessage && userMessage.toString().trim()) || '继续当前活动';
 
       const recentEventsInject = this.buildRecentEventsInject(shortTermMemoryForPrompt);
+      const judgementInject: PromptInject = {
+        content: formatJudgementBlock(judgementRound),
+        role: 'system',
+        depth: 1,
+        position: 'in_chat',
+      };
       const injects: PromptInject[] = [
         { content: systemPrompt, role: 'system', depth: 4, position: 'in_chat' },
         { content: focusedNpcPrompt, role: 'system', depth: 3, position: 'in_chat' },
         ...(recentEventsInject ? [recentEventsInject] : []),
+        judgementInject,
         INPUT_GUARD_INJECT,
       ];
 
@@ -716,15 +687,21 @@ ${stateJsonString}
 
           if (step === 1) {
             // 第1步：只输出正文纯文本，不需要JSON格式和指令相关的提示词
-            const stepRules = (await getPrompt('splitGenerationStep1')).trim();
-            const worldStandardsPrompt = await getPrompt('worldStandards');
-            // 🔥 添加判定规则，确保战斗等场景使用判定系统
-            const textFormatsPrompt = await getPrompt('textFormatRules');
+            const [stepRulesRaw, worldStandardsPrompt, textFormatsPrompt, styleNarrativePrompt, playerPersonalityPrompt] = await Promise.all([
+              getPrompt('splitGenerationStep1'),
+              getPrompt('worldStandards'),
+              getPrompt('textFormatRules'),
+              getPrompt('styleNarrative'),
+              getPrompt('playerPersonality'),
+            ]);
+            const stepRules = stepRulesRaw.trim();
+            const styleBlock = [styleNarrativePrompt, playerPersonalityPrompt].map((s) => s.trim()).filter(Boolean).join('\n\n');
             // 🔥 添加精简版存档数据，用于叙事判定（知道玩家装备、状态、NPC关系等）
             const narrativeStateJson = stateJsonString;
             // 只给叙事相关的提示词，不给coreOutputRules/dataDefinitions等指令格式提示词
             return `
 ${stepRules}
+${styleBlock ? `\n\n---\n\n${styleBlock}` : ''}
 
 ---
 
@@ -793,6 +770,7 @@ ${stateJsonString}
           { content: await buildSplitSystemPrompt(1), role: 'system', depth: 4, position: 'in_chat' },
           // 只在第1步注入最近事件，避免重复
           ...(recentEventsInject ? [recentEventsInject] : []),
+          judgementInject,
           INPUT_GUARD_INJECT,
         ];
         let step1Text = '';
@@ -1634,7 +1612,10 @@ ${step1Text}
 
       // 4. 使用用户自定义的记忆总结提示词
       const memorySummaryPrompt = await getPrompt('memorySummary');
-      const userPrompt = memorySummaryPrompt.replace('{{记忆内容}}', memoriesText)
+      // 用户自定义的提示词可能没有 {{记忆内容}} 占位符，此时把待总结记忆追加到末尾，保证记忆一定会发给 AI
+      const userPrompt = (memorySummaryPrompt.includes('{{记忆内容}}')
+        ? memorySummaryPrompt.replace('{{记忆内容}}', memoriesText)
+        : `${memorySummaryPrompt}\n\n【待总结记忆】\n${memoriesText}`)
         + (longTermFormat ? `
 
 【长期记忆格式要求（用户自定义）】
@@ -1671,7 +1652,7 @@ ${longTermFormat}` : '');
         // Raw模式：只发总结提示词与存档，不带预设
         response = String(await aiService.generateRaw({
           ordered_prompts: [
-            { role: 'system', content: `【游戏存档数据】（供参考）：
+            { role: 'system', content: `【游戏存档数据】（仅用于核对名称，不从中补充情节）：
 ${saveDataJson}` },
             { role: 'user', content: userPrompt },
             { role: 'user', content: ['Continue.', 'Proceed.', 'Next.', 'Go on.', 'Resume.'][Math.floor(Math.random() * 5)] },
@@ -1681,16 +1662,14 @@ ${saveDataJson}` },
           usageType: 'memory_summary'
         }));
       } else {
-        // 标准模式：总结提示词 + 存档作为系统注入
+        // 标准模式：存档作为系统注入，总结要求与待总结记忆都在 user_input 里（不再重复发送一遍提示词）
         response = String(await aiService.generate({
           user_input: userPrompt,
           should_stream: useStreaming,
           generation_id: `memory_summary_${Date.now()}`,
           usageType: 'memory_summary',
           injects: [
-            { content: `${memorySummaryPrompt}
-
-【游戏存档数据】（供参考）：
+            { content: `【游戏存档数据】（仅用于核对名称，不从中补充情节）：
 ${saveDataJson}`, role: 'system', depth: 4, position: 'in_chat' },
             INPUT_GUARD_INJECT,
           ]
@@ -2698,7 +2677,7 @@ ${saveDataJson}`, role: 'system', depth: 4, position: 'in_chat' },
   private buildRecentEventsInject(shortTermMemory: string[]): PromptInject | null {
     if (!shortTermMemory.length) return null;
     return {
-      content: `# 【最近事件】\n${shortTermMemory.join('\n')}。根据这刚刚发生的文本事件，合理生成下一次文本信息，要保证衔接流畅、不断层，符合上文的文本信息`,
+      content: `# 【最近事件】\n${shortTermMemory.join('\n')}\n\n以上是刚刚发生的剧情。下一段正文紧接其后：衔接流畅，不重复已写内容，不与之矛盾。`,
       role: 'assistant',
       depth: 2,
       position: 'in_chat',

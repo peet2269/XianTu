@@ -18,6 +18,8 @@ export interface GameMapConfig {
   tileSize: number // 网格大小
   minZoom?: number // 最小缩放级别
   maxZoom?: number // 最大缩放级别
+  backgroundColor?: number // 画布底色；缺省按主题取
+  theme?: 'dark' | 'light' // 配色；缺省读取 <html data-theme>
 }
 
 /**

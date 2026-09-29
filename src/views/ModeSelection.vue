@@ -325,11 +325,11 @@ const enterCharacterSelection = async () => {
   --version: #7fe3f2;
 
   width: 100%;
-  min-height: 100vh;
-  min-height: 100svh;
+  height: 100%;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: safe center;
+  justify-content: safe center;
   padding: 2rem;
   padding-top: calc(2rem + env(safe-area-inset-top));
   padding-bottom: calc(2rem + env(safe-area-inset-bottom));

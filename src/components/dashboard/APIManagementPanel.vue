@@ -37,20 +37,35 @@
 
     <!-- 内容区域 -->
     <div class="settings-container">
-      <!-- API列表区 -->
+      <!-- 公益 API：签到、一键切换、模型状态、提交渠道、排行榜 -->
       <div class="settings-section">
         <div class="section-header">
-          <Server :size="15" class="section-icon" />
-          <h4 class="section-title">{{ t('API配置列表') }}</h4>
+          <HandHeart :size="15" class="section-icon" />
+          <h4 class="section-title">公益 API</h4>
           <span class="section-rule" aria-hidden="true"></span>
-          <span class="section-count">{{ apiStore.apiConfigs.length }} {{ t('个配置') }}</span>
         </div>
-        <div class="api-list">
+        <PublicApiHall @login="goLogin" />
+      </div>
+
+      <!-- API列表区 -->
+      <div class="settings-section api-config-section">
+        <div class="section-header">
+          <Server :size="15" class="section-icon" />
+          <h4 class="section-title">我的 API</h4>
+          <span class="section-rule" aria-hidden="true"></span>
+          <span class="section-count">{{ ownApis.length }} {{ t('个配置') }}</span>
+        </div>
+        <div class="api-workbench">
+          <div class="api-list">
           <div
-            v-for="api in apiStore.apiConfigs"
+            v-for="api in ownApis"
             :key="api.id"
             class="api-card"
-            :class="{ disabled: !api.enabled, default: api.id === 'default' }"
+            :class="{ disabled: !api.enabled, default: api.id === 'default', selected: selectedAPI?.id === api.id }"
+            role="button"
+            tabindex="0"
+            @click="selectAPI(api.id)"
+            @keydown.enter="selectAPI(api.id)"
           >
             <div class="api-card-header">
               <label class="card-toggle" :title="t('启用/禁用')">
@@ -61,27 +76,21 @@
                 />
                 <span class="toggle-slider"></span>
               </label>
+              <div class="provider-logo-wrap" :class="`provider-${api.provider}`">
+                <img
+                  v-if="getProviderIcon(api.provider)"
+                  class="provider-logo"
+                  :src="getProviderIcon(api.provider)"
+                  :alt="getProviderName(api.provider)"
+                />
+                <Server v-else :size="18" />
+              </div>
               <div class="api-info">
-                <span class="api-name">{{ getDisplayName(api) }}</span>
-                <span class="api-provider" v-if="!(isTavernEnvFlag && api.id === 'default')">{{ getProviderName(api.provider) }}</span>
-                <span class="api-provider tavern-tag" v-else>酒馆配置</span>
+                <span class="api-name" :title="getDisplayName(api)">{{ getDisplayName(api) }}</span>
+                <span v-if="isTavernEnvFlag && api.id === 'default'" class="api-provider tavern-tag">酒馆配置</span>
+                <span v-else class="api-model" :title="api.model">{{ getProviderName(api.provider) }} · {{ api.model || t('未设置模型') }}</span>
               </div>
-              <div class="api-actions">
-                <button class="icon-btn" @click="testAPI(api)" :title="t('测试连接')">
-                  <FlaskConical :size="16" :class="{ 'loading-pulse': testingApiId === api.id }" />
-                </button>
-                <button class="icon-btn" @click="editAPI(api)" :title="t('编辑')">
-                  <Edit2 :size="16" />
-                </button>
-                <button
-                  class="icon-btn danger"
-                  @click="deleteAPI(api.id)"
-                  :title="t('删除')"
-                  :disabled="api.id === 'default'"
-                >
-                  <Trash2 :size="16" />
-                </button>
-              </div>
+              <span class="api-status-dot" :class="getAPIStatus(api.id)" :title="getAPIStatusText(api.id)"></span>
             </div>
             <div class="api-card-body">
               <!-- 酒馆模式下默认API显示特殊提示 -->
@@ -95,6 +104,12 @@
                   <span class="detail-label">{{ t('模型') }}:</span>
                   <span class="detail-value">{{ api.model }}</span>
                 </div>
+                <div class="model-meta" v-if="getModelPreset(api.provider, api.model)">
+                  <span class="model-meta-pill">{{ getModelPreset(api.provider, api.model)?.context }}</span>
+                  <span class="model-meta-pill" :class="{ supported: getModelPreset(api.provider, api.model)?.json }">
+                    {{ getModelPreset(api.provider, api.model)?.json ? 'JSON' : '文本' }}
+                  </span>
+                </div>
                 <div class="api-detail">
                   <span class="detail-label">{{ t('地址') }}:</span>
                   <span class="detail-value url">{{ api.url || t('默认') }}</span>
@@ -105,7 +120,7 @@
                     {{ getAPIStatusText(api.id) }}
                   </span>
                 </div>
-                <div class="api-detail" v-if="['openai', 'deepseek', 'zhipu', 'volcengine', 'custom', 'gemini', 'claude'].includes(api.provider)">
+                <div class="api-detail" v-if="JSON_CAPABLE.includes(api.provider)">
                   <label class="json-toggle">
                     <input
                       type="checkbox"
@@ -130,6 +145,62 @@
               </div>
             </div>
           </div>
+          </div>
+
+          <aside v-if="selectedAPI" class="api-detail-pane">
+            <div class="detail-pane-head">
+              <div>
+                <span class="detail-eyebrow">{{ t('当前配置') }}</span>
+                <h3>{{ getDisplayName(selectedAPI) }}</h3>
+                <p>{{ getProviderName(selectedAPI.provider) }} · {{ selectedAPI.model || t('未设置模型') }}</p>
+              </div>
+              <div class="detail-pane-actions">
+                <button class="cc-btn small" type="button" @click="testAPI(selectedAPI)" :disabled="testingApiId === selectedAPI.id">
+                  <FlaskConical :size="14" :class="{ 'loading-pulse': testingApiId === selectedAPI.id }" />
+                  {{ t('测试连接') }}
+                </button>
+                <button class="cc-btn small primary" type="button" @click="editAPI(selectedAPI)">
+                  <Edit2 :size="14" />
+                  {{ t('编辑') }}
+                </button>
+                <button v-if="selectedAPI.id !== 'default'" class="cc-btn small danger" type="button" :title="t('删除')" @click="deleteAPI(selectedAPI.id)">
+                  <Trash2 :size="14" />
+                </button>
+              </div>
+            </div>
+            <div class="detail-hero">
+              <div class="detail-hero-logo" :class="`provider-${selectedAPI.provider}`">
+                <img v-if="getProviderIcon(selectedAPI.provider)" :src="getProviderIcon(selectedAPI.provider)" :alt="getProviderName(selectedAPI.provider)" />
+                <Server v-else :size="26" />
+              </div>
+              <div class="detail-hero-copy">
+                <strong>{{ selectedAPI.model || t('未设置模型') }}</strong>
+                <span>{{ selectedAPI.url || t('使用默认地址') }}</span>
+              </div>
+              <span class="detail-status" :class="getAPIStatus(selectedAPI.id)">
+                <span class="status-dot"></span>{{ getAPIStatusText(selectedAPI.id) }}
+              </span>
+            </div>
+            <div class="detail-metrics">
+              <div><span>{{ t('温度') }}</span><strong>{{ selectedAPI.temperature }}</strong></div>
+              <div><span>{{ t('最大 Token') }}</span><strong>{{ selectedAPI.maxTokens.toLocaleString() }}</strong></div>
+              <div v-if="JSON_CAPABLE.includes(selectedAPI.provider)"><span>{{ t('强制 JSON') }}</span><strong>{{ selectedAPI.forceJsonOutput ? t('已开启') : t('未开启') }}</strong></div>
+            </div>
+            <div v-if="getModelPreset(selectedAPI.provider, selectedAPI.model)" class="detail-model-note">
+              <div class="detail-model-note-head">
+                <span>{{ getModelPreset(selectedAPI.provider, selectedAPI.model)?.name }}</span>
+                <span>{{ getModelPreset(selectedAPI.provider, selectedAPI.model)?.context }}</span>
+              </div>
+              <p>{{ getModelPreset(selectedAPI.provider, selectedAPI.model)?.description }}</p>
+            </div>
+            <div class="detail-assignment">
+              <span class="detail-eyebrow">{{ t('已分配功能') }}</span>
+              <div v-if="getAssignedFunctions(selectedAPI.id).length" class="assigned-tags">
+                <span v-for="func in getAssignedFunctions(selectedAPI.id)" :key="func" class="function-tag">{{ getFunctionName(func) }}</span>
+              </div>
+              <p v-else>{{ t('暂未分配功能，可在下方功能分配中选择。') }}</p>
+            </div>
+          </aside>
         </div>
       </div>
 
@@ -185,13 +256,13 @@
                   :value="apiStore.apiAssignments.find(a => a.type === 'instruction_generation')?.apiId"
                   @change="updateAssignment('instruction_generation', ($event.target as HTMLSelectElement).value)"
                 >
-                  <option
-                    v-for="api in apiStore.enabledAPIs"
-                    :key="api.id"
-                    :value="api.id"
-                  >
-                    {{ api.id === 'default' ? t('沿用主流程 API') : getDisplayName(api) }}
-                  </option>
+                  <option value="default">{{ t('沿用主流程 API') }}</option>
+                  <optgroup v-if="ownChatOthers.length" label="我的 API">
+                    <option v-for="api in ownChatOthers" :key="api.id" :value="api.id" :disabled="!api.enabled">{{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}</option>
+                  </optgroup>
+                  <optgroup v-if="publicModels.length" label="公益模型">
+                    <option v-for="api in publicModels" :key="api.id" :value="api.id">{{ publicLabel(api) }}</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -281,6 +352,13 @@
           <span v-if="isTavernEnvFlag">{{ t('主流程固定走酒馆的 API；下面的辅助功能可单独指定 API，不指定则同样走酒馆。') }}</span>
           <span v-else>{{ t('每个功能都可以指定用哪个 API；指定同一个 API 的功能会合并请求。') }}</span>
         </p>
+        <p v-if="turnCost.total > 0" class="section-hint credit-hint">
+          <HandHeart :size="14" />
+          <span>
+            用到公益模型的功能每次调用都扣额度：当前每回合约 <b>{{ formatCredit(turnCost.total) }}</b>
+            （{{ turnCost.parts.filter((x) => x.cost).map((x) => `${x.label} ${formatCredit(x.cost)}`).join(' + ') }}）<template v-if="turnCost.turnsLeft !== null">，余额约够 {{ turnCost.turnsLeft }} 回合</template><template v-if="turnCost.memoryCost">；记忆总结触发时另扣 {{ formatCredit(turnCost.memoryCost) }}</template>。
+          </span>
+        </p>
 
         <div class="settings-list">
           <!-- 主流程 -->
@@ -300,11 +378,14 @@
                 v-else
                 class="setting-select"
                 :value="apiStore.apiAssignments.find(a => a.type === 'main')?.apiId"
-                @change="updateAssignment('main', ($event.target as HTMLSelectElement).value)"
+                @change="publicApi.selectMain(($event.target as HTMLSelectElement).value)"
               >
-                <option v-for="api in apiStore.enabledAPIs" :key="api.id" :value="api.id">
-                  {{ getDisplayName(api) }}
-                </option>
+                <optgroup v-if="ownChatEnabled.length" label="我的 API">
+                  <option v-for="api in ownChatEnabled" :key="api.id" :value="api.id" :disabled="!api.enabled">{{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}</option>
+                </optgroup>
+                <optgroup v-if="publicModels.length" label="公益模型">
+                  <option v-for="api in publicModels" :key="api.id" :value="api.id">{{ publicLabel(api) }}</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -343,14 +424,12 @@
                     @change="updateAssignment(funcType, ($event.target as HTMLSelectElement).value)"
                   >
                     <option value="default">{{ t('沿用主流程 API') }}</option>
-                    <option
-                      v-for="api in apiStore.apiConfigs.filter(a => a.id !== 'default')"
-                      :key="api.id"
-                      :value="api.id"
-                      :disabled="!api.enabled"
-                    >
-                      {{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}
-                    </option>
+                    <optgroup v-if="ownChatOthers.length" label="我的 API">
+                      <option v-for="api in ownChatOthers" :key="api.id" :value="api.id" :disabled="!api.enabled">{{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}</option>
+                    </optgroup>
+                    <optgroup v-if="publicModels.length" label="公益模型">
+                      <option v-for="api in publicModels" :key="api.id" :value="api.id">{{ publicLabel(api) }}</option>
+                    </optgroup>
                   </select>
 
                   <select
@@ -368,34 +447,46 @@
             </div>
           </div>
 
-          <!-- 叙事检索 Embedding 配置：检索开关与同步操作在记忆档案中统一管理 -->
+          <!-- 叙事检索：默认关闭，打开开关后才选择 Embedding 模型 -->
           <div class="function-group-header">
             <h5 class="group-title">叙事检索</h5>
-            <span class="group-desc">为历史剧情检索提供 Embedding 模型</span>
+            <span class="group-desc">关闭时不检索，也不调用 Embedding</span>
           </div>
 
           <div class="setting-item nested">
             <div class="setting-info">
               <label class="setting-name" for="api-embedding">Embedding API</label>
-              <span class="setting-desc">只在这里选择向量模型；叙事检索的开关、同步和召回参数在记忆档案中设置。</span>
+              <span class="setting-desc">先打开开关才会启用。需要单独的向量模型，不能沿用主流程的聊天模型。召回条数和同步在记忆档案中设置。</span>
             </div>
             <div class="setting-control">
-              <select
-                id="api-embedding"
-                class="setting-select"
-                :value="apiStore.apiAssignments.find(a => a.type === 'embedding')?.apiId"
-                @change="updateAssignment('embedding', ($event.target as HTMLSelectElement).value)"
-              >
-                <option value="default">{{ t('沿用主流程 API') }}</option>
-                <option
-                  v-for="api in apiStore.apiConfigs.filter(a => a.id !== 'default')"
-                  :key="api.id"
-                  :value="api.id"
-                  :disabled="!api.enabled"
+              <div class="control-row">
+                <label class="setting-switch" title="启用叙事检索">
+                  <input
+                    type="checkbox"
+                    :checked="apiStore.isFunctionEnabled('embedding')"
+                    aria-label="启用叙事检索"
+                    @change="setEmbeddingEnabled(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="switch-slider"></span>
+                </label>
+                <select
+                  v-if="apiStore.isFunctionEnabled('embedding')"
+                  id="api-embedding"
+                  class="setting-select"
+                  :value="apiStore.apiAssignments.find(a => a.type === 'embedding')?.apiId"
+                  @change="updateAssignment('embedding', ($event.target as HTMLSelectElement).value)"
                 >
-                  {{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}
-                </option>
-              </select>
+                  <option value="default">未指定向量模型</option>
+                  <option
+                    v-for="api in embeddingChoices"
+                    :key="api.id"
+                    :value="api.id"
+                    :disabled="!api.enabled"
+                  >
+                    {{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -404,9 +495,18 @@
 
     <!-- 新增/编辑API弹窗 -->
     <div v-if="showAddDialog || showEditDialog" class="cc-modal-overlay api-modal-overlay" @click.self="closeDialogs">
-      <div class="cc-modal wide" role="dialog" aria-modal="true">
+      <div class="cc-modal wide api-editor-modal" role="dialog" aria-modal="true">
         <div class="cc-modal-head">
-          <h3 class="cc-modal-title">{{ showEditDialog ? t('编辑API配置') : t('新增API配置') }}</h3>
+          <div class="modal-title-wrap">
+            <div class="modal-title-icon" :class="`provider-${editingAPI.provider}`">
+              <img v-if="getProviderIcon(editingAPI.provider as APIProvider)" :src="getProviderIcon(editingAPI.provider as APIProvider)" :alt="getProviderName(editingAPI.provider as APIProvider)" />
+              <Server v-else :size="20" />
+            </div>
+            <div>
+              <h3 class="cc-modal-title">{{ showEditDialog ? t('编辑API配置') : t('新增API配置') }}</h3>
+              <p class="modal-kicker">{{ getProviderName(editingAPI.provider as APIProvider) }} · {{ isEmbeddingProvider(editingAPI.provider as APIProvider) ? '向量模型' : t('对话模型') }}</p>
+            </div>
+          </div>
           <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="closeDialogs">
             <X :size="18" />
           </button>
@@ -419,15 +519,53 @@
 
           <div class="form-group">
             <label>{{ t('API提供商') }}</label>
-            <select v-model="editingAPI.provider" class="cc-input" @change="onProviderChange">
-              <option value="openai">OpenAI</option>
-              <option value="claude">Claude</option>
-              <option value="gemini">Gemini</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="zhipu">智谱AI</option>
-              <option value="volcengine">火山引擎(豆包)</option>
-              <option value="siliconflow-embedding">硅基流动(Embedding)</option>
-              <option value="custom">{{ t('自定义(OpenAI兼容)') }}</option>
+            <div class="provider-kind">对话</div>
+            <div class="provider-picker" role="listbox" :aria-label="t('对话服务商')">
+              <button
+                v-for="provider in chatProviderOptions"
+                :key="provider.value"
+                type="button"
+                class="provider-option"
+                :class="[`provider-option-${provider.value}`, { selected: editingAPI.provider === provider.value }]"
+                :aria-selected="editingAPI.provider === provider.value"
+                @click="selectProvider(provider.value)"
+              >
+                <img v-if="provider.icon" :src="provider.icon" :alt="provider.label" />
+                <Server v-else :size="18" />
+                <span>{{ provider.label }}</span>
+                <Check v-if="editingAPI.provider === provider.value" :size="14" />
+              </button>
+            </div>
+            <div class="provider-kind">向量</div>
+            <div class="provider-picker embedding" role="listbox" aria-label="嵌入模型">
+              <button
+                v-for="provider in embeddingProviderOptions"
+                :key="provider.value"
+                type="button"
+                class="provider-option"
+                :class="[`provider-option-${provider.value}`, { selected: editingAPI.provider === provider.value }]"
+                :aria-selected="editingAPI.provider === provider.value"
+                @click="selectProvider(provider.value)"
+              >
+                <img v-if="provider.icon" :src="provider.icon" :alt="provider.label" />
+                <Server v-else :size="18" />
+                <span>{{ provider.label }}</span>
+                <Check v-if="editingAPI.provider === provider.value" :size="14" />
+              </button>
+            </div>
+            <select v-model="editingAPI.provider" class="cc-input provider-native-select" @change="onProviderChange">
+              <optgroup label="对话">
+                <option value="openai">OpenAI</option>
+                <option value="claude">Claude</option>
+                <option value="gemini">Gemini</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="zhipu">智谱AI</option>
+                <option value="volcengine">火山引擎(豆包)</option>
+                <option value="custom">{{ t('自定义(OpenAI兼容)') }}</option>
+              </optgroup>
+              <optgroup label="向量">
+                <option value="siliconflow-embedding">硅基流动</option>
+              </optgroup>
             </select>
           </div>
 
@@ -451,7 +589,10 @@
           </div>
 
           <div class="form-group">
-            <label>{{ t('模型名称') }}</label>
+            <div class="form-label-row">
+              <label>{{ t('模型名称') }}</label>
+              <span class="model-source-hint">{{ availableModels.length ? `${t('已从当前 API 获取')} ${availableModels.length} ${t('个模型')}` : t('点击刷新读取当前 API 的最新模型') }}</span>
+            </div>
             <div class="model-select-wrapper">
               <div class="model-input-row">
                 <input
@@ -464,6 +605,24 @@
                 <button type="button" class="cc-btn small fetch-btn" :title="t('获取模型列表')" @click="fetchModelsForEditing" :disabled="isFetchingModels">
                   <RefreshCw :size="16" :class="{ 'loading-pulse': isFetchingModels }" />
                 </button>
+              </div>
+              <div v-if="modelPresetsForEditing.length" class="model-presets" aria-label="常用模型">
+                <button
+                  v-for="preset in modelPresetsForEditing"
+                  :key="preset.id"
+                  type="button"
+                  class="model-preset"
+                  :class="{ selected: editingAPI.model === preset.id }"
+                  @click="selectModelPreset(preset)"
+                >
+                  <span>{{ preset.name }}</span>
+                  <small>{{ preset.context }}</small>
+                </button>
+              </div>
+              <div v-if="selectedModelPreset" class="model-capability">
+                <span class="capability-dot"></span>
+                <span>{{ selectedModelPreset.description }}</span>
+                <span class="capability-limit">{{ selectedModelPreset.maxOutput }} max output</span>
               </div>
               <div v-if="showModelDropdown && filteredModels.length > 0" class="model-dropdown">
                 <div
@@ -479,7 +638,7 @@
             </div>
           </div>
 
-          <div class="form-row">
+          <div v-if="!isEmbeddingProvider(editingAPI.provider as APIProvider)" class="form-row">
             <div class="form-group half">
               <label>{{ t('温度参数') }}</label>
               <input
@@ -503,10 +662,9 @@
             </div>
           </div>
 
-          <!-- 强制JSON输出选项 -->
           <div
             class="form-group"
-            v-if="['openai', 'deepseek', 'zhipu', 'volcengine', 'custom', 'gemini', 'claude'].includes(editingAPI.provider || 'openai')"
+            v-if="JSON_CAPABLE.includes((editingAPI.provider || 'openai') as APIProvider)"
           >
             <label class="checkbox-label">
               <input
@@ -516,29 +674,6 @@
               />
               <span>{{ t('强制JSON格式输出') }}</span>
             </label>
-            <div class="form-hint">
-              {{ t('启用后，API将强制返回JSON格式。需要在提示词中包含"json"字样并给出JSON格式样例。') }}
-              <br/>
-              <span class="hint-warning" v-if="editingAPI.provider === 'gemini'">
-                ℹ️ {{ t('Gemini使用response_mime_type实现JSON模式') }}
-              </span>
-              <span class="hint-warning" v-else-if="editingAPI.provider === 'claude'">
-                ℹ️ {{ t('Claude使用prefill技巧实现JSON模式') }}
-              </span>
-              <span class="hint-warning" v-else>
-                ⚠️ {{ t('仅支持OpenAI兼容API（如DeepSeek）。使用前请确保提示词中包含JSON格式说明。') }}
-              </span>
-              <br v-if="editingAPI.provider === 'custom'"/>
-              <span class="hint-warning" v-if="editingAPI.provider === 'custom'">
-                ⚠️ {{ t('重要：如果使用New-API等中转服务，需确认底层模型支持！') }}
-                <br/>
-                {{ t('• 底层是OpenAI/DeepSeek/Qwen/GLM-4: ✅ 通常可用') }}
-                <br/>
-                {{ t('• 底层是Gemini/Claude/旧模型: ❌ 可能报错') }}
-                <br/>
-                <strong>{{ t('• 务必先用"测试连接"验证！') }}</strong>
-              </span>
-            </div>
           </div>
         </div>
         <div class="cc-modal-foot">
@@ -554,14 +689,28 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import {
   Plus, Edit2, Trash2, Upload, Download, X, RefreshCw, FlaskConical,
-  Server, Workflow, Bot, Beer, Globe, Lock,
+  Server, Workflow, Bot, Beer, Globe, Lock, Check, HandHeart,
 } from 'lucide-vue-next';
+import { useRouter } from 'vue-router';
+import PublicApiHall from '@/components/publicApi/PublicApiHall.vue';
+import { usePublicApi } from '@/composables/usePublicApi';
+import { formatCredit } from '@/services/builtinApi';
+import openaiIcon from '@/assets/provider-icons/openai-green.png';
+import anthropicIcon from '@/assets/provider-icons/anthropic.png';
+import geminiIcon from '@/assets/provider-icons/gemini.png';
+import deepseekIcon from '@/assets/provider-icons/deepseek.png';
+import zhipuIcon from '@/assets/provider-icons/zhipu.png';
+import doubaoIcon from '@/assets/provider-icons/doubao.png';
+import siliconcloudIcon from '@/assets/provider-icons/siliconcloud.png';
+import { EMBEDDING_USABLE, JSON_CAPABLE, isEmbeddingProvider } from '@/data/apiProviders';
 import { useAPIManagementStore, type APIConfig, type APIUsageType } from '@/stores/apiManagementStore';
 import { aiService, API_PROVIDER_PRESETS, type APIProvider } from '@/services/aiService';
 import { useUIStore } from '@/stores/uiStore';
 import { getNsfwSettingsFromStorage, type NsfwGenderFilter } from '@/utils/nsfw';
 import { isTavernEnv } from '@/utils/tavern';
 import { toast } from '@/utils/toast';
+import { narrativeRagService } from '@/services/narrativeRagService';
+import { testEmbeddingConnection } from '@/services/embeddingService';
 import { useI18n } from '@/i18n';
 
 withDefaults(defineProps<{ closable?: boolean }>(), { closable: false });
@@ -570,6 +719,19 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 const { t } = useI18n();
 const apiStore = useAPIManagementStore();
 const uiStore = useUIStore();
+const selectedAPIId = ref('default');
+const ownApis = computed(() => apiStore.apiConfigs.filter((api) => !api.builtin));
+const selectedAPI = computed(() => {
+  return ownApis.value.find(api => api.id === selectedAPIId.value) || ownApis.value[0];
+});
+const router = useRouter();
+const goLogin = () => {
+  emit('close');
+  void router.push('/login');
+};
+const selectAPI = (id: string) => {
+  selectedAPIId.value = id;
+};
 
 // 初始化加载
 onMounted(() => {
@@ -672,9 +834,10 @@ const editingAPI = ref<Partial<APIConfig>>({
   provider: 'openai',
   url: '',
   apiKey: '',
-  model: 'gpt-4o',
+  model: 'gpt-6-astra',
   temperature: 0.7,
   maxTokens: 16000,
+  thinkingLevel: 'default',
   enabled: true
 });
 const editingAPIId = ref<string | null>(null);
@@ -683,6 +846,111 @@ const editingAPIId = ref<string | null>(null);
 const isFetchingModels = ref(false);
 const availableModels = ref<string[]>([]);
 const showModelDropdown = ref(false);
+
+type ModelPreset = {
+  id: string;
+  name: string;
+  context: string;
+  maxOutput: string;
+  description: string;
+  maxTokens: number;
+  temperature?: number;
+  json?: boolean;
+};
+
+const providerIcons: Partial<Record<APIProvider, string>> = {
+  openai: openaiIcon,
+  claude: anthropicIcon,
+  gemini: geminiIcon,
+  deepseek: deepseekIcon,
+  zhipu: zhipuIcon,
+  volcengine: doubaoIcon,
+  'siliconflow-embedding': siliconcloudIcon,
+};
+
+const providerOptions: Array<{ value: APIProvider; label: string; icon?: string }> = [
+  { value: 'openai', label: 'OpenAI', icon: openaiIcon },
+  { value: 'claude', label: 'Claude', icon: anthropicIcon },
+  { value: 'gemini', label: 'Gemini', icon: geminiIcon },
+  { value: 'deepseek', label: 'DeepSeek', icon: deepseekIcon },
+  { value: 'zhipu', label: '智谱 AI', icon: zhipuIcon },
+  { value: 'volcengine', label: '豆包', icon: doubaoIcon },
+  { value: 'siliconflow-embedding', label: '硅基流动', icon: siliconcloudIcon },
+  { value: 'custom', label: '自定义' },
+];
+const chatProviderOptions = providerOptions.filter((p) => !isEmbeddingProvider(p.value));
+const embeddingProviderOptions = providerOptions.filter((p) => isEmbeddingProvider(p.value));
+const thinkingLevelSupported = (provider?: APIProvider) => ['claude', 'gemini', 'deepseek', 'volcengine'].includes(provider || '');
+const ownChatEnabled = computed(() => apiStore.apiConfigs.filter((a) => !a.builtin && !isEmbeddingProvider(a.provider)));
+const ownChatOthers = computed(() => ownChatEnabled.value.filter((a) => a.id !== 'default'));
+const publicApi = usePublicApi();
+const publicModels = computed(() => publicApi.models.value);
+const publicLabel = (api: APIConfig) => {
+  const cost = `${formatCredit(api.cost ?? 1)} 额度/次`;
+  if (!api.model || api.name.includes(api.model)) return `${api.name} · ${cost}`;
+  return `${api.name} · ${api.model} · ${cost}`;
+};
+const turnCost = computed(() => publicApi.turnCost(splitResponseGeneration.value));
+const embeddingChoices = computed(() => apiStore.apiConfigs.filter((a) => a.id !== 'default' && !a.builtin && EMBEDDING_USABLE.includes(a.provider)));
+
+const MODEL_PRESETS: Record<APIProvider, ModelPreset[]> = {
+  openai: [
+    { id: 'gpt-6-astra', name: 'GPT-6 Astra', context: '1.05M 上下文', maxOutput: '128K', maxTokens: 32000, description: '旗舰推理模型，适合主流程与复杂剧情', json: true },
+    { id: 'gpt-6-sol', name: 'GPT-6 Sol', context: '1.05M 上下文', maxOutput: '128K', maxTokens: 24000, description: '质量与成本平衡，适合日常游戏流程', temperature: 0.7, json: true },
+    { id: 'gpt-6-luna', name: 'GPT-6 Luna', context: '1.05M 上下文', maxOutput: '128K', maxTokens: 16000, description: '高吞吐轻量模型，适合总结与辅助功能', temperature: 0.7, json: true },
+  ],
+  claude: [
+    { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', context: '1M 上下文', maxOutput: '128K', maxTokens: 32000, description: '当前最新旗舰，适合长程剧情与复杂推理', json: true },
+    { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', context: '1M 上下文', maxOutput: '128K', maxTokens: 24000, description: '高质量推理与长文叙事模型', json: true },
+    { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', context: '1M 上下文', maxOutput: '128K', maxTokens: 20000, description: '速度与质量平衡，适合主流程', json: true },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', context: '200K 上下文', maxOutput: '64K', maxTokens: 12000, description: '轻量快速，适合摘要和文本润色', json: true },
+  ],
+  gemini: [
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', context: '1M 上下文', maxOutput: '65K', maxTokens: 32000, description: '高级推理与复杂任务，适合主流程', json: true },
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', context: '1M 上下文', maxOutput: '65K', maxTokens: 16000, description: '最新稳定 Flash，适合日常游戏流程', json: true },
+    { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', context: '1M 上下文', maxOutput: '32K', maxTokens: 12000, description: '高吞吐低成本，适合辅助功能', json: true },
+  ],
+  deepseek: [
+    { id: 'deepseek-flash', name: 'DeepSeek V4.1 Flash', context: '1M 上下文', maxOutput: '384K', maxTokens: 64000, description: '最新多模态 Flash，适合主流程与高吞吐任务', json: true },
+    { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', context: '1M 上下文', maxOutput: '384K', maxTokens: 64000, description: '旗舰推理模型，适合复杂剧情和指令生成', json: true },
+  ],
+  zhipu: [
+    { id: 'glm-5.3', name: 'GLM-5.3', context: '256K 上下文', maxOutput: '64K', maxTokens: 32000, description: '旗舰中文推理模型，适合主流程', json: true },
+    { id: 'glm-5.3-flash', name: 'GLM-5.3 Flash', context: '256K 上下文', maxOutput: '64K', maxTokens: 24000, description: '最新高性价比模型，适合日常游戏流程', json: true },
+  ],
+  volcengine: [
+    { id: 'doubao-seed-evolving', name: '豆包 Seed Evolving', context: '1M 上下文', maxOutput: '256K', maxTokens: 64000, description: '持续升级的 Agent 模型，适合长程剧情', json: true },
+    { id: 'doubao-seed-2-1-pro-260915', name: '豆包 Seed 2.1 Pro', context: '1M 上下文', maxOutput: '256K', maxTokens: 64000, description: '旗舰多模态与推理模型', json: true },
+    { id: 'doubao-seed-2-1-lite-260915', name: '豆包 Seed 2.1 Lite', context: '1M 上下文', maxOutput: '256K', maxTokens: 32000, description: '高吞吐低成本，适合辅助功能', json: true },
+  ],
+  'siliconflow-embedding': [
+    { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', context: '多语种向量', maxOutput: 'Embedding', maxTokens: 1024, description: '推荐的叙事检索向量模型' },
+    { id: 'BAAI/bge-large-zh-v1.5', name: 'BAAI/bge-large-zh-v1.5', context: '中文向量', maxOutput: 'Embedding', maxTokens: 1024, description: '中文语义检索模型' },
+  ],
+  custom: [],
+};
+
+const getProviderIcon = (provider?: APIProvider) => provider ? providerIcons[provider] : undefined;
+const modelPresetsForEditing = computed(() => MODEL_PRESETS[editingAPI.value.provider as APIProvider] || []);
+const selectedModelPreset = computed(() => {
+  const model = editingAPI.value.model?.trim();
+  return modelPresetsForEditing.value.find(preset => preset.id === model);
+});
+const getModelPreset = (provider: APIProvider, model: string) => {
+  return (MODEL_PRESETS[provider] || []).find(preset => preset.id === model);
+};
+
+const selectProvider = (provider: APIProvider) => {
+  editingAPI.value.provider = provider;
+  onProviderChange();
+};
+
+const selectModelPreset = (preset: ModelPreset) => {
+  editingAPI.value.model = preset.id;
+  editingAPI.value.maxTokens = preset.maxTokens;
+  if (preset.temperature !== undefined) editingAPI.value.temperature = preset.temperature;
+  showModelDropdown.value = false;
+};
 
 // 过滤后的模型列表
 const filteredModels = computed(() => {
@@ -717,7 +985,7 @@ const getProviderName = (provider: APIProvider): string => {
  */
 const getDisplayName = (api: APIConfig): string => {
   if (isTavernEnvFlag.value && api.id === 'default') {
-    return '🍺 酒馆API';
+    return '酒馆 API';
   }
   return api.name;
 };
@@ -727,7 +995,7 @@ const getProviderPresetUrl = (provider: APIProvider): string => {
 };
 
 const getProviderPresetModel = (provider: APIProvider): string => {
-  return API_PROVIDER_PRESETS[provider]?.defaultModel || 'gpt-4o';
+  return API_PROVIDER_PRESETS[provider]?.defaultModel || 'gpt-6-astra';
 };
 
 const getProviderPresetMaxTokens = (provider: APIProvider): number => {
@@ -740,12 +1008,15 @@ const getProviderMaxOutputTokens = (provider: APIProvider): number => {
 
 // 当提供商变化时更新默认值
 const onProviderChange = () => {
-  const preset = API_PROVIDER_PRESETS[editingAPI.value.provider as APIProvider];
+  const provider = editingAPI.value.provider as APIProvider;
+  if (!JSON_CAPABLE.includes(provider)) editingAPI.value.forceJsonOutput = false;
+  const preset = API_PROVIDER_PRESETS[provider];
   if (preset) {
     editingAPI.value.url = preset.url;
     editingAPI.value.model = preset.defaultModel;
     editingAPI.value.maxTokens = preset.defaultMaxTokens || 16000;
   }
+  if (!thinkingLevelSupported(provider)) editingAPI.value.thinkingLevel = 'default';
 };
 
 // 获取功能名称
@@ -800,7 +1071,17 @@ const auxiliaryFunctions: APIUsageType[] = [
 const isFunctionActive = (type: APIUsageType): boolean => {
   if (type === 'instruction_generation') return splitResponseGeneration.value;
   if (type === 'text_optimization') return apiStore.isFunctionEnabled('text_optimization');
+  if (type === 'embedding') {
+    const apiId = apiStore.apiAssignments.find(a => a.type === 'embedding')?.apiId ?? 'default';
+    return apiStore.isFunctionEnabled('embedding') && apiId !== 'default';
+  }
   return true;
+};
+
+const setEmbeddingEnabled = (on: boolean) => {
+  apiStore.setFunctionEnabled('embedding', on);
+  narrativeRagService.saveConfig({ enabled: on });
+  toast.success(on ? '叙事检索已开启，请指定 Embedding 模型' : '叙事检索已关闭');
 };
 
 const getAssignedFunctions = (apiId: string): APIUsageType[] => {
@@ -837,7 +1118,7 @@ const toggleForceJson = (id: string, enabled: boolean) => {
 
 // 编辑API
 const editAPI = (api: APIConfig) => {
-  editingAPI.value = { ...api };
+  editingAPI.value = { ...api, thinkingLevel: api.thinkingLevel || 'default' };
   editingAPIId.value = api.id;
   showEditDialog.value = true;
 };
@@ -868,6 +1149,17 @@ const testAPI = async (api: APIConfig) => {
 
   testingApiId.value = api.id;
   try {
+    if (isEmbeddingProvider(api.provider)) {
+      const dim = await testEmbeddingConnection({
+        provider: api.provider,
+        url: api.url,
+        apiKey: api.apiKey,
+        model: api.model,
+      });
+      apiTestResults.value[api.id] = 'success';
+      toast.success(`${api.name} ${t('连接成功')}（向量维度 ${dim}）`);
+      return;
+    }
     // 根据是否启用强制JSON选择不同的测试提示词
     const testPrompt = api.forceJsonOutput
       ? '你正在进行API连通性测试。请按照以下JSON格式输出测试结果：\n\n示例JSON格式：\n{"status": "ok", "message": "仙途本-连通测试-OK"}\n\n请严格按照上述JSON格式输出。'
@@ -881,6 +1173,7 @@ const testAPI = async (api: APIConfig) => {
       model: api.model,
       temperature: api.temperature,
       maxTokens: 1000,
+      thinkingLevel: api.thinkingLevel,
       forceJsonOutput: api.forceJsonOutput
     }, testPrompt);
 
@@ -933,9 +1226,10 @@ const fetchModelsForEditing = async () => {
         provider: editingAPI.value.provider as APIProvider,
         url: editingAPI.value.url,
         apiKey: editingAPI.value.apiKey,
-        model: editingAPI.value.model || 'gpt-4o',
+        model: editingAPI.value.model || 'gpt-6-astra',
         temperature: editingAPI.value.temperature || 0.7,
-        maxTokens: editingAPI.value.maxTokens || 16000
+        maxTokens: editingAPI.value.maxTokens || 16000,
+        thinkingLevel: editingAPI.value.thinkingLevel || 'default'
       }
     });
 
@@ -959,6 +1253,9 @@ const saveAPI = () => {
     toast.warning(t('请填写配置名称'));
     return;
   }
+  if (!JSON_CAPABLE.includes(editingAPI.value.provider as APIProvider)) {
+    editingAPI.value.forceJsonOutput = false;
+  }
 
   if (showEditDialog.value && editingAPIId.value) {
     // 编辑模式
@@ -974,6 +1271,7 @@ const saveAPI = () => {
       model: editingAPI.value.model || getProviderPresetModel(editingAPI.value.provider as APIProvider),
       temperature: editingAPI.value.temperature || 0.7,
       maxTokens: editingAPI.value.maxTokens || getProviderPresetMaxTokens(editingAPI.value.provider as APIProvider),
+      thinkingLevel: editingAPI.value.thinkingLevel || 'default',
       enabled: true,
       forceJsonOutput: editingAPI.value.forceJsonOutput || false
     };
@@ -1000,6 +1298,7 @@ const syncDefaultAPIToService = () => {
         model: defaultAPI.model,
         temperature: defaultAPI.temperature,
         maxTokens: defaultAPI.maxTokens,
+        thinkingLevel: defaultAPI.thinkingLevel,
         forceJsonOutput: defaultAPI.forceJsonOutput
       }
     });
@@ -1008,7 +1307,17 @@ const syncDefaultAPIToService = () => {
 
 // 更新功能分配
 const updateAssignment = (type: APIUsageType, apiId: string) => {
-  apiStore.assignAPI(type, apiId);
+  try {
+    apiStore.assignAPI(type, apiId);
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : '分配失败');
+    return;
+  }
+
+  if (type === 'embedding' && apiId === 'default') {
+    toast.success('已取消向量模型，叙事检索不会调用');
+    return;
+  }
 
   // 如果分配指令生成到独立API，自动开启分步生成
   if (type === 'instruction_generation' && apiId !== 'default') {
@@ -1032,9 +1341,10 @@ const closeDialogs = () => {
     provider: 'openai',
     url: '',
     apiKey: '',
-    model: 'gpt-4o',
+    model: 'gpt-6-astra',
     temperature: 0.7,
     maxTokens: getProviderPresetMaxTokens('openai'),
+    thinkingLevel: 'default',
     enabled: true
   };
   availableModels.value = [];
@@ -1361,9 +1671,235 @@ const handleImport = () => {
 
 /* ---------- API 卡片 ---------- */
 .api-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.api-workbench > .api-list .api-card-body,
+.api-workbench > .api-list .api-card-footer {
+  display: none;
+}
+
+.api-workbench > .api-list .api-card-header {
+  min-height: 64px;
+  border-bottom: 0;
+}
+
+.credit-hint b {
+  color: var(--cc-gold);
+}
+
+.api-status-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cc-text-3);
+  opacity: 0.45;
+}
+
+.api-status-dot.success {
+  background: var(--cc-success);
+  opacity: 1;
+}
+
+.api-status-dot.fail {
+  background: var(--cc-danger);
+  opacity: 1;
+}
+
+.api-workbench {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  min-height: 260px;
+}
+
+.api-detail-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1.05rem 1.15rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--cc-accent-rgb), 0.13), transparent 42%),
+    var(--cc-surface);
+}
+
+.detail-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--cc-divider);
+}
+
+.detail-eyebrow {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--cc-gold);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.detail-pane-head h3 {
+  margin: 0;
+  color: var(--cc-text);
+  font-size: 1.12rem;
+  letter-spacing: 0.05em;
+}
+
+.detail-pane-head p {
+  margin: 0.3rem 0 0;
+  color: var(--cc-text-3);
+  font-size: 0.78rem;
+}
+
+.detail-pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.detail-pane-actions .cc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 1rem 0;
+}
+
+.detail-hero-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border: 1px solid var(--cc-border-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--cc-text-2);
+  overflow: hidden;
+}
+
+.detail-hero-logo img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.detail-hero-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.detail-hero-copy strong {
+  overflow: hidden;
+  color: var(--cc-text);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-hero-copy span {
+  overflow: hidden;
+  color: var(--cc-text-3);
+  font-size: 0.73rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--cc-text-3);
+}
+
+.detail-status.success { color: var(--cc-success); }
+.detail-status.fail { color: var(--cc-danger); }
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.detail-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.65rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 7px;
+  background: rgba(var(--cc-accent-rgb), 0.04);
+}
+
+.detail-metrics span {
+  color: var(--cc-text-3);
+  font-size: 0.7rem;
+}
+
+.detail-metrics strong {
+  overflow: hidden;
+  color: var(--cc-text);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-model-note {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 2px solid var(--cc-accent);
+  background: rgba(var(--cc-accent-rgb), 0.06);
+}
+
+.detail-model-note-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--cc-accent);
+  font-size: 0.74rem;
+}
+
+.detail-model-note p,
+.detail-assignment p {
+  margin: 0.35rem 0 0;
+  color: var(--cc-text-3);
+  font-size: 0.73rem;
+  line-height: 1.55;
+}
+
+.detail-assignment {
+  margin-top: auto;
+  padding-top: 0.85rem;
 }
 
 .api-card {
@@ -1374,11 +1910,17 @@ const handleImport = () => {
   background: var(--cc-surface);
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  cursor: pointer;
 }
 
 .api-card:hover {
   border-color: rgba(var(--cc-gold-rgb), 0.4);
   box-shadow: var(--cc-glow);
+}
+
+.api-card.selected {
+  border-color: rgba(var(--cc-accent-rgb), 0.72);
+  box-shadow: 0 0 0 1px rgba(var(--cc-accent-rgb), 0.16) inset, var(--cc-glow);
 }
 
 .api-card.default {
@@ -1397,6 +1939,43 @@ const handleImport = () => {
   border-bottom: 1px solid var(--cc-divider);
 }
 
+.provider-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--cc-border);
+  border-radius: 9px;
+  background: var(--cc-inset);
+  color: var(--cc-text-2);
+  overflow: hidden;
+}
+
+.provider-logo-wrap.provider-openai,
+.provider-logo-wrap.provider-claude,
+.provider-logo-wrap.provider-gemini,
+.provider-logo-wrap.provider-deepseek,
+.provider-logo-wrap.provider-zhipu,
+.provider-logo-wrap.provider-volcengine,
+.provider-logo-wrap.provider-siliconflow-embedding {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.provider-logo-wrap.provider-openai,
+.detail-hero-logo.provider-openai,
+.modal-title-icon.provider-openai {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(255, 255, 255, 0.72);
+}
+
+.provider-logo {
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+}
+
 .api-info {
   flex: 1;
   display: flex;
@@ -1413,6 +1992,15 @@ const handleImport = () => {
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--cc-text);
+}
+
+.api-model {
+  overflow: hidden;
+  color: var(--cc-text-3);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .api-card.default .api-name::after {
@@ -1474,6 +2062,27 @@ const handleImport = () => {
 .detail-value.url {
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: 0.75rem;
+}
+
+.model-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.model-meta-pill {
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 999px;
+  color: var(--cc-text-3);
+  font-size: 0.67rem;
+  letter-spacing: 0.02em;
+}
+
+.model-meta-pill.supported {
+  border-color: rgba(var(--cc-success-rgb, 110, 231, 183), 0.35);
+  color: var(--cc-success);
 }
 
 .detail-value.success {
@@ -1855,6 +2464,115 @@ input:focus-visible + .switch-slider {
   z-index: 2100;
 }
 
+.api-editor-modal {
+  width: min(880px, calc(100vw / var(--ui-scale) - 32px));
+  max-height: min(900px, calc(var(--app-vh) - 42px));
+}
+
+.modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modal-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(var(--cc-gold-rgb), 0.38);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--cc-gold);
+  overflow: hidden;
+}
+
+.modal-title-icon img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.modal-kicker {
+  margin: 0.18rem 0 0;
+  color: var(--cc-text-3);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+.provider-kind {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 12px;
+  color: var(--cc-text-3);
+}
+
+.provider-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.provider-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-surface);
+  color: var(--cc-text-2);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.provider-option:hover {
+  border-color: rgba(var(--cc-gold-rgb), 0.55);
+  color: var(--cc-text);
+}
+
+.provider-option.selected {
+  border-color: rgba(var(--cc-accent-rgb), 0.75);
+  background: rgba(var(--cc-accent-rgb), 0.12);
+  color: var(--cc-text);
+  box-shadow: 0 0 0 1px rgba(var(--cc-accent-rgb), 0.12) inset;
+}
+
+.provider-option img {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.94);
+  object-fit: contain;
+}
+
+.provider-option-openai img {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.provider-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-option svg:last-child {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--cc-accent);
+}
+
+.provider-native-select {
+  display: none;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -1865,6 +2583,25 @@ input:focus-visible + .switch-slider {
   font-size: 0.8rem;
   letter-spacing: 0.12em;
   color: var(--cc-text-2);
+}
+
+.form-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.form-label-row > label {
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--cc-text-2);
+}
+
+.model-source-hint {
+  color: var(--cc-text-3);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
 }
 
 .form-row {
@@ -1880,6 +2617,75 @@ input:focus-visible + .switch-slider {
 .model-input-row {
   display: flex;
   gap: 0.5rem;
+}
+
+.model-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.model-preset {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid var(--cc-border);
+  border-radius: 6px;
+  background: var(--cc-surface);
+  color: var(--cc-text-2);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.model-preset small {
+  color: var(--cc-text-3);
+  font-size: 0.66rem;
+}
+
+.model-preset:hover,
+.model-preset.selected {
+  border-color: rgba(var(--cc-accent-rgb), 0.64);
+  background: rgba(var(--cc-accent-rgb), 0.1);
+  color: var(--cc-text);
+}
+
+.model-preset.selected small {
+  color: var(--cc-accent);
+}
+
+.model-capability {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: 0.5rem;
+  padding: 0.48rem 0.6rem;
+  border: 1px solid var(--cc-divider);
+  border-radius: 6px;
+  background: rgba(var(--cc-accent-rgb), 0.06);
+  color: var(--cc-text-3);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.capability-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--cc-success);
+  box-shadow: 0 0 0 3px rgba(var(--cc-success-rgb, 110, 231, 183), 0.12);
+}
+
+.capability-limit {
+  margin-left: auto;
+  color: var(--cc-accent);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.68rem;
 }
 
 .fetch-btn {
@@ -1941,6 +2747,9 @@ input:focus-visible + .switch-slider {
 }
 
 .hint-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   color: var(--cc-warning);
 }
 
@@ -1966,6 +2775,14 @@ input:focus-visible + .switch-slider {
     grid-template-columns: 1fr;
   }
 
+  .api-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .api-detail-pane {
+    min-height: 300px;
+  }
+
   .setting-item {
     flex-direction: column;
     align-items: stretch;
@@ -1982,6 +2799,15 @@ input:focus-visible + .switch-slider {
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .provider-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .capability-limit {
+    width: 100%;
+    margin-left: 0;
   }
 }
 

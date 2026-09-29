@@ -88,8 +88,8 @@
               <strong>{{ $t('最终判定值') }}</strong> = {{ $t('基础值') }} + {{ $t('幸运点') }} + {{ $t('环境修正') }} + {{ $t('状态修正') }}
             </div>
             <ol class="help-list">
-              <li><strong>{{ $t('基础值') }}</strong>：{{ $t('先天属性加权 + 境界加成 + 技艺加成') }}</li>
-              <li><strong>{{ $t('幸运点') }}</strong>：{{ $t('基于气运的随机波动（约-10到+15）') }} <span class="note">({{ $t('气运越高，期望值和上限越高') }})</span></li>
+              <li><strong>{{ $t('基础值') }}</strong>：{{ $t('有效属性加权 + 境界加成。有效属性 = 先天×70% + 后天×30%') }}</li>
+              <li><strong>{{ $t('幸运点') }}</strong>：{{ $t('气运越高，区间从 -10～+5 抬到 -5～+15') }}</li>
               <li><strong>{{ $t('环境修正') }}</strong>：{{ $t('灵气浓度影响（修炼/炼丹/战斗），探索社交不受影响') }}</li>
               <li><strong>{{ $t('状态修正') }}</strong>：{{ $t('生命状态（重伤/虚弱）及 Buff/Debuff 影响') }}</li>
             </ol>
@@ -98,7 +98,7 @@
           <section class="help-section">
             <h3 class="cc-section-title">{{ $t('判定结果') }}</h3>
             <p class="formula-note">
-              <strong>{{ $t('判定规则') }}</strong>：{{ $t('判定值与难度对比，完全基于属性、境界和加成') }}
+              <strong>{{ $t('判定规则') }}</strong>：{{ $t('判定值与难度对比。基础由属性和境界决定，幸运点随气运波动') }}
             </p>
             <div class="result-list">
               <div class="result-item perfect">
@@ -127,11 +127,12 @@
           <section class="help-section">
             <h3 class="cc-section-title">{{ $t('判定类型与属性配比') }}</h3>
             <dl class="judgement-types">
-              <div class="type-item"><dt>{{ $t('战斗判定') }}</dt><dd>{{ $t('根骨50% + 灵性30% + 气运20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('战斗判定') }}</dt><dd>{{ $t('进攻：根骨50% + 灵性30% + 气运20%；防御：根骨50% + 心性30% + 灵性20%') }}</dd></div>
               <div class="type-item"><dt>{{ $t('修炼判定') }}</dt><dd>{{ $t('悟性50% + 灵性30% + 心性20%') }}</dd></div>
-              <div class="type-item"><dt>{{ $t('技艺判定') }}</dt><dd>{{ $t('悟性50% + 根骨30% + 灵性20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('炼制判定') }}</dt><dd>{{ $t('悟性50% + 灵性30% + 心性20%') }}</dd></div>
               <div class="type-item"><dt>{{ $t('社交判定') }}</dt><dd>{{ $t('魅力50% + 悟性30% + 心性20%') }}</dd></div>
               <div class="type-item"><dt>{{ $t('探索判定') }}</dt><dd>{{ $t('气运50% + 灵性30% + 悟性20%') }}</dd></div>
+              <div class="type-item"><dt>{{ $t('逃跑判定') }}</dt><dd>{{ $t('灵性50% + 气运30% + 根骨20%') }}</dd></div>
             </dl>
           </section>
 
@@ -153,9 +154,8 @@
             <ul class="help-list">
               <li>{{ $t('先天六司：天赋决定上限，无法改变但影响最大') }}</li>
               <li>{{ $t('提升境界：境界越高，判定基础加成越大（练气+5，筑基+12...）') }}</li>
-              <li>{{ $t('修炼后天：后天六司可提升，但权重仅20%') }}</li>
-              <li>{{ $t('学习功法：高品质功法和技能熟练度提供显著加成') }}</li>
-              <li>{{ $t('装备法器：合适的装备能大幅提升判定值') }}</li>
+              <li>{{ $t('修炼后天：后天六司可提升，权重为 30%') }}</li>
+              <li>{{ $t('功法与装备：对六司的提升计入后天，从而抬高基础值') }}</li>
               <li>{{ $t('状态效果：buff增强判定，注意避免debuff') }}</li>
               <li>{{ $t('境界压制：高境界对低境界有明显优势，但不是绝对') }}</li>
             </ul>
@@ -169,6 +169,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { CheckCircle2, XCircle, Info, HelpCircle, Clover, Sparkles, Target, Swords, Heart, X } from 'lucide-vue-next'
+import { extractStreamingNarrative } from '@/utils/textSanitizer'
+import { computeJudgementResult } from '@/utils/judgement'
 
 const ATTRIBUTE_HELP = [
   { name: '根骨', desc: '决定气血上限、恢复速度、寿命上限。影响炼体修行、抗打击能力。' },
@@ -200,6 +202,9 @@ interface JudgementData {
   damage?: string
   remainingHp?: string
   lucky?: string  // 幸运点
+  baseValue?: string
+  environment?: string
+  statusMod?: string
   details?: string[]
 }
 
@@ -216,14 +221,6 @@ const parseNumberValue = (value?: string) => {
   if (!value) return null
   const match = value.match(/[+-]?\d+(?:\.\d+)?/)
   return match ? Number(match[0]) : null
-}
-
-const computeJudgementResult = (finalValue: number, difficulty: number) => {
-  if (finalValue >= difficulty + 30) return '完美'
-  if (finalValue >= difficulty + 15) return '大成功'
-  if (finalValue >= difficulty) return '成功'
-  if (finalValue < difficulty - 15) return '大失败'
-  return '失败'
 }
 
 const splitKeyValue = (text: string): { key: string; value: string } | null => {
@@ -295,6 +292,15 @@ const parseJudgementMarkedContent = (markedContent: string): JudgementData | nul
       judgement.finalValue = value
     } else if (key.includes('幸运')) {
       judgement.lucky = value
+    } else if (key.includes('基础')) {
+      judgement.baseValue = value
+      judgement.details?.push(`${key}:${value}`)
+    } else if (key.includes('环境')) {
+      judgement.environment = value
+      judgement.details?.push(`${key}:${value}`)
+    } else if (key === '状态' || key.includes('状态修正')) {
+      judgement.statusMod = value
+      judgement.details?.push(`${key}:${value}`)
     } else if (key.includes('加成')) {
       judgement.bonus = value
     } else if (key.includes('造成伤害')) {
@@ -307,6 +313,20 @@ const parseJudgementMarkedContent = (markedContent: string): JudgementData | nul
       judgement.details?.push(value)
     } else {
       judgement.details?.push(`${key}:${value}`)
+    }
+  }
+
+  const baseNum = parseNumberValue(judgement.baseValue)
+  const luckyNum = parseNumberValue(judgement.lucky)
+  const environmentNum = parseNumberValue(judgement.environment)
+  const statusNum = parseNumberValue(judgement.statusMod)
+  if (baseNum !== null && luckyNum !== null && environmentNum !== null && statusNum !== null) {
+    const sum = baseNum + luckyNum + environmentNum + statusNum
+    const stated = parseNumberValue(judgement.finalValue)
+    if (stated === null || stated !== sum) {
+      judgement.details = judgement.details || []
+      judgement.details.push(`数值校验:${stated ?? '空'}→${sum}`)
+      judgement.finalValue = String(sum)
     }
   }
 
@@ -463,9 +483,13 @@ const parseMarkdownInText = (text: string, parts: TextPart[]) => {
   }
 }
 
+// 兜底：旧存档或解析失败时正文可能是 {"text":"…"} 整段 JSON，显示前取出 text 字段并还原转义
+const JSON_WRAPPED = /^\s*(?:```(?:json)?\s*)?\{\s*"(?:text|正文)"\s*:/i
+
 const parsedText = computed(() => {
   const parts: TextPart[] = []
-  const text = props.text || ''
+  const rawText = props.text || ''
+  const text = JSON_WRAPPED.test(rawText) ? extractStreamingNarrative(rawText) : rawText
 
   if (!text.trim()) {
     return [{ type: 'normal', content: text }]
