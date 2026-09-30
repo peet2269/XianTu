@@ -1,0 +1,21 @@
+name: Sync Upstream
+on:
+  schedule:
+    - cron: '0 0 * * *' # UTC时间每天零点自动同步
+  workflow_dispatch: # 网页上可以手动点按钮触发同步
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sync upstream
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        with:
+          upstream_repository: qianye60/XianTu
+          target_branch: main
+          upstream_branch: main
+          git_pull_args: --ff-only
