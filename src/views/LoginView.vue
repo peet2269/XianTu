@@ -159,6 +159,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { ArrowLeft, CheckCircle, KeyRound, Loader2, LogIn, Mail, ServerOff, ShieldCheck, User, UserPlus } from 'lucide-vue-next';
 import VideoBackground from '@/components/common/VideoBackground.vue';
 import { useTheme } from '@/composables/useTheme';
@@ -169,6 +170,7 @@ import { isBackendConfigured } from '@/services/backendConfig';
 
 const emit = defineEmits(['loggedIn', 'back']);
 const { resolvedTheme } = useTheme();
+const router = useRouter();
 
 const username = ref('');
 const password = ref('');
@@ -454,8 +456,20 @@ const handleLogin = async () => {
     localStorage.setItem('access_token', data.access_token);
     localStorage.setItem('username', username.value);
 
+    // 修复1：登录成功后先同步云端角色列表（换设备/清缓存后恢复云端角色），
+    // 修复2：再跳转离开登录页——此前 emit('loggedIn') 是路由页面，没有父组件接收，
+    // 导致登录成功也一直卡在登录界面。
+    try {
+      const { useCharacterStore } = await import('@/stores/characterStore');
+      const added = await useCharacterStore().syncCloudCharacters();
+      if (added > 0) toast.success(`已从云端恢复 ${added} 个角色`);
+    } catch (e) {
+      console.warn('[登录] 云端角色同步失败（不影响本次登录）', e);
+    }
+
     toast.success('登入成功，天机已连通！');
     emit('loggedIn');
+    router.push('/');
 
   } catch (e: unknown) {
     let errorMessage = '一个未知的错误发生了';

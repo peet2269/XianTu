@@ -14,7 +14,8 @@ import * as storage from '@/utils/indexedDBManager';
 import { getTavernHelper, clearAllCharacterData, isTavernEnv } from '@/utils/tavern';
 import { ensureSaveDataHasTavernNsfw } from '@/utils/nsfw';
 import { initializeCharacter } from '@/services/characterInitialization';
-import { createCharacter as createCharacterAPI, deleteCharacter as deleteCharacterAPI, fetchCharacterProfile, updateCharacterSave, verifyStoredToken } from '@/services/request';
+import { createCharacter as createCharacterAPI, deleteCharacter as deleteCharacterAPI, fetchCharacterProfile, updateCharacterSave, verifyStoredToken, fetchCloudCharacters } from '@/services/request';
+import router from '@/router';
 import { isBackendConfigured } from '@/services/backendConfig';
 import { validateGameData } from '@/utils/dataValidation';
 import { getAIDataRepairSystemPrompt } from '@/utils/prompts/tasks/dataRepairPrompts';
@@ -892,6 +893,8 @@ export const useCharacterStore = defineStore('characterV3', () => {
         if (!tokenValid) {
           debug.warn('角色商店', '联机模式token无效，需要登录');
           toast.warning('联机模式需要登录');
+          // 修复：踢回登录页并指路，别让玩家困在加载不动的界面里
+          router.push('/login');
           return false;
         } else {
           try {
@@ -1631,6 +1634,76 @@ export const useCharacterStore = defineStore('characterV3', () => {
         return;
       }
       debug.warn('角色商店', '云端同步失败（联机模式），已保留待同步标记', error);
+    }
+  };
+
+  /**
+   * 同步云端角色列表到本地（联机模式修复）。
+   *
+   * 背景：此前前端从不调用 GET /api/v1/characters，换设备 / 清缓存后
+   * 本地 IndexedDB 没有角色元数据，云端角色在界面上直接消失，玩家以为存档丢了。
+   * 这里把「云端有、本地无」的角色补建成联机 profile（以云端版本为基线），
+   * 让玩家能在角色列表里看到并正常加载；本地已有的角色不动，避免覆盖本地元数据。
+   *
+   * @returns 本次新建的本地角色数量
+   */
+  const syncCloudCharacters = async (): Promise<number> => {
+    if (!isBackendConfigured()) return 0;
+    if (!localStorage.getItem('access_token')) return 0;
+    try {
+      const items = await fetchCloudCharacters();
+      if (!Array.isArray(items) || items.length === 0) return 0;
+
+      let added = 0;
+      for (const item of items) {
+        const charId = item.char_id;
+        if (!charId || rootState.value.角色列表[charId]) continue;
+
+        const baseInfo = (item.base_info || {}) as CharacterBaseInfo;
+        const now = new Date().toISOString();
+        const cloudVersion = typeof item.version === 'number' ? item.version : 1;
+        const lastSync = item.last_sync || item.updated_at || item.created_at || now;
+
+        const newProfile: CharacterProfile = {
+          模式: '联机',
+          角色: baseInfo,
+          存档列表: {
+            // 联机模式只有一个存档槽位
+            [CLOUD_SLOT_KEY]: {
+              存档名: '云端修行',
+              保存时间: lastSync,
+              游戏内时间: item.game_time || '修仙元年 春',
+              角色名字: baseInfo.名字 || '未知',
+              境界: '凡人',
+              位置: '未知',
+              修为进度: 0,
+              存档数据: null,
+              云端同步信息: {
+                最后同步: item.last_sync || '',
+                版本: cloudVersion,
+                需要同步: false,
+                后端创建失败: false,
+              },
+            },
+            '上次对话': {
+              存档名: '上次对话',
+              保存时间: null,
+              存档数据: null,
+            },
+          },
+        };
+        rootState.value.角色列表[charId] = newProfile;
+        added++;
+        debug.log('角色商店', `☁️ 已从云端恢复角色「${baseInfo.名字 || charId}」(v${cloudVersion})`);
+      }
+
+      if (added > 0) {
+        await commitMetadataToStorage();
+      }
+      return added;
+    } catch (error) {
+      debug.warn('角色商店', '云端角色列表同步失败（不影响本地角色）', error);
+      return 0;
     }
   };
 
@@ -3008,6 +3081,7 @@ return {
   updateSaveDataDirectly, // 🔥 新增：直接更新SaveData（AI命令执行后）
   updateCharacterData,
   loadSaves,
+  syncCloudCharacters, // ☁️ 联机修复：登录后同步云端角色列表
   importSave,
   clearAllSaves,
   exitGameSession, // 新增：退出游戏会话

@@ -648,6 +648,14 @@ onMounted(async () => {
   await characterStore.initializeStore();
   console.log('[App] ✅ characterStore 初始化完成');
 
+  // 0.5 联机修复：已登录用户重开页面时，静默同步一次云端角色列表，
+  // 保证换设备/清缓存后云端角色能出现在列表里（失败不影响使用）
+  if (isBackendConfigured() && localStorage.getItem('access_token')) {
+    void characterStore.syncCloudCharacters().then((added) => {
+      if (added > 0) console.log(`[App] ☁️ 启动时从云端恢复 ${added} 个角色`);
+    });
+  }
+
   // 1. Iframe 高度适配 (主动查询父窗口模式，支持多层iframe嵌套)
   let targetParentWindow: Window | null = null; // 记录找到 #chat 的父窗口，用于后续清理
 

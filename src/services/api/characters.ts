@@ -26,6 +26,25 @@ export async function fetchCharacterProfile(charId: string): Promise<unknown> {
   return await request.get<unknown>(`/api/v1/characters/${charId}`);
 }
 
+export interface CloudCharacterItem {
+  char_id: string;
+  base_info: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  version?: number;
+  game_time?: string | null;
+  last_sync?: string | null;
+}
+
+/**
+ * 拉取当前账号的云端角色列表（联机模式）。
+ * 换设备 / 清缓存后本地 IndexedDB 没有角色元数据时，靠它把云端角色恢复出来。
+ */
+export async function fetchCloudCharacters(): Promise<CloudCharacterItem[]> {
+  const data = await request.get<{ items?: CloudCharacterItem[] }>('/api/v1/characters');
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
 /** 删除云端角色及其存档；后端不存在该角色时视为已删除。 */
 export async function deleteCharacter(charId: string): Promise<void> {
   await request.delete(`/api/v1/characters/${charId}`, { silent: true });
