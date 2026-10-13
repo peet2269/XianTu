@@ -50,6 +50,11 @@ watch(
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
     root.style.colorScheme = theme;
+    // 手机端适配：同步移动浏览器地址栏/状态栏配色（暗=松烟玄墨，亮=浅笺）
+    const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute('content', theme === 'light' ? '#eef2ee' : '#1e293b');
+    }
   },
   { immediate: true },
 );
