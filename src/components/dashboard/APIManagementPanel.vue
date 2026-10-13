@@ -489,6 +489,49 @@
               </div>
             </div>
           </div>
+
+          <!-- 剧情生图：默认关闭，打开后选择 NAI / GPT 生图渠道 -->
+          <div class="function-group-header">
+            <h5 class="group-title">剧情生图</h5>
+            <span class="group-desc">关闭时不解析插图，也不调用生图</span>
+          </div>
+
+          <div class="setting-item nested">
+            <div class="setting-info">
+              <label class="setting-name" for="api-image">生图渠道</label>
+              <span class="setting-desc">单独的图片渠道，不能沿用对话模型。开启后每回合尽量出图：可用 story_image 字段或 [[image prompt='...']]；没写也会按正文自动补一张，结果显示在正文下方并收入图廊。</span>
+            </div>
+            <div class="setting-control">
+              <div class="control-row">
+                <label class="setting-switch" title="启用剧情生图">
+                  <input
+                    type="checkbox"
+                    :checked="apiStore.isFunctionEnabled('image')"
+                    aria-label="启用剧情生图"
+                    @change="setImageEnabled(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="switch-slider"></span>
+                </label>
+                <select
+                  v-if="apiStore.isFunctionEnabled('image')"
+                  id="api-image"
+                  class="setting-select"
+                  :value="apiStore.apiAssignments.find(a => a.type === 'image')?.apiId"
+                  @change="updateAssignment('image', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="default">未选择生图渠道</option>
+                  <option
+                    v-for="api in imageChoices"
+                    :key="api.id"
+                    :value="api.id"
+                    :disabled="!api.enabled"
+                  >
+                    {{ getDisplayName(api) }}{{ !api.enabled ? ` (${t('未启用')})` : '' }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -504,7 +547,7 @@
             </div>
             <div>
               <h3 class="cc-modal-title">{{ showEditDialog ? t('编辑API配置') : t('新增API配置') }}</h3>
-              <p class="modal-kicker">{{ getProviderName(editingAPI.provider as APIProvider) }} · {{ isEmbeddingProvider(editingAPI.provider as APIProvider) ? '向量模型' : t('对话模型') }}</p>
+              <p class="modal-kicker">{{ getProviderName(editingAPI.provider as APIProvider) }} · {{ isImageProvider(editingAPI.provider as APIProvider) ? '生图渠道' : isEmbeddingProvider(editingAPI.provider as APIProvider) ? '向量模型' : t('对话模型') }}</p>
             </div>
           </div>
           <button type="button" class="cc-modal-close" :aria-label="t('关闭')" @click="closeDialogs">
@@ -553,6 +596,23 @@
                 <Check v-if="editingAPI.provider === provider.value" :size="14" />
               </button>
             </div>
+            <div class="provider-kind">生图</div>
+            <div class="provider-picker" role="listbox" aria-label="生图渠道">
+              <button
+                v-for="provider in imageProviderOptions"
+                :key="provider.value"
+                type="button"
+                class="provider-option"
+                :class="[`provider-option-${provider.value}`, { selected: editingAPI.provider === provider.value }]"
+                :aria-selected="editingAPI.provider === provider.value"
+                @click="selectProvider(provider.value)"
+              >
+                <img v-if="provider.icon" :src="provider.icon" :alt="provider.label" />
+                <Server v-else :size="18" />
+                <span>{{ provider.label }}</span>
+                <Check v-if="editingAPI.provider === provider.value" :size="14" />
+              </button>
+            </div>
             <select v-model="editingAPI.provider" class="cc-input provider-native-select" @change="onProviderChange">
               <optgroup label="对话">
                 <option value="openai">OpenAI</option>
@@ -565,6 +625,10 @@
               </optgroup>
               <optgroup label="向量">
                 <option value="siliconflow-embedding">硅基流动</option>
+              </optgroup>
+              <optgroup label="生图">
+                <option value="nai">NAI 生图</option>
+                <option value="gpt-image">GPT 生图</option>
               </optgroup>
             </select>
           </div>
@@ -638,7 +702,7 @@
             </div>
           </div>
 
-          <div v-if="!isEmbeddingProvider(editingAPI.provider as APIProvider)" class="form-row">
+          <div v-if="!isEmbeddingProvider(editingAPI.provider as APIProvider) && !isImageProvider(editingAPI.provider as APIProvider)" class="form-row">
             <div class="form-group half">
               <label>{{ t('温度参数') }}</label>
               <input
@@ -702,7 +766,9 @@ import deepseekIcon from '@/assets/provider-icons/deepseek.png';
 import zhipuIcon from '@/assets/provider-icons/zhipu.png';
 import doubaoIcon from '@/assets/provider-icons/doubao.png';
 import siliconcloudIcon from '@/assets/provider-icons/siliconcloud.png';
-import { EMBEDDING_USABLE, JSON_CAPABLE, isEmbeddingProvider } from '@/data/apiProviders';
+import { EMBEDDING_USABLE, JSON_CAPABLE, isEmbeddingProvider, isImageProvider } from '@/data/apiProviders';
+import { listImageModels, testImageConnection } from '@/services/imageGenerationService';
+import { enableStoryImage } from '@/services/storyImageRunner';
 import { useAPIManagementStore, type APIConfig, type APIUsageType } from '@/stores/apiManagementStore';
 import { aiService, API_PROVIDER_PRESETS, type APIProvider } from '@/services/aiService';
 import { useUIStore } from '@/stores/uiStore';
@@ -876,12 +942,15 @@ const providerOptions: Array<{ value: APIProvider; label: string; icon?: string 
   { value: 'zhipu', label: '智谱 AI', icon: zhipuIcon },
   { value: 'volcengine', label: '豆包', icon: doubaoIcon },
   { value: 'siliconflow-embedding', label: '硅基流动', icon: siliconcloudIcon },
+  { value: 'nai', label: 'NAI 生图' },
+  { value: 'gpt-image', label: 'GPT 生图' },
   { value: 'custom', label: '自定义' },
 ];
-const chatProviderOptions = providerOptions.filter((p) => !isEmbeddingProvider(p.value));
+const chatProviderOptions = providerOptions.filter((p) => !isEmbeddingProvider(p.value) && !isImageProvider(p.value));
 const embeddingProviderOptions = providerOptions.filter((p) => isEmbeddingProvider(p.value));
+const imageProviderOptions = providerOptions.filter((p) => isImageProvider(p.value));
 const thinkingLevelSupported = (provider?: APIProvider) => ['claude', 'gemini', 'deepseek', 'volcengine'].includes(provider || '');
-const ownChatEnabled = computed(() => apiStore.apiConfigs.filter((a) => !a.builtin && !isEmbeddingProvider(a.provider)));
+const ownChatEnabled = computed(() => apiStore.apiConfigs.filter((a) => !a.builtin && !isEmbeddingProvider(a.provider) && !isImageProvider(a.provider)));
 const ownChatOthers = computed(() => ownChatEnabled.value.filter((a) => a.id !== 'default'));
 const publicApi = usePublicApi();
 const publicModels = computed(() => publicApi.models.value);
@@ -892,6 +961,7 @@ const publicLabel = (api: APIConfig) => {
 };
 const turnCost = computed(() => publicApi.turnCost(splitResponseGeneration.value));
 const embeddingChoices = computed(() => apiStore.apiConfigs.filter((a) => a.id !== 'default' && !a.builtin && EMBEDDING_USABLE.includes(a.provider)));
+const imageChoices = computed(() => apiStore.apiConfigs.filter((a) => a.id !== 'default' && !a.builtin && isImageProvider(a.provider)));
 
 const MODEL_PRESETS: Record<APIProvider, ModelPreset[]> = {
   openai: [
@@ -931,6 +1001,18 @@ const MODEL_PRESETS: Record<APIProvider, ModelPreset[]> = {
     { id: 'Qwen/Qwen3-Embedding-0.6B', name: 'Qwen3-Embedding-0.6B', context: '32768 token', maxOutput: '1024 维', maxTokens: 1024, description: '默认 1024 维。dimensions 只能用文档列出的档位' },
     { id: 'Qwen/Qwen3-Embedding-4B', name: 'Qwen3-Embedding-4B', context: '32768 token', maxOutput: '2560 维', maxTokens: 1024, description: '默认 2560 维' },
     { id: 'Qwen/Qwen3-Embedding-8B', name: 'Qwen3-Embedding-8B', context: '32768 token', maxOutput: '最高 4096 维', maxTokens: 1024, description: 'Qwen3 向量。不传 dimensions 时用模型默认维度' },
+  ],
+  nai: [
+    { id: 'nai-diffusion-4-5-full', name: 'NAI 4.5 Full', context: '文生图', maxOutput: '1024²', maxTokens: 1, description: 'NovelAI 4.5 完整模型' },
+    { id: 'nai-diffusion-4-5-curated', name: 'NAI 4.5 Curated', context: '文生图', maxOutput: '1024²', maxTokens: 1, description: 'NovelAI 4.5 精选模型' },
+    { id: 'nai-diffusion-5-full', name: 'NAI 5 Full', context: '文生图', maxOutput: '1024²', maxTokens: 1, description: 'NovelAI 5 完整模型' },
+    { id: 'nai-diffusion-5-curated', name: 'NAI 5 Curated', context: '文生图', maxOutput: '1024²', maxTokens: 1, description: 'NovelAI 5 精选模型' },
+  ],
+  'gpt-image': [
+    { id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', context: '文生图', maxOutput: '4K', maxTokens: 1, description: '当前主力质量模型，偏精度与编辑稳定性' },
+    { id: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', context: '文生图', maxOutput: '4K', maxTokens: 1, description: '当前最快的 2.5 小模型，适合日常剧情插图' },
+    { id: 'gpt-image-2', name: 'GPT Image 2', context: '文生图', maxOutput: '4K', maxTokens: 1, description: '上一档旗舰，部分中转仍用这个名字' },
+    { id: 'gpt-image-1.5', name: 'GPT Image 1.5', context: '文生图', maxOutput: '1536px', maxTokens: 1, description: '旧版兼容；官方计划逐步下线' },
   ],
   custom: [],
 };
@@ -1036,6 +1118,7 @@ const getFunctionName = (type: APIUsageType): string => {
     event_generation: '事件生成',
     sect_generation: '宗门生成',
     crafting: '炼丹炼器',
+    image: '剧情生图',
   };
   return names[type] || type;
 };
@@ -1052,6 +1135,7 @@ const getFunctionDesc = (type: APIUsageType): string => {
     event_generation: '生成世界大事件',
     sect_generation: '生成宗门的藏经阁、贡献商店等内容',
     crafting: '炼丹、炼器时的结果判定',
+    image: '开启后按正文出图；可用 story_image 或标记覆盖。不沿用对话模型',
   };
   return descs[type] || '';
 };
@@ -1080,13 +1164,36 @@ const isFunctionActive = (type: APIUsageType): boolean => {
     const apiId = apiStore.apiAssignments.find(a => a.type === 'embedding')?.apiId ?? 'default';
     return apiStore.isFunctionEnabled('embedding') && apiId !== 'default';
   }
+  if (type === 'image') {
+    return !!resolveImageActive();
+  }
   return true;
+};
+
+const resolveImageActive = () => {
+  if (!apiStore.isFunctionEnabled('image')) return false;
+  const imageApis = imageChoices.value.filter((a) => a.enabled);
+  if (!imageApis.length) return false;
+  const apiId = apiStore.apiAssignments.find(a => a.type === 'image')?.apiId ?? 'default';
+  if (apiId !== 'default' && imageApis.some((a) => a.id === apiId)) return true;
+  return imageApis.length === 1;
 };
 
 const setEmbeddingEnabled = (on: boolean) => {
   apiStore.setFunctionEnabled('embedding', on);
   narrativeRagService.saveConfig({ enabled: on });
   toast.success(on ? '叙事检索已开启，请指定 Embedding 模型' : '叙事检索已关闭');
+};
+
+const setImageEnabled = (on: boolean) => {
+  if (!on) {
+    apiStore.setFunctionEnabled('image', false);
+    toast.success('剧情生图已关闭');
+    return;
+  }
+  const result = enableStoryImage();
+  if (result.ok) toast.success(result.message);
+  else toast.warning(result.message);
 };
 
 const getAssignedFunctions = (apiId: string): APIUsageType[] => {
@@ -1154,6 +1261,12 @@ const testAPI = async (api: APIConfig) => {
 
   testingApiId.value = api.id;
   try {
+    if (isImageProvider(api.provider)) {
+      const models = await testImageConnection(api);
+      apiTestResults.value[api.id] = 'success';
+      toast.success(`${api.name} ${t('连接成功')}（${models.length} 个生图模型，未触发生图）`);
+      return;
+    }
     if (isEmbeddingProvider(api.provider)) {
       const dim = await testEmbeddingConnection({
         provider: api.provider,
@@ -1223,6 +1336,17 @@ const fetchModelsForEditing = async () => {
 
   isFetchingModels.value = true;
   try {
+    if (isImageProvider(editingAPI.value.provider as APIProvider)) {
+      const models = await listImageModels({
+        provider: editingAPI.value.provider as APIProvider,
+        url: editingAPI.value.url,
+        apiKey: editingAPI.value.apiKey,
+      });
+      availableModels.value = models;
+      showModelDropdown.value = true;
+      toast.success(`${t('获取到')} ${models.length} ${t('个模型')}`);
+      return;
+    }
     // 临时设置配置
     const currentConfig = aiService.getConfig();
     aiService.saveConfig({

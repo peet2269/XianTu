@@ -25,6 +25,10 @@ import { isSaveDataV3, migrateSaveDataToLatest } from './saveMigration';
 import { parseJsonSmart } from '@/utils/jsonExtract';
 import type { APIUsageType } from '@/stores/apiManagementStore';
 import { buildJudgementRound, formatJudgementBlock } from '@/utils/judgement';
+import { ensureStoryImages, harvestStoryImages, parseStoryImagesFromObject } from '@/services/imagePlaceholders';
+import { appendStoryImages, resolveImageApi, runPendingStoryImages } from '@/services/storyImageRunner';
+import { calculateFinalAttributes } from '@/utils/attributeCalculation';
+import type { InnateAttributes } from '@/types/game';
 
 type PlainObject = Record<string, unknown>;
 
@@ -503,6 +507,7 @@ class AIBidirectionalSystemClass {
     // 2. 准备AI上下文
     options?.onProgressUpdate?.('构建提示词并请求AI生成…');
     let gmResponse: GM_Response = emptyGmResponse();
+    const storyImages: Array<{ prompt: string; size: string }> = [];
     let response = '';
     try {
       const v3 = isSaveDataV3(saveData) ? (saveData as any) : migrateSaveDataToLatest(saveData).migrated;
@@ -586,9 +591,20 @@ class AIBidirectionalSystemClass {
         coreStatusSummary += `\n- 天赋: ${formatTalentsForPrompt(character.天赋)}`;
       }
 
+      // 判定用最终后天六司（含装备/天赋/功法动态加成），不能只用存档基值，否则穿装备等于白穿
+      let judgementAcquired: unknown = character?.后天六司;
+      try {
+        const innateForJudgement = (character?.先天六司 || {
+          根骨: 5, 灵性: 5, 悟性: 5, 气运: 5, 魅力: 5, 心性: 5,
+        }) as InnateAttributes;
+        judgementAcquired = calculateFinalAttributes(innateForJudgement, stateForAI as SaveData).后天六司;
+      } catch (error) {
+        console.warn('[判定] 动态后天六司计算失败，回退存档基值', error);
+      }
+
       const judgementRound = buildJudgementRound({
         先天六司: character?.先天六司,
-        后天六司: character?.后天六司,
+        后天六司: judgementAcquired,
         属性: attributes,
         效果: stateForAI.角色?.效果,
         灵气浓度: stateForAI.角色?.位置?.灵气浓度,
@@ -695,12 +711,15 @@ ${stateJsonString}
               getPrompt('playerPersonality'),
             ]);
             const stepRules = stepRulesRaw.trim();
+            const { IMAGE_PROMPT_RULES } = await import('@/services/imagePlaceholders');
+            const { resolveImageApi } = await import('@/services/storyImageRunner');
+            const imageRules = resolveImageApi() ? `\n\n${IMAGE_PROMPT_RULES}` : '';
             const styleBlock = [styleNarrativePrompt, playerPersonalityPrompt].map((s) => s.trim()).filter(Boolean).join('\n\n');
             // 🔥 添加精简版存档数据，用于叙事判定（知道玩家装备、状态、NPC关系等）
             const narrativeStateJson = stateJsonString;
             // 只给叙事相关的提示词，不给coreOutputRules/dataDefinitions等指令格式提示词
             return `
-${stepRules}
+${stepRules}${imageRules}
 ${styleBlock ? `\n\n---\n\n${styleBlock}` : ''}
 
 ---
@@ -785,8 +804,15 @@ ${stateJsonString}
               injects: injectsStep1,
               onStreamChunk: options?.onStreamChunk,
             });
-            step1Text = this.extractNarrativeText(String(step1Raw));
-            if (step1Text.trim().length > 0) break;
+            const step1RawText = String(step1Raw);
+            step1Text = this.extractNarrativeText(step1RawText);
+            const peeledStep1 = harvestStoryImages({ text: step1Text, raw: step1RawText });
+            step1Text = peeledStep1.text;
+            if (step1Text.trim().length > 0 || peeledStep1.images.length) {
+              if (peeledStep1.images.length) storyImages.push(...peeledStep1.images);
+              if (!step1Text.trim()) step1Text = '画面在这一刻定格。';
+              break;
+            }
             step1Text = '';
           } catch (e) {
             console.warn(`[分步生成] 第1步第${attempt}次失败:`, e);
@@ -843,6 +869,22 @@ ${step1Text}
         gmResponse = this.parseAIResponseLenient(response, settings.mainForceJson, actionOptionsEnabled, DEFAULT_ACTION_OPTIONS);
       }
 
+      const peeledReply = harvestStoryImages({
+        text: gmResponse.text || '',
+        raw: String(response || ''),
+        obj: gmResponse,
+      });
+      gmResponse.text = peeledReply.text;
+      if (peeledReply.images.length) storyImages.push(...peeledReply.images);
+      if (resolveImageApi()) {
+        const location = String((stateForAI as any)?.角色?.位置?.描述 || '');
+        storyImages.splice(0, storyImages.length, ...ensureStoryImages(storyImages, gmResponse.text, location));
+      }
+      if (storyImages.length) gmResponse.storyImages = storyImages;
+      if (!gmResponse.text.trim() && storyImages.length) {
+        gmResponse.text = '画面在这一刻定格。';
+      }
+
       // 🔥 文本优化：如果启用，对生成的文本进行润色
       if (shouldAbort()) {
         console.log('[AI System] Abort detected, skip text optimization and command execution');
@@ -856,7 +898,7 @@ ${step1Text}
         console.log('[AI System] Abort detected, skip command execution');
         return gmResponse;
       }
-      if (!gmResponse || !gmResponse.text || gmResponse.text.trim() === '') {
+      if (!gmResponse || ((!gmResponse.text || gmResponse.text.trim() === '') && !gmResponse.storyImages?.length)) {
         console.error('[AI双向系统] AI响应为空，原始响应:', String(response).substring(0, 200));
         throw new Error('AI响应为空或格式错误');
       }
@@ -944,6 +986,7 @@ ${step1Text}
           });
 
       let gmResponse: GM_Response;
+      let openingRawResponse = '';
 
       if (settings.splitEnabled) {
         const buildInitialSplitSystemPrompt = async (step: 1 | 2): Promise<string> => {
@@ -951,8 +994,11 @@ ${step1Text}
             // 第1步：只输出正文，不需要JSON格式和指令相关的提示词
             const stepRules = (await getPrompt('splitInitStep1')).trim();
             const worldStandardsPrompt = await getPrompt('worldStandards');
+            const { IMAGE_PROMPT_RULES } = await import('@/services/imagePlaceholders');
+            const { resolveImageApi } = await import('@/services/storyImageRunner');
+            const imageRules = resolveImageApi() ? `\n\n${IMAGE_PROMPT_RULES}` : '';
             return `
-${stepRules}
+${stepRules}${imageRules}
 
 ---
 
@@ -1007,7 +1053,12 @@ ${userPrompt}
           usageType: 'main',
           onStreamChunk: options?.onStreamChunk,
         });
-        const step1Text = this.extractNarrativeText(String(step1Raw));
+        openingRawResponse = String(step1Raw);
+        const peeledOpeningStep = harvestStoryImages({
+          text: this.extractNarrativeText(openingRawResponse),
+          raw: openingRawResponse,
+        });
+        const step1Text = peeledOpeningStep.text || (peeledOpeningStep.images.length ? '画面在这一刻定格。' : '');
         if (useStreaming) options?.onStreamComplete?.();
 
         // ========== 第2步：COT + 指令生成（合并） ==========
@@ -1046,13 +1097,14 @@ ${step1Text}
           text: step1Text,
           mid_term_memory: parsedStep2.mid_term_memory || '',
           tavern_commands: parsedStep2.tavern_commands || [],
+          storyImages: peeledOpeningStep.images,
           action_options: actionOptionsEnabled
             ? this.sanitizeActionOptionsForDisplay(parsedStep2.action_options?.length ? parsedStep2.action_options : DEFAULT_INITIAL_ACTION_OPTIONS)
             : []
         };
       } else {
         // ========== 一次性生成 ==========
-        const response = String(await request({
+        openingRawResponse = String(await request({
           system: systemPrompt,
           user: userPrompt,
           generationId: `initial_message${generateMode === 'generateRaw' ? '_raw' : ''}_${Date.now()}`,
@@ -1060,14 +1112,28 @@ ${step1Text}
           usageType: 'main',
           onStreamChunk: options?.onStreamChunk,
         }));
-        if (!response.trim()) {
+        if (!openingRawResponse.trim()) {
           throw new Error('AI返回了空响应。可能原因：1) 模型使用了reasoning_content字段而非content字段（如Gemini 3 Pro）；2) API配置错误；3) 网络问题。建议：关闭流式传输，或更换模型。');
         }
         if (useStreaming) options?.onStreamComplete?.();
-        gmResponse = this.parseAIResponseLenient(response, settings.mainForceJson, actionOptionsEnabled, DEFAULT_INITIAL_ACTION_OPTIONS);
+        gmResponse = this.parseAIResponseLenient(openingRawResponse, settings.mainForceJson, actionOptionsEnabled, DEFAULT_INITIAL_ACTION_OPTIONS);
       }
 
-      if (!gmResponse.text) {
+      const peeledOpening = harvestStoryImages({
+        text: gmResponse.text || '',
+        raw: openingRawResponse,
+        obj: gmResponse,
+      });
+      gmResponse.text = peeledOpening.text;
+      let openingImages = [...(gmResponse.storyImages || []), ...peeledOpening.images];
+      if (resolveImageApi()) {
+        openingImages = ensureStoryImages(openingImages, gmResponse.text);
+      }
+      if (openingImages.length) {
+        gmResponse.storyImages = openingImages.slice(0, 1);
+      }
+
+      if (!gmResponse.text && !gmResponse.storyImages?.length) {
         throw new Error('AI响应解析失败或为空');
       }
       gmResponse.text = await this.optimizeText(gmResponse.text, options?.onProgressUpdate);
@@ -1150,8 +1216,16 @@ ${step1Text}
     }
 
     const timePrefix = this._formatGameTime((saveData as any).元数据?.时间);
-    const textContent = sanitizeAITextForDisplay(response.text || '').trim();
+    const peeledNarrative = harvestStoryImages({
+      text: sanitizeAITextForDisplay(response.text || '').trim(),
+    });
+    let textContent = peeledNarrative.text;
+    const storyImages = (response.storyImages && response.storyImages.length) ? response.storyImages : peeledNarrative.images;
     const midTermContent = sanitizeAITextForDisplay(response.mid_term_memory || '').trim();
+
+    if (!textContent && storyImages.length && behavior.appendNarrativeHistory) {
+      textContent = '画面在这一刻定格。';
+    }
 
     // 处理 text：可选写入叙事历史；可选写入短期记忆
     if (textContent) {
@@ -1170,6 +1244,9 @@ ${step1Text}
           oldValue: undefined,
           newValue: cloneDeep(newNarrative)
         });
+        if (storyImages.length) {
+          appendStoryImages(saveData as any, storyImages, (saveData as any).系统.历史.叙事.length - 1);
+        }
       }
 
       if (behavior.appendShortTermMemoryFromText) {
@@ -1522,6 +1599,7 @@ ${step1Text}
     if (!isInitialization) {
       const gameStateStore = useGameStateStore();
       gameStateStore.loadFromSaveData(saveData);
+      void runPendingStoryImages();
     }
 
     return { saveData, stateChanges: stateChangesLog };
@@ -2761,6 +2839,10 @@ ${saveDataJson}`, role: 'system', depth: 4, position: 'in_chat' },
       text = textMatch?.[1] ? textMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : responseText;
     }
 
+    // 双引号插图标记会截断 text 字段正则：从原文再捞一次
+    const recovered = harvestStoryImages({ text, raw: responseText, obj });
+    text = recovered.text;
+
     if (!enableActionOptions) {
       actionOptions = [];
     } else if (!actionOptions.length) {
@@ -2774,6 +2856,7 @@ ${saveDataJson}`, role: 'system', depth: 4, position: 'in_chat' },
       mid_term_memory: memory,
       tavern_commands: commands,
       action_options: this.sanitizeActionOptionsForDisplay(actionOptions),
+      storyImages: recovered.images,
     };
   }
 
@@ -2823,7 +2906,8 @@ ${saveDataJson}`, role: 'system', depth: 4, position: 'in_chat' },
         text: String(obj.text || obj.叙事文本 || obj.narrative || ''),
         mid_term_memory: String(obj.mid_term_memory || obj.中期记忆 || obj.memory || ''),
         tavern_commands: tavernCommands,
-        action_options: enableActionOptions ? this.sanitizeActionOptionsForDisplay(normalized) : []
+        action_options: enableActionOptions ? this.sanitizeActionOptionsForDisplay(normalized) : [],
+        storyImages: parseStoryImagesFromObject(obj),
       };
     };
 
